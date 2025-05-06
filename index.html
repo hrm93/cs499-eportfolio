@@ -4,9 +4,77 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CS 499 ePortfolio</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f4f9;
+      color: #333;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      color: #9b59b6; /* Purple */
+      font-size: 3em;
+      padding: 20px;
+      background-color: #d1c4e9;
+      border-radius: 10px;
+      margin: 20px 0;
+    }
+
+    p {
+      color: #4caf50; /* Green */
+      font-size: 1.5em;
+      margin-bottom: 30px;
+    }
+
+    .highlight {
+      color: #ff4081; /* Pink */
+      font-weight: bold;
+    }
+
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      height: 100vh;
+      background: linear-gradient(to right, #6a1b9a, #8e24aa, #536dfe, #4caf50);
+      color: white;
+    }
+
+    .btn {
+      margin: 20px;
+      padding: 15px 30px;
+      background-color: #ff4081; /* Pink */
+      border: none;
+      border-radius: 30px;
+      color: white;
+      font-size: 1.2em;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+
+    .btn:hover {
+      background-color: #9b59b6; /* Purple */
+    }
+
+    footer {
+      margin-top: 50px;
+      color: #b3b3b3;
+      font-size: 1em;
+    }
+  </style>
 </head>
 <body>
-  <h1>Welcome to My CS 499 ePortfolio</h1>
-  <p>This site highlights projects and enhancements in software engineering, algorithms, and databases, with a focus on GIS.</p>
+  <div class="container">
+    <h1>Welcome to My CS 499 ePortfolio</h1>
+    <p>This site highlights projects and enhancements in software engineering, algorithms, and databases, with a focus on <span class="highlight">GIS</span>.</p>
+    <button class="btn" onclick="window.location.href='https://hrm93.github.io/ComputerScienceCapstone-eportfolio/projects.html'">View My Projects</button>
+    <footer>
+      <p>Created by hrm93 | © 2025</p>
+    </footer>
+  </div>
 </body>
 </html>
