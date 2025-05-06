@@ -1,2 +1,2 @@
-# CSCapstone-eportfolio
+# ComputerScienceCapstone-eportfolio
 for CS-499
