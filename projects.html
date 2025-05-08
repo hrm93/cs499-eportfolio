@@ -80,34 +80,39 @@
     </p>
 
     <p>
-      This tool was originally developed to automate pipeline data processing using ArcGIS Pro and ArcPy. 
-      For the CS 499 capstone, it is being enhanced to improve portability, performance, and maintainability 
-      through the use of open-source geospatial libraries and improved design practices.
+      This project began as a Python-based tool developed in IT 338 to automate spatial analysis workflows in ArcGIS Pro using ArcPy.
+      It was designed for GIS analysts working with pipeline and utility data, enabling quick buffer generation, merging, and export.
+      As the sole developer, I implemented core automation but the original version had limited scalability, required proprietary software,
+      and lacked robust error handling or persistent data storage.
+    </p>
+
+    <p>
+      For CS 499, I am reengineering the tool to improve portability, usability, and performance using modern open-source technologies.
+      The enhancements target deeper integration of software engineering principles, algorithmic optimization, and database-driven processing.
     </p>
 
     <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Enhancements include:</p>
     <ul>
-      <li>🔁 Refactoring code to use GeoPandas and Shapely instead of ArcPy</li>
-      <li>🖥️ Command-line interface for flexible, scriptable use</li>
-      <li>⚙️ Optimized buffer creation and spatial merge logic</li>
-      <li>🧠 Multiprocessing for scalable batch processing</li>
-      <li>📦 MongoDB integration for spatial data storage</li>
-      <li>📋 Enhanced error handling, logging, and unit testing</li>
+      <li>🔁 Replacing ArcPy with <strong>GeoPandas + Shapely</strong> for cross-platform spatial processing</li>
+      <li>🖥️ Adding a <strong>command-line interface</strong> for non-GUI environments and batch processing</li>
+      <li>⚙️ Optimizing buffer creation and merge operations using <strong>vectorized geometry methods</strong></li>
+      <li>🧠 Implementing <strong>Python multiprocessing</strong> for improved performance on large datasets</li>
+      <li>📦 Integrating a <strong>MongoDB backend</strong> to store pipeline metadata and spatial attributes</li>
+      <li>📋 Adding <strong>logging, error handling, and pytest-based unit tests</strong> for reliability</li>
     </ul>
 
     <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Course Relevance:</p>
     <p>
-      This project aligns with CS 499 course outcomes by demonstrating professional software design, efficient algorithmic thinking, 
-      and scalable data management using modern tools. It spans all three capstone categories:
+      This project exemplifies core CS 499 competencies:
     </p>
     <ul>
-      <li><strong>Software Engineering and Design</strong></li>
-      <li><strong>Algorithms and Data Structures</strong></li>
-      <li><strong>Databases</strong></li>
+      <li><strong>Software Engineering and Design:</strong> Modular refactoring, CLI design, maintainability practices</li>
+      <li><strong>Algorithms and Data Structures:</strong> Efficient spatial operations, batch and parallel processing</li>
+      <li><strong>Databases:</strong> Non-relational schema design, spatial query support using MongoDB</li>
     </ul>
-
+    
     <p>
-      🔗 <a href="https://github.com/hrm93/IT-338-MyProjects" target="_blank">Keep up with my progress on GitHub!</a>
+      🔗 <a href="https://github.com/hrm93/GIS-and-Geospatial-Automation-Projects" target="_blank">Keep up with my progress on GitHub!</a>
     </p>
 
     <div class="tags" style="margin-top: 20px;">
