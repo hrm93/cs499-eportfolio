@@ -44,9 +44,26 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.errors import ConnectionFailure
 from pymongo.database import Database
+from dateutil.parser import parse
 
 from gis_tool.config import MONGODB_URI, DB_NAME
 
+def robust_date_parse(date_val):
+    if pd.isna(date_val):
+        return pd.NaT
+    if isinstance(date_val, pd.Timestamp):
+        return date_val
+    if isinstance(date_val, str):
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
+            try:
+                return pd.to_datetime(date_val, format=fmt)
+            except (ValueError, TypeError):
+                continue
+        try:
+            return parse(date_val, fuzzy=False)
+        except (ValueError, TypeError):
+            return pd.NaT
+    return pd.NaT
 
 def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Database:
     """
@@ -213,7 +230,10 @@ def create_pipeline_features(
                             logging.info(f"Inserted new MongoDB record for {row['Name']}.")
 
                     if not new_feature.empty and not new_feature.isna().all(axis=1).all():
-                        gas_lines_gdf = pd.concat([gas_lines_gdf, new_feature], ignore_index=True)
+                        frames_to_concat = [df for df in [gas_lines_gdf, new_feature] if
+                                            not df.empty and not df.isna().all(axis=1).all()]
+                        if frames_to_concat:
+                            gas_lines_gdf = pd.concat(frames_to_concat, ignore_index=True)
 
                     processed_pipelines.add(row["Name"])
                     features_added = True
@@ -283,9 +303,12 @@ def create_pipeline_features(
                                     logging.info(f"Inserted new MongoDB record for {line_name}.")
 
                             if not new_feature.empty and not new_feature.isna().all(axis=1).all():
-                                gas_lines_gdf = pd.concat([gas_lines_gdf, new_feature], ignore_index=True)
-                                processed_pipelines.add(line_name)
-                                features_added = True
+                                frames_to_concat = [df for df in [gas_lines_gdf, new_feature] if
+                                                    not df.empty and not df.isna().all(axis=1).all()]
+                                if frames_to_concat:
+                                    gas_lines_gdf = pd.concat(frames_to_concat, ignore_index=True)
+                                    processed_pipelines.add(line_name)
+                                    features_added = True
             else:
                 logging.warning(f"Unsupported report file type: {report_name}")
 
@@ -297,6 +320,12 @@ def create_pipeline_features(
 
     # Save updated shapefile if new features were added or file doesn't exist
     if features_added or not os.path.exists(gas_lines_shp):
+        # Use robust parsing on the 'Date' column
+        gas_lines_gdf['Date'] = gas_lines_gdf['Date'].apply(robust_date_parse)
+
+        # Convert to shapefile-safe string format
+        gas_lines_gdf['Date'] = gas_lines_gdf['Date'].dt.strftime('%Y-%m-%d')
+
         gas_lines_gdf.to_file(gas_lines_shp, driver="ESRI Shapefile")
         logging.info(f"Saved {len(gas_lines_gdf)} features to {gas_lines_shp}.")
     else:

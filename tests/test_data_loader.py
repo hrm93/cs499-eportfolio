@@ -21,12 +21,37 @@ Test framework: pytest
 import os
 import tempfile
 import geopandas as gpd
+import pandas as pd
 import pytest
+import warnings
 from unittest.mock import MagicMock
-from gis_tool.data_loader import find_new_reports, create_pipeline_features, connect_to_mongodb
+from gis_tool.data_loader import find_new_reports, create_pipeline_features, connect_to_mongodb, robust_date_parse
 from unittest import mock
 from shapely.geometry import Point
 from pathlib import Path
+
+
+def test_robust_date_parse():
+    sample_dates = pd.Series([
+        "2024-05-21",
+        "21/05/2024",
+        "05/21/2024",
+        "not a date",
+        56.78,
+        None,
+        pd.NaT
+    ])
+
+    parsed = sample_dates.apply(robust_date_parse)
+    formatted = parsed.dt.strftime('%Y-%m-%d')
+
+    assert formatted.iloc[0] == "2024-05-21"
+    assert formatted.iloc[1] == "2024-05-21"
+    assert formatted.iloc[2] == "2024-05-21"
+    assert pd.isna(parsed.iloc[3])  # "not a date" -> NaT
+    assert pd.isna(parsed.iloc[4])  # numeric value -> NaT
+    assert pd.isna(parsed.iloc[5])  # None -> NaT
+    assert pd.isna(parsed.iloc[6])  # NaT -> NaT
 
 
 def test_connect_to_mongodb_success(monkeypatch):
@@ -91,7 +116,12 @@ def setup_reports_folder_with_geojson():
             "Material": ["plastic"],
             "geometry": [Point(50.0, 60.0)]
         }, crs="EPSG:32633")
-        gdf.to_file(str(geojson_path), driver="GeoJSON")
+
+        if not gdf.empty:
+            gdf.to_file(str(geojson_path), driver="GeoJSON")
+        else:
+            print("Skipping saving empty GeoDataFrame")
+
         yield str(tmp_path), [str(geojson_path)]
 
 
@@ -130,13 +160,21 @@ def test_create_pipeline_features_skips_processed(setup_reports_folder):
 
     # Create empty shapefile first (simulate existing)
     empty_gdf = gpd.GeoDataFrame(columns=["Name", "Date", "PSI", "Material", "geometry"], crs=spatial_ref)
-    empty_gdf.to_file(str(gas_lines_shp))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        empty_gdf.to_file(str(gas_lines_shp))
 
-    create_pipeline_features(report_files, str(gas_lines_shp), reports_folder, spatial_ref, gas_lines_collection=None, processed_reports=processed)
+    create_pipeline_features(
+        report_files,
+        str(gas_lines_shp),
+        reports_folder,
+        spatial_ref,
+        gas_lines_collection=None,
+        processed_reports=processed
+    )
 
     gdf = gpd.read_file(str(gas_lines_shp))
     assert gdf.empty, "No features should be added when reports are marked as processed."
-
 
 def test_create_pipeline_features_with_mongodb_inserts(setup_reports_folder):
     """Test create_pipeline_features inserts new features into MongoDB collection mock."""

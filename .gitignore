@@ -76,3 +76,4 @@ Desktop.ini
 *.conda
 *.yml
 *.yaml
+!gis_env_full.yml
