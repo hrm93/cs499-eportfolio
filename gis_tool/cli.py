@@ -52,10 +52,22 @@ def parse_args():
                         help="CRS for spatial data (default: EPSG:32633).")
     parser.add_argument('--parallel', action='store_true',
                         help="Enable multiprocessing for report processing.")
+    parser.add_argument('--max-workers', type=int, default=None,
+                        help='Maximum number of worker processes for parallel processing (default: number of CPUs).')
     parser.add_argument('--log-level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
                         help="Set the logging level (default: INFO).")
+    parser.add_argument('--verbose', action='store_true',
+                        help='Set logging level to DEBUG (overrides --log-level).')
+    parser.add_argument('--log-file', type=str, default=None,
+                        help='Path to the log file. Defaults to config value.')
     parser.add_argument('--output-format', type=str, choices=['shp', 'geojson'], default='shp',
                         help="Output format for buffer file: 'shp' or 'geojson' (default: shp).")
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Run the pipeline without writing outputs or modifying databases (for testing).')
+    parser.add_argument('--config-file', type=str, default=None,
+                        help='Path to a configuration file with pipeline settings.')
+    parser.add_argument('--overwrite-output', action='store_true',
+                        help='Overwrite existing output files if they exist.')
 
     # Mutually exclusive group for MongoDB integration
     group = parser.add_mutually_exclusive_group()
@@ -72,5 +84,9 @@ def parse_args():
         ext = os.path.splitext(f)[1].lower()
         if ext not in ['.txt', '.geojson']:
             parser.error(f"Unsupported report file extension: {f}")
+
+    # Adjust log level if verbose flag is set
+    if args.verbose:
+        args.log_level = 'DEBUG'
 
     return args

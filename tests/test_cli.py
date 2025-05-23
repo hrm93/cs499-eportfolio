@@ -25,6 +25,7 @@ def test_parse_args_required(monkeypatch):
     args = parse_args()
     assert args.buffer_distance == 25.0
     assert args.use_mongodb is False
+    assert args.output_format == 'shp'  # default output format
 
 
 def test_parse_args_with_flags(monkeypatch):
@@ -42,7 +43,12 @@ def test_parse_args_with_flags(monkeypatch):
         "--buffer-distance", "50",
         "--crs", "EPSG:4326",
         "--parallel",
-        "--use-mongodb"
+        "--use-mongodb",
+        "--max-workers", "4",
+        "--log-level", "ERROR",
+        "--log-file", "/tmp/mylog.log",
+        "--output-format", "geojson",
+        "--overwrite-output"
     ]
     monkeypatch.setattr(sys, "argv", testargs)
     args = parse_args()
@@ -50,6 +56,45 @@ def test_parse_args_with_flags(monkeypatch):
     assert args.crs == "EPSG:4326"
     assert args.parallel is True
     assert args.use_mongodb is True
+    assert args.max_workers == 4
+    assert args.log_level == "ERROR"
+    assert args.log_file == "/tmp/mylog.log"
+    assert args.output_format == "geojson"
+    assert args.overwrite_output is True
+
+
+def test_parse_args_verbose_flag(monkeypatch):
+    testargs = [
+        "prog",
+        "--input-folder", "input",
+        "--output-path", "out.shp",
+        "--future-dev-path", "future.shp",
+        "--gas-lines-path", "gas.shp",
+        "--report-files", "report.geojson",
+        "--verbose"
+    ]
+    monkeypatch.setattr(sys, "argv", testargs)
+    args = parse_args()
+    # verbose flag should override log_level to DEBUG
+    assert args.log_level == "DEBUG"
+    assert args.verbose is True
+
+
+def test_parse_args_dry_run_and_config(monkeypatch):
+    testargs = [
+        "prog",
+        "--input-folder", "input",
+        "--output-path", "out.shp",
+        "--future-dev-path", "future.shp",
+        "--gas-lines-path", "gas.shp",
+        "--report-files", "report.geojson",
+        "--dry-run",
+        "--config-file", "/path/to/config.yaml"
+    ]
+    monkeypatch.setattr(sys, "argv", testargs)
+    args = parse_args()
+    assert args.dry_run is True
+    assert args.config_file == "/path/to/config.yaml"
 
 
 def test_parse_args_no_mongodb(monkeypatch):
