@@ -234,18 +234,25 @@ def create_pipeline_features(
     processed_pipelines = set()
     features_added = False
 
+    # ✅ Normalize gas_lines_gdf CRS to spatial_reference
+    if gas_lines_gdf.crs and gas_lines_gdf.crs.to_string() != spatial_reference:
+        gas_lines_gdf = gas_lines_gdf.to_crs(spatial_reference)
+
+    # ✅ Normalize GeoJSON report CRS to match spatial_reference
+    for i, (report_name, gdf) in enumerate(geojson_reports):
+        if gdf.crs and gdf.crs.to_string() != spatial_reference:
+            gdf = gdf.to_crs(spatial_reference)
+            geojson_reports[i] = (report_name, gdf)
+
     # Helper to align columns and dtypes, fix geometry
     def align_feature_dtypes(new_feat: gpd.GeoDataFrame, base_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-        # Reindex columns to match base
         new_feat = new_feat.reindex(columns=base_gdf.columns)
-        # Align dtypes for each column where possible
         for col in base_gdf.columns:
             if col in new_feat.columns:
                 try:
                     new_feat[col] = new_feat[col].astype(base_gdf[col].dtype)
                 except Exception as e:
                     logging.debug(f"Could not convert column '{col}' dtype: {e}")
-        # Ensure geometry column is set correctly
         if 'geometry' in new_feat.columns:
             new_feat.set_geometry('geometry', inplace=True)
         return new_feat
@@ -256,12 +263,13 @@ def create_pipeline_features(
             logging.info(f"Skipping already processed report: {report_name}")
             continue
 
-        gdf = gdf.to_crs(spatial_reference)
+        # gdf already normalized to spatial_reference above
+
         required_fields = set(SCHEMA_FIELDS) - {"geometry"}
         missing_fields = required_fields - set(gdf.columns)
         if missing_fields:
             logging.error(f"GeoJSON report '{report_name}' missing required fields: {missing_fields}")
-            processed_reports.add(report_name)  # <-- Add here
+            processed_reports.add(report_name)
             continue
 
         for _, row in gdf.iterrows():
@@ -298,7 +306,7 @@ def create_pipeline_features(
 
         for line_number, line in enumerate(lines, start=1):
             if "Id Name" in line:
-                continue  # Skip header or irrelevant lines
+                continue
 
             data = line.strip().split()
             if len(data) < 7:
@@ -343,5 +351,6 @@ def create_pipeline_features(
         processed_reports.add(report_name)
 
     return processed_reports, gas_lines_gdf, features_added
+
 
 
