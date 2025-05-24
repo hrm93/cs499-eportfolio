@@ -17,6 +17,7 @@ import os
 import logging
 from pathlib import Path
 import geopandas as gpd
+from typing import List
 from gis_tool.cli import parse_args
 from gis_tool.logger import setup_logging
 from gis_tool.config import DEFAULT_CRS
@@ -32,10 +33,42 @@ from gis_tool.buffer_processor import (
 from gis_tool.output_writer import write_gis_output
 
 
+def read_reports(report_names: List[str], reports_folder_path: Path):
+    """
+    Reads reports from given filenames.
+
+    Returns:
+        geojson_reports (list of tuples): (filename, GeoDataFrame)
+        txt_reports (list of tuples): (filename, list of lines)
+    """
+    geojson_reports = []
+    txt_reports = []
+
+    for report_name in report_names:
+        report_path = reports_folder_path / report_name
+        if report_name.lower().endswith(".geojson"):
+            try:
+                gdf = gpd.read_file(report_path)
+                geojson_reports.append((report_name, gdf))
+            except Exception as e:
+                logging.error(f"Failed to read GeoJSON report {report_name}: {e}")
+        elif report_name.lower().endswith(".txt"):
+            try:
+                with open(report_path, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                txt_reports.append((report_name, lines))
+            except Exception as e:
+                logging.error(f"Failed to read TXT report {report_name}: {e}")
+        else:
+            logging.warning(f"Unsupported report type: {report_name}")
+
+    return geojson_reports, txt_reports
+
+
 def process_report_chunk(
     report_chunk: list[str],
     gas_lines_shp: str,
-    reports_folder: str,
+    reports_folder: Path,
     spatial_reference: str,
     gas_lines_collection,
     use_mongodb: bool,
@@ -62,29 +95,8 @@ def process_report_chunk(
             logging.info("MongoDB insert disabled for this process (parallel worker).")
 
         reports_folder_path = Path(reports_folder)
+        geojson_reports, txt_reports = read_reports(report_chunk, reports_folder_path)
 
-        geojson_reports = []
-        txt_reports = []
-
-        for report_name in report_chunk:
-            report_path = reports_folder_path / report_name
-            if report_name.lower().endswith(".geojson"):
-                try:
-                    gdf = gpd.read_file(report_path)
-                    geojson_reports.append((report_name, gdf))
-                except Exception as e:
-                    logging.error(f"Failed to read GeoJSON report {report_name}: {e}")
-            elif report_name.lower().endswith(".txt"):
-                try:
-                    with open(report_path, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
-                    txt_reports.append((report_name, lines))
-                except Exception as e:
-                    logging.error(f"Failed to read TXT report {report_name}: {e}")
-            else:
-                logging.warning(f"Unsupported report type: {report_name}")
-
-        # Load gas lines shapefile
         gas_lines_gdf = gpd.read_file(gas_lines_shp)
 
         create_pipeline_features(
@@ -150,11 +162,17 @@ def main() -> None:
         logging.info("No new reports to process. Exiting.")
         return
 
+    reports_folder_path = Path(args.input_folder)
+    if not report_files:
+        logging.info("No new reports to process. Exiting.")
+        return
+
     if use_parallel:
+        # Parallel processing -- no need to create geojson_reports or txt_reports here
         logging.info(f"Starting parallel processing of {len(report_files)} report files.")
         cpu_count = os.cpu_count() or 1
         chunk_size = max(1, len(report_files) // cpu_count)
-        chunks = [report_files[i : i + chunk_size] for i in range(0, len(report_files), chunk_size)]
+        chunks = [report_files[i: i + chunk_size] for i in range(0, len(report_files), chunk_size)]
 
         with ProcessPoolExecutor() as executor:
             futures = [
@@ -162,10 +180,10 @@ def main() -> None:
                     process_report_chunk,
                     chunk,
                     gas_lines_shp,
-                    input_folder,
+                    reports_folder_path,
                     spatial_reference,
                     None,  # MongoDB disabled inside workers
-                    False,  # Explicitly disable MongoDB usage in parallel workers for clarity
+                    False,  # Explicitly disable MongoDB usage in parallel workers
                 )
                 for chunk in chunks
             ]
@@ -175,31 +193,9 @@ def main() -> None:
                 except Exception as e:
                     logging.error(f"Error in parallel processing: {e}")
     else:
-        logging.info(f"Processing {len(report_files)} report files sequentially.")
+        # Sequential processing - reuse the same function
+        geojson_reports, txt_reports = read_reports(report_files, reports_folder_path)
 
-        input_folder_path = Path(input_folder)
-        geojson_reports = []
-        txt_reports = []
-
-        for report_name in report_files:
-            report_path = input_folder_path / report_name
-            if report_name.lower().endswith(".geojson"):
-                try:
-                    gdf = gpd.read_file(report_path)
-                    geojson_reports.append((report_name, gdf))
-                except Exception as e:
-                    logging.error(f"Failed to read GeoJSON report {report_name}: {e}")
-            elif report_name.lower().endswith(".txt"):
-                try:
-                    with open(report_path, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
-                    txt_reports.append((report_name, lines))
-                except Exception as e:
-                    logging.error(f"Failed to read TXT report {report_name}: {e}")
-            else:
-                logging.warning(f"Unsupported report type: {report_name}")
-
-        # Load gas lines shapefile
         gas_lines_gdf = gpd.read_file(gas_lines_shp)
 
         create_pipeline_features(

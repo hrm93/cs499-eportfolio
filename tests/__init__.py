@@ -6,8 +6,6 @@ Ensures that only the intended constants are exposed at the package level,
 and that functions and other modules are not imported into the package namespace
 when using a minimal __init__.py.
 """
-
-import pytest
 import gis_tool
 
 

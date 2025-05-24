@@ -1,10 +1,9 @@
 # test buffer_processor:
 import os
 import geopandas as gpd
-from shapely.geometry import LineString, Point, Polygon, MultiPolygon
+from shapely.geometry import Point, Polygon
 import tempfile
 import pytest
-from gis_tool import buffer_processor
 from gis_tool.buffer_processor import fix_geometry, create_buffer_with_geopandas, merge_buffers_into_planning_file
 
 

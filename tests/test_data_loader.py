@@ -17,8 +17,10 @@ mock objects to isolate dependencies, enabling reliable and repeatable tests.
 
 Test framework: pytest
 """
+import pytest
 import geopandas as gpd
 import pandas as pd
+from geopandas import GeoDataFrame
 from unittest.mock import MagicMock, patch
 from shapely.geometry import Point
 from gis_tool import data_loader as dl
@@ -32,6 +34,24 @@ from gis_tool.data_loader import (
     create_pipeline_features
 )
 CRS = "EPSG:4326"
+
+
+@pytest.fixture
+def sample_geojson_report():
+    point = Point(1, 1)
+    gdf = GeoDataFrame({
+        'Name': ['line1'],
+        'Date': [pd.Timestamp('2023-01-01')],
+        'PSI': [50.0],
+        'Material': ['steel'],
+        'geometry': [point]
+    }, crs="EPSG:4326")
+    return "report1.geojson", gdf
+
+
+@pytest.fixture
+def empty_gas_lines_gdf():
+    return GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
 
 
 def test_robust_date_parse():
@@ -75,9 +95,9 @@ def test_load_geojson_report_crs(tmp_path):
     }, crs="EPSG:3857")
 
     file_path = tmp_path / "test.geojson"
-    gdf.to_file(file_path, driver="GeoJSON")
+    gdf.to_file(str(file_path), driver="GeoJSON")
 
-    result_gdf = load_geojson_report(str(file_path), "EPSG:4326")
+    result_gdf = load_geojson_report(file_path, "EPSG:4326")
     assert result_gdf.crs.to_string() == "EPSG:4326"
     assert "Name" in result_gdf.columns
 
@@ -151,49 +171,26 @@ def test_create_pipeline_features_txt(mock_upsert):
     mock_upsert.assert_called_once()
 
 
-def test_create_pipeline_features_skips_processed_reports(tmp_path):
-    # Prepare a GeoJSON report with one feature
-    from geopandas import GeoDataFrame
-    import pandas as pd
-
-    # Basic gas_lines_gdf with schema fields
-    gas_lines_gdf = GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
-
-    # One GeoJSON report
-    point = Point(1, 1)
-    gdf = GeoDataFrame({
-        'Name': ['line1'],
-        'Date': [pd.Timestamp('2023-01-01')],
-        'PSI': [50.0],
-        'Material': ['steel'],
-        'geometry': [point]
-    }, crs="EPSG:4326")
-
-    geojson_reports = [("report1.geojson", gdf)]
+def test_create_pipeline_features_skips_processed_reports(empty_gas_lines_gdf, sample_geojson_report):
+    geojson_reports = [sample_geojson_report]
     txt_reports = []
-
-    # Mark report1.geojson as already processed
     processed_reports = {"report1.geojson"}
-
-    # Mock MongoDB collection
     mock_collection = MagicMock()
 
     new_processed, new_gdf, features_added = dl.create_pipeline_features(
-        geojson_reports, txt_reports, gas_lines_gdf, "EPSG:4326",
+        geojson_reports, txt_reports, empty_gas_lines_gdf, "EPSG:4326",
         gas_lines_collection=mock_collection,
         processed_reports=processed_reports,
         use_mongodb=True,
     )
 
-    # Since report is processed, no features added, gas_lines_gdf unchanged
     assert "report1.geojson" in new_processed
-    assert new_gdf.equals(gas_lines_gdf)
+    assert new_gdf.equals(empty_gas_lines_gdf)
     assert not features_added
     mock_collection.assert_not_called()
 
-
 def test_create_pipeline_features_handles_malformed_txt_lines(tmp_path):
-    # Setup an empty gas_lines_gdf
+    # Set up an empty gas_lines_gdf
     gas_lines_gdf = dl.make_feature("dummy", "2023-01-01", 50.0, "steel", Point(0, 0), "EPSG:4326")
 
     # Malformed TXT line with less than 7 fields
@@ -220,8 +217,6 @@ def test_create_pipeline_features_handles_malformed_txt_lines(tmp_path):
 
 
 def test_create_pipeline_features_geojson_missing_fields_logs_error(caplog):
-    from geopandas import GeoDataFrame
-    import pandas as pd
 
     gas_lines_gdf = GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
 
@@ -251,36 +246,20 @@ def test_create_pipeline_features_geojson_missing_fields_logs_error(caplog):
     assert any("missing required fields" in record.message for record in caplog.records)
 
 
-def test_create_pipeline_features_with_use_mongodb_false_does_not_call_mongo():
-    from geopandas import GeoDataFrame
-    import pandas as pd
-
-    gas_lines_gdf = GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
-
-    point = Point(1, 1)
-    gdf = GeoDataFrame({
-        'Name': ['line1'],
-        'Date': [pd.Timestamp('2023-01-01')],
-        'PSI': [50.0],
-        'Material': ['steel'],
-        'geometry': [point]
-    }, crs="EPSG:4326")
-
-    geojson_reports = [("report1.geojson", gdf)]
+def test_create_pipeline_features_with_use_mongodb_false_does_not_call_mongo(empty_gas_lines_gdf, sample_geojson_report):
+    geojson_reports = [sample_geojson_report]
     txt_reports = []
-
     mock_collection = MagicMock()
 
     processed_reports, new_gdf, features_added = dl.create_pipeline_features(
-        geojson_reports, txt_reports, gas_lines_gdf, "EPSG:4326",
+        geojson_reports, txt_reports, empty_gas_lines_gdf, "EPSG:4326",
         gas_lines_collection=mock_collection,
         processed_reports=set(),
-        use_mongodb=False,  # MongoDB interaction disabled
+        use_mongodb=False,
     )
 
     assert "report1.geojson" in processed_reports
     assert features_added
-    # Mongo collection should NOT be called because use_mongodb=False
     mock_collection.assert_not_called()
 
 

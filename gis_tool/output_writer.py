@@ -3,7 +3,7 @@
 """
 Module to handle writing GIS output files in various formats.
 
-Currently supports:
+Currently, supports:
 - Writing GeoJSON or Shapefile from GeoDataFrames
 - Writing CSV files from attribute data (DataFrames)
 - Writing plain text reports

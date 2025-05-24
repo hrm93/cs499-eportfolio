@@ -39,7 +39,7 @@ def fix_geometry(g: Any) -> Optional[Any]:
         g (shapely.geometry.base.BaseGeometry): Geometry to check and fix.
 
     Returns:
-        Geometry or None: Valid geometry or None if cannot be fixed.
+        Geometry or None: Valid geometry or None if it cannot be fixed.
     """
     if g.is_valid:
         return g

@@ -39,6 +39,7 @@ from typing import Any, List, Optional, Set, Tuple, Union
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, mapping
+from pathlib import Path
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.errors import ConnectionFailure
@@ -188,15 +189,15 @@ def find_new_reports(input_folder: str) -> List[str]:
     return new_reports
 
 
-def load_geojson_report(filepath: str, crs: str) -> gpd.GeoDataFrame:
+def load_geojson_report(file_path: Union[Path, str], crs: str):
     """
     Load a GeoJSON report from file and convert CRS to the target spatial_reference.
     """
-    gdf = gpd.read_file(filepath)
-    if gdf.crs is None or gdf.crs != crs:
+    file_path = str(file_path)  # Convert to string for compatibility
+    gdf = gpd.read_file(file_path)
+    if gdf.crs is None or gdf.crs.to_string() != crs:
         gdf = gdf.to_crs(crs)
     return gdf
-
 
 def load_txt_report_lines(filepath: str) -> List[str]:
     """
@@ -251,8 +252,8 @@ def create_pipeline_features(
             if col in new_feat.columns:
                 try:
                     new_feat[col] = new_feat[col].astype(base_gdf[col].dtype)
-                except Exception as e:
-                    logging.debug(f"Could not convert column '{col}' dtype: {e}")
+                except Exception as exc:
+                    logging.debug(f"Could not convert column '{col}' dtype: {exc}")
         if 'geometry' in new_feat.columns:
             new_feat.set_geometry('geometry', inplace=True)
         return new_feat

@@ -11,21 +11,31 @@ Tests cover:
 
 Uses pytest fixtures and unittest.mock for isolation and control.
 """
-
-
 import os
-import sys
 import geopandas as gpd
 import pytest
 import logging
 from shapely.geometry import LineString
 from unittest import mock
 from pymongo.errors import ConnectionFailure
-from gis_tool.data_loader import create_pipeline_features, find_new_reports, connect_to_mongodb
+from gis_tool.data_loader import connect_to_mongodb
 import gis_tool.data_loader as data_loader
 import gis_tool.main
 from gis_tool.main import main
 from pathlib import Path
+
+
+def build_testargs(input_dict):
+    return [
+        "prog",
+        "--input-folder", input_dict["input_folder"],
+        "--output-path", input_dict["output_path"],
+        "--future-dev-path", input_dict["future_dev_path"],
+        "--gas-lines-path", input_dict["gas_lines_path"],
+        "--report-files", str(Path(input_dict["input_folder"]) / "dummy.txt"),
+        "--buffer-distance", "50",
+        "--no-mongodb"
+    ]
 
 
 @pytest.fixture
@@ -114,7 +124,9 @@ def test_connect_to_mongodb_failure(monkeypatch):
 
     Mocks MongoClient to raise ConnectionFailure on instantiation.
     """
-    def raise_connection_failure(*args, **kwargs):
+
+
+    def raise_connection_failure(*_, **__):
         raise ConnectionFailure("Failed to connect")
 
     monkeypatch.setattr(data_loader, "MongoClient", raise_connection_failure)
@@ -221,7 +233,7 @@ def test_process_report_chunk_error_logging(monkeypatch, caplog):
         process_report_chunk(
             report_chunk=["dummy.txt"],
             gas_lines_shp="fake.shp",
-            reports_folder="fake_folder",
+            reports_folder=Path("fake_folder"),
             spatial_reference="EPSG:4326",
             gas_lines_collection=None,
             use_mongodb=False
@@ -235,16 +247,7 @@ def test_main_executes_pipeline(dummy_inputs, monkeypatch):
 
     Runs main with dummy inputs and asserts the output shapefile is created.
     """
-    testargs = [
-        "prog",
-        "--input-folder", dummy_inputs["input_folder"],
-        "--output-path", dummy_inputs["output_path"],
-        "--future-dev-path", dummy_inputs["future_dev_path"],
-        "--gas-lines-path", dummy_inputs["gas_lines_path"],
-        "--report-files", str(Path(dummy_inputs["input_folder"]) / "dummy.txt"),
-        "--buffer-distance", "50",
-        "--no-mongodb"
-    ]
+    testargs = build_testargs(dummy_inputs)
     monkeypatch.setattr("sys.argv", testargs)
 
     try:
@@ -262,16 +265,7 @@ def test_main_executes_pipeline_geojson(dummy_geojson_output, monkeypatch):
 
     Runs main with dummy inputs and asserts the output .geojson file is created.
     """
-    testargs = [
-        "prog",
-        "--input-folder", dummy_geojson_output["input_folder"],
-        "--output-path", dummy_geojson_output["output_path"],
-        "--future-dev-path", dummy_geojson_output["future_dev_path"],
-        "--gas-lines-path", dummy_geojson_output["gas_lines_path"],
-        "--report-files", str(Path(dummy_geojson_output["input_folder"]) / "dummy.txt"),
-        "--buffer-distance", "50",
-        "--no-mongodb"
-    ]
+    testargs = build_testargs(dummy_geojson_output)
     monkeypatch.setattr("sys.argv", testargs)
 
     try:

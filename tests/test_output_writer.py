@@ -5,7 +5,6 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point
 from gis_tool import output_writer
-import os
 
 
 def test_write_geojson(tmp_path):
