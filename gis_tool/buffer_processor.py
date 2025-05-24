@@ -90,8 +90,8 @@ def create_buffer_with_geopandas(
 def merge_buffers_into_planning_file(
     unique_output_buffer: str,
     future_development_feature_class: str,
-    point_buffer_distance: float = 10.0
-) -> bool:
+    point_buffer_distance: float = 10.0,
+) -> gpd.GeoDataFrame:
     """
     Merge buffer polygons into a Future Development planning layer by appending features.
 
@@ -113,7 +113,7 @@ def merge_buffers_into_planning_file(
 
         if buffer_gdf.empty:
             logging.warning("Buffer GeoDataFrame is empty; no geometries to merge.")
-            return False
+            return gpd.GeoDataFrame(geometry=[], crs=future_dev_gdf.crs)
         if future_dev_gdf.empty:
             logging.warning("Future Development GeoDataFrame is empty; result will contain only buffer polygons.")
 
@@ -190,7 +190,7 @@ def merge_buffers_into_planning_file(
             merged_gdf.to_file(future_development_feature_class, driver="ESRI Shapefile")
 
         logging.info(f"Merged data saved to {future_development_feature_class}")
-        return True
+        return merged_gdf
 
     except (IOError, ValueError, fiona.errors.FionaError) as e:
         logging.error(f"Error: {e}")
