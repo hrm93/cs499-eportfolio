@@ -35,8 +35,7 @@ Typical usage:
 
 import os
 import logging
-from typing import List, Optional, Set, Union
-
+from typing import Any, List, Optional, Set, Tuple, Union
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, mapping
@@ -45,10 +44,23 @@ from pymongo.collection import Collection
 from pymongo.errors import ConnectionFailure
 from pymongo.database import Database
 from dateutil.parser import parse
-
 from gis_tool.config import MONGODB_URI, DB_NAME
 
-def robust_date_parse(date_val):
+# Note: 'material' field is normalized to lowercase for consistency.
+# Other string fields like 'name' retain original casing.
+SCHEMA_FIELDS = ["Name", "Date", "PSI", "Material", "geometry"]
+
+
+def robust_date_parse(date_val: Any) -> Union[pd.Timestamp, pd.NaT]:
+    """
+    Robustly parse various date formats or objects into a pandas Timestamp.
+
+    Args:
+        date_val (Any): Input date value (can be string, Timestamp, or NaN).
+
+    Returns:
+        Union[pd.Timestamp, pd.NaT]: A valid pandas Timestamp or pd.NaT if parsing fails.
+    """
     if pd.isna(date_val):
         return pd.NaT
     if isinstance(date_val, pd.Timestamp):
@@ -60,10 +72,11 @@ def robust_date_parse(date_val):
             except (ValueError, TypeError):
                 continue
         try:
-            return parse(date_val, fuzzy=False)
+            return pd.to_datetime(parse(date_val, fuzzy=False))
         except (ValueError, TypeError):
             return pd.NaT
     return pd.NaT
+
 
 def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Database:
     """
@@ -87,6 +100,65 @@ def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Databa
     except ConnectionFailure as e:
         logging.error(f"Could not connect to MongoDB: {e}")
         raise
+
+
+def simplify_geometry(geom: Point, tolerance=0.00001) -> dict:
+    # Simplify geometry to avoid floating point precision issues
+    simplified = geom.simplify(tolerance, preserve_topology=True)
+    return mapping(simplified)
+
+
+def upsert_mongodb_feature(collection: Collection, name: str, date, psi: float, material: str, geometry: Point) -> None:
+    """
+    Insert or update a gas line feature in MongoDB.
+
+    Args:
+        collection (Collection): MongoDB collection to update/insert into.
+        name (str): Name of the gas line feature.
+        date: Date associated with the feature (can be string or datetime).
+        psi (float): Pressure specification.
+        material (str): Material type.
+        geometry (Point): Shapely Point geometry object.
+    """
+    feature_doc = {
+        'name': name,
+        'date': date,
+        'psi': psi,
+        'material': material,
+        'geometry': simplify_geometry(geometry)  # Use simplified geom
+    }
+    existing = collection.find_one({'name': name, 'geometry': feature_doc['geometry']})
+    if existing:
+        # Check if any fields changed before updating
+        changes = {}
+        if existing.get('date') != date:
+            changes['date'] = date
+        if existing.get('psi') != psi:
+            changes['psi'] = psi
+        if existing.get('material') != material:
+            changes['material'] = material
+
+        if changes:
+            collection.update_one({'_id': existing['_id']}, {'$set': changes})
+            logging.info(f"Updated MongoDB record for {name} with changes: {changes}")
+        else:
+            logging.info(f"No changes detected for MongoDB record {name}, skipping update.")
+    else:
+        collection.insert_one(feature_doc)
+        logging.info(f"Inserted new MongoDB record for {name}.")
+
+
+def make_feature(
+    name: str, date: Union[str, pd.Timestamp], psi: float, material: str, geometry: Point, crs: str
+) -> gpd.GeoDataFrame:
+    data = {
+        SCHEMA_FIELDS[0]: [name],
+        SCHEMA_FIELDS[1]: [date],
+        SCHEMA_FIELDS[2]: [psi],
+        SCHEMA_FIELDS[3]: [material.lower()],
+        SCHEMA_FIELDS[4]: [geometry]
+    }
+    return gpd.GeoDataFrame(data, crs=crs)
 
 
 def find_new_reports(input_folder: str) -> List[str]:
@@ -116,217 +188,160 @@ def find_new_reports(input_folder: str) -> List[str]:
     return new_reports
 
 
+def load_geojson_report(filepath: str, crs: str) -> gpd.GeoDataFrame:
+    """
+    Load a GeoJSON report from file and convert CRS to the target spatial_reference.
+    """
+    gdf = gpd.read_file(filepath)
+    if gdf.crs is None or gdf.crs != crs:
+        gdf = gdf.to_crs(crs)
+    return gdf
+
+
+def load_txt_report_lines(filepath: str) -> List[str]:
+    """
+    Load a TXT report from file and return its non-empty lines without trailing newline characters.
+
+    Args:
+        filepath (str): Path to the TXT report.
+
+    Returns:
+        List[str]: List of non-empty report lines.
+    """
+    try:
+        with open(filepath, 'r') as f:
+            return [line for line in f.read().splitlines() if line.strip()]
+    except FileNotFoundError:
+        logging.error(f"TXT report file not found: {filepath}")
+        return []
+    except IOError as e:
+        logging.error(f"Error reading TXT report file {filepath}: {e}")
+        return []
+
+
 def create_pipeline_features(
-    report_files: List[str],
-    gas_lines_shp: str,
-    reports_folder: str,
+    geojson_reports: List[Tuple[str, gpd.GeoDataFrame]],
+    txt_reports: List[Tuple[str, List[str]]],
+    gas_lines_gdf: gpd.GeoDataFrame,
     spatial_reference: str,
     gas_lines_collection: Optional[Collection] = None,
     processed_reports: Optional[Set[str]] = None,
     use_mongodb: bool = True
-) -> None:
-    """
-    Parse pipeline reports (.txt or .geojson), create new gas line features,
-    and optionally update MongoDB records.
-
-    Args:
-        report_files (List[str]): List of report filenames to process.
-        gas_lines_shp (str): Path to the existing gas lines shapefile.
-        reports_folder (str): Directory containing the report files.
-        spatial_reference (str): Coordinate Reference System (CRS) for output features.
-        gas_lines_collection (Optional[Collection]): MongoDB collection to update/insert features.
-        processed_reports (Optional[Set[str]]): Set of report filenames already processed.
-        use_mongodb (bool): Flag to enable MongoDB update/insert operations.
-
-    Raises:
-        Exception: Propagates exceptions encountered during processing.
-    """
-    processed_pipelines = set()
-    features_added = False
+) -> Tuple[Set[str], gpd.GeoDataFrame, bool]:
     if processed_reports is None:
         processed_reports = set()
 
-    # Load existing shapefile or create new GeoDataFrame with expected schema
-    if os.path.exists(gas_lines_shp):
-        gas_lines_gdf = gpd.read_file(gas_lines_shp)
-        if gas_lines_gdf.crs is None:
-            gas_lines_gdf.set_crs(spatial_reference, inplace=True)
-        geom_types = gas_lines_gdf.geom_type.unique()
-        if len(geom_types) != 1 or geom_types[0] != "Point":
-            logging.warning(
-                f"Existing shapefile {gas_lines_shp} geometry type is {geom_types}. "
-                "Expected 'Point'. Creating empty GeoDataFrame with correct schema."
-            )
-            gas_lines_gdf = gpd.GeoDataFrame(
-                columns=["Name", "Date", "PSI", "Material", "geometry"],
-                crs=spatial_reference,
-                geometry='geometry'
-            )
-    else:
-        gas_lines_gdf = gpd.GeoDataFrame(
-            columns=["Name", "Date", "PSI", "Material", "geometry"],
-            crs=spatial_reference,
-            geometry='geometry'
-        )
+    processed_pipelines = set()
+    features_added = False
 
-    processed_reports_basenames = {os.path.basename(r) for r in processed_reports}
+    # Helper to align columns and dtypes, fix geometry
+    def align_feature_dtypes(new_feat: gpd.GeoDataFrame, base_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+        # Reindex columns to match base
+        new_feat = new_feat.reindex(columns=base_gdf.columns)
+        # Align dtypes for each column where possible
+        for col in base_gdf.columns:
+            if col in new_feat.columns:
+                try:
+                    new_feat[col] = new_feat[col].astype(base_gdf[col].dtype)
+                except Exception as e:
+                    logging.debug(f"Could not convert column '{col}' dtype: {e}")
+        # Ensure geometry column is set correctly
+        if 'geometry' in new_feat.columns:
+            new_feat.set_geometry('geometry', inplace=True)
+        return new_feat
 
-    for report_file in report_files:
-        report_name = os.path.basename(report_file)
-
-        if report_name in processed_reports_basenames:
+    # Process GeoJSON reports
+    for report_name, gdf in geojson_reports:
+        if report_name in processed_reports:
             logging.info(f"Skipping already processed report: {report_name}")
             continue
 
-        full_report_path = os.path.join(reports_folder, report_file)
-        if not os.path.exists(full_report_path):
-            logging.warning(f"Report file does not exist: {full_report_path}")
+        gdf = gdf.to_crs(spatial_reference)
+        required_fields = set(SCHEMA_FIELDS) - {"geometry"}
+        missing_fields = required_fields - set(gdf.columns)
+        if missing_fields:
+            logging.error(f"GeoJSON report '{report_name}' missing required fields: {missing_fields}")
+            processed_reports.add(report_name)  # <-- Add here
             continue
 
-        try:
-            if report_name.lower().endswith(".geojson"):
-                # Process GeoJSON reports
-                gdf = gpd.read_file(full_report_path).to_crs(spatial_reference)
+        for _, row in gdf.iterrows():
+            point = row.geometry
 
-                required_fields = {"Name", "Date", "PSI", "Material"}
-                missing_fields = required_fields - set(gdf.columns)
-                if missing_fields:
-                    logging.error(f"GeoJSON report '{report_name}' missing required fields: {missing_fields}")
-                    continue
+            parsed_date = robust_date_parse(row["Date"])
+            new_feature = make_feature(row["Name"], parsed_date, row["PSI"], row["Material"], point, spatial_reference)
 
-                for _, row in gdf.iterrows():
-                    point = row.geometry
-                    new_feature = gpd.GeoDataFrame(
-                        {
-                            "Name": [row["Name"]],
-                            "Date": [row["Date"]],
-                            "PSI": [row["PSI"]],
-                            "Material": [row["Material"].lower()],
-                            "geometry": [point]
-                        },
-                        crs=spatial_reference
+            if use_mongodb and gas_lines_collection:
+                upsert_mongodb_feature(
+                    gas_lines_collection,
+                    row["Name"],
+                    row["Date"],
+                    row["PSI"],
+                    row["Material"],
+                    point,
+                )
+
+            new_feature = align_feature_dtypes(new_feature, gas_lines_gdf)
+            valid_rows = new_feature.dropna(how="all")
+
+            if not valid_rows.empty:
+                gas_lines_gdf = pd.concat([gas_lines_gdf, valid_rows], ignore_index=True)
+                processed_pipelines.add(row["Name"])
+                features_added = True
+
+        processed_reports.add(report_name)
+
+    # Process TXT reports
+    for report_name, lines in txt_reports:
+        if report_name in processed_reports:
+            logging.info(f"Skipping already processed report: {report_name}")
+            continue
+
+        for line_number, line in enumerate(lines, start=1):
+            if "Id Name" in line:
+                continue  # Skip header or irrelevant lines
+
+            data = line.strip().split()
+            if len(data) < 7:
+                logging.warning(
+                    f"Skipping malformed line {line_number} in {report_name} "
+                    f"(expected at least 7 fields): {line.strip()}"
+                )
+                continue
+
+            try:
+                line_name = data[1]
+                x_coord = float(data[2])
+                y_coord = float(data[3])
+                date_completed = data[4]
+                psi = float(data[5])
+                material = data[6].lower()
+            except (ValueError, IndexError) as e:
+                logging.warning(
+                    f"Skipping line {line_number} in {report_name} due to parse error: "
+                    f"{line.strip()} | Error: {e}"
+                )
+                continue
+
+            if line_name not in processed_pipelines:
+                point = Point(x_coord, y_coord)
+                parsed_date = robust_date_parse(date_completed)
+                new_feature = make_feature(line_name, parsed_date, psi, material, point, spatial_reference)
+
+                if use_mongodb and gas_lines_collection:
+                    upsert_mongodb_feature(
+                        gas_lines_collection, line_name, date_completed, psi, material, point
                     )
 
-                    if use_mongodb and gas_lines_collection is not None:
-                        feature_doc = {
-                            'name': row["Name"],
-                            'date': row["Date"],
-                            'psi': row["PSI"],
-                            'material': row["Material"],
-                            'geometry': mapping(point)
-                        }
-                        existing = gas_lines_collection.find_one({
-                            'name': row["Name"],
-                            'geometry': feature_doc['geometry']
-                        })
-                        if existing:
-                            gas_lines_collection.update_one(
-                                {'_id': existing['_id']},
-                                {'$set': {'date': row["Date"], 'psi': row["PSI"], 'material': row["Material"]}}
-                            )
-                            logging.info(f"Updated existing MongoDB record for {row['Name']}.")
-                        else:
-                            gas_lines_collection.insert_one(feature_doc)
-                            logging.info(f"Inserted new MongoDB record for {row['Name']}.")
+                new_feature = align_feature_dtypes(new_feature, gas_lines_gdf)
+                valid_rows = new_feature.dropna(how="all")
 
-                    if not new_feature.empty and not new_feature.isna().all(axis=1).all():
-                        frames_to_concat = [df for df in [gas_lines_gdf, new_feature] if
-                                            not df.empty and not df.isna().all(axis=1).all()]
-                        if frames_to_concat:
-                            gas_lines_gdf = pd.concat(frames_to_concat, ignore_index=True)
-
-                    processed_pipelines.add(row["Name"])
+                if not valid_rows.empty:
+                    gas_lines_gdf = pd.concat([gas_lines_gdf, valid_rows], ignore_index=True)
+                    processed_pipelines.add(line_name)
                     features_added = True
 
-            elif report_name.lower().endswith(".txt"):
-                # Process TXT reports line by line
-                with open(full_report_path, 'r') as file:
-                    for line_number, line in enumerate(file, start=1):
-                        if "Id Name" in line:
-                            continue  # Skip header or irrelevant lines
+        processed_reports.add(report_name)
 
-                        data = line.strip().split()
-                        if len(data) < 7:
-                            logging.warning(
-                                f"Skipping malformed line {line_number} in {report_name} "
-                                f"(expected at least 7 fields): {line.strip()}"
-                            )
-                            continue
+    return processed_reports, gas_lines_gdf, features_added
 
-                        try:
-                            line_name = data[1]
-                            x_coord = float(data[2])
-                            y_coord = float(data[3])
-                            date_completed = data[4]
-                            psi = float(data[5])
-                            material = data[6].lower()
-                        except (ValueError, IndexError) as e:
-                            logging.warning(
-                                f"Skipping line {line_number} in {report_name} due to parse error: "
-                                f"{line.strip()} | Error: {e}"
-                            )
-                            continue
 
-                        if line_name not in processed_pipelines:
-                            point = Point(x_coord, y_coord)
-                            new_feature = gpd.GeoDataFrame(
-                                {
-                                    "Name": [line_name],
-                                    "Date": [date_completed],
-                                    "PSI": [psi],
-                                    "Material": [material],
-                                    "geometry": [point]
-                                },
-                                crs=spatial_reference
-                            )
-
-                            if use_mongodb and gas_lines_collection is not None:
-                                feature_doc = {
-                                    'name': line_name,
-                                    'date': date_completed,
-                                    'psi': psi,
-                                    'material': material,
-                                    'geometry': mapping(point)
-                                }
-                                existing = gas_lines_collection.find_one({
-                                    'name': line_name,
-                                    'geometry': feature_doc['geometry']
-                                })
-                                if existing:
-                                    gas_lines_collection.update_one(
-                                        {'_id': existing['_id']},
-                                        {'$set': {'date': date_completed, 'psi': psi, 'material': material}}
-                                    )
-                                    logging.info(f"Updated existing MongoDB record for {line_name}.")
-                                else:
-                                    gas_lines_collection.insert_one(feature_doc)
-                                    logging.info(f"Inserted new MongoDB record for {line_name}.")
-
-                            if not new_feature.empty and not new_feature.isna().all(axis=1).all():
-                                frames_to_concat = [df for df in [gas_lines_gdf, new_feature] if
-                                                    not df.empty and not df.isna().all(axis=1).all()]
-                                if frames_to_concat:
-                                    gas_lines_gdf = pd.concat(frames_to_concat, ignore_index=True)
-                                    processed_pipelines.add(line_name)
-                                    features_added = True
-            else:
-                logging.warning(f"Unsupported report file type: {report_name}")
-
-            processed_reports.add(report_name)
-
-        except Exception as e:
-            logging.error(f"Error processing report {report_name}: {e}")
-            continue
-
-    # Save updated shapefile if new features were added or file doesn't exist
-    if features_added or not os.path.exists(gas_lines_shp):
-        # Use robust parsing on the 'Date' column
-        gas_lines_gdf['Date'] = gas_lines_gdf['Date'].apply(robust_date_parse)
-
-        # Convert to shapefile-safe string format
-        gas_lines_gdf['Date'] = gas_lines_gdf['Date'].dt.strftime('%Y-%m-%d')
-
-        gas_lines_gdf.to_file(gas_lines_shp, driver="ESRI Shapefile")
-        logging.info(f"Saved {len(gas_lines_gdf)} features to {gas_lines_shp}.")
-    else:
-        logging.info("No new pipeline features added; shapefile remains unchanged.")

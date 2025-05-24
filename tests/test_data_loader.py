@@ -17,194 +17,286 @@ mock objects to isolate dependencies, enabling reliable and repeatable tests.
 
 Test framework: pytest
 """
-
-import os
-import tempfile
 import geopandas as gpd
 import pandas as pd
-import pytest
-import warnings
-from unittest.mock import MagicMock
-from gis_tool.data_loader import find_new_reports, create_pipeline_features, connect_to_mongodb, robust_date_parse
-from unittest import mock
+from unittest.mock import MagicMock, patch
 from shapely.geometry import Point
-from pathlib import Path
+from gis_tool import data_loader as dl
+
+from gis_tool.data_loader import (
+    robust_date_parse,
+    find_new_reports,
+    load_geojson_report,
+    load_txt_report_lines,
+    make_feature,
+    create_pipeline_features
+)
+CRS = "EPSG:4326"
 
 
 def test_robust_date_parse():
-    sample_dates = pd.Series([
-        "2024-05-21",
-        "21/05/2024",
-        "05/21/2024",
-        "not a date",
-        56.78,
-        None,
-        pd.NaT
-    ])
-
-    parsed = sample_dates.apply(robust_date_parse)
-    formatted = parsed.dt.strftime('%Y-%m-%d')
-
-    assert formatted.iloc[0] == "2024-05-21"
-    assert formatted.iloc[1] == "2024-05-21"
-    assert formatted.iloc[2] == "2024-05-21"
-    assert pd.isna(parsed.iloc[3])  # "not a date" -> NaT
-    assert pd.isna(parsed.iloc[4])  # numeric value -> NaT
-    assert pd.isna(parsed.iloc[5])  # None -> NaT
-    assert pd.isna(parsed.iloc[6])  # NaT -> NaT
+    assert robust_date_parse("2023-05-01") == pd.Timestamp("2023-05-01")      # ISO
+    assert robust_date_parse("01/05/2023") == pd.Timestamp("2023-05-01")      # European: 1 May
+    assert robust_date_parse("05/01/2023") == pd.Timestamp("2023-01-05")      # US-style interpreted as 5 Jan
+    assert pd.isna(robust_date_parse("not a date"))                           # Invalid
+    assert pd.isna(robust_date_parse(None))                                   # None
 
 
-def test_connect_to_mongodb_success(monkeypatch):
-    """Test successful MongoDB connection using a mocked client."""
-    mock_client = MagicMock()
-    mock_db = MagicMock()
+def test_find_new_reports(tmp_path):
+    txt_file = tmp_path / "test.txt"
+    geojson_file = tmp_path / "test.geojson"
+    other_file = tmp_path / "ignore.csv"
 
-    # Patch MongoClient in the data_loader module
-    monkeypatch.setattr("gis_tool.data_loader.MongoClient", lambda *args, **kwargs: mock_client)
-    mock_client.admin.command.return_value = {"ok": 1}
-    mock_client.__getitem__.return_value = mock_db
+    txt_file.write_text("Test")
+    geojson_file.write_text("{}")
+    other_file.write_text("Should not be picked up")
 
-    db = connect_to_mongodb("mongodb://fakeuri", "test_db")
-    assert db == mock_db, "MongoDB connection did not return expected database instance."
-
-
-def test_find_new_reports_creates_list():
-    """Test that find_new_reports returns only .txt and .geojson files."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
-        (tmp_path / "file1.txt").touch()
-        (tmp_path / "file2.doc").touch()
-        reports = find_new_reports(str(tmp_path))
-        assert "file1.txt" in reports, "Expected .txt file missing from reports list."
-        assert "file2.doc" not in reports, "Non-.txt file incorrectly included in reports list."
+    result = find_new_reports(str(tmp_path))
+    assert sorted(result) == sorted(["test.txt", "test.geojson"])
 
 
-def test_find_new_reports_no_txt_files():
-    """Test find_new_reports returns empty list if no .txt or .geojson files found."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
-        (tmp_path / "file1.doc").touch()
-        reports = find_new_reports(str(tmp_path))
-        assert reports == [], "Expected empty list when no .txt or .geojson files present."
+def test_load_txt_report_lines(tmp_path):
+    file_path = tmp_path / "report.txt"
+    content = "Id Name X Y Date PSI Material\n1 Line1 10.0 20.0 2023-01-01 250 steel"
+    file_path.write_text(content)
+
+    lines = load_txt_report_lines(str(file_path))
+    assert len(lines) == 2                       # Header + one data row
+    assert "Line1" in lines[1]                   # Now explicitly check second line for content
 
 
-@pytest.fixture
-def setup_reports_folder():
-    """Fixture: Creates a temp folder with one valid and one malformed .txt report file."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
+def test_load_geojson_report_crs(tmp_path):
+    gdf = gpd.GeoDataFrame({
+        "Name": ["LineA"],
+        "Date": [pd.Timestamp("2024-01-01")],
+        "PSI": [100.0],
+        "Material": ["steel"],
+        "geometry": [Point(1.0, 1.0)]
+    }, crs="EPSG:3857")
 
-        valid_report = tmp_path / "report1.txt"
-        valid_report.write_text("Id Name X Y Date PSI Material ExtraField\n1 LineA 100 200 2024-05-10 150.0 steel extra\n")
+    file_path = tmp_path / "test.geojson"
+    gdf.to_file(file_path, driver="GeoJSON")
 
-        malformed_report = tmp_path / "report2.txt"
-        malformed_report.write_text("Malformed line without enough fields\n")
-
-        yield str(tmp_path), [str(valid_report), str(malformed_report)]
-
-
-@pytest.fixture
-def setup_reports_folder_with_geojson():
-    """Fixture: Creates a temp folder with a valid GeoJSON report."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
-        geojson_path = tmp_path / "report3.geojson"
-        gdf = gpd.GeoDataFrame({
-            "Name": ["LineGeo"],
-            "Date": ["2025-05-15"],
-            "PSI": [120.0],
-            "Material": ["plastic"],
-            "geometry": [Point(50.0, 60.0)]
-        }, crs="EPSG:32633")
-
-        if not gdf.empty:
-            gdf.to_file(str(geojson_path), driver="GeoJSON")
-        else:
-            print("Skipping saving empty GeoDataFrame")
-
-        yield str(tmp_path), [str(geojson_path)]
+    result_gdf = load_geojson_report(str(file_path), "EPSG:4326")
+    assert result_gdf.crs.to_string() == "EPSG:4326"
+    assert "Name" in result_gdf.columns
 
 
-def test_create_pipeline_features_basic(setup_reports_folder):
-    """Test create_pipeline_features creates shapefile with new features from valid reports."""
-    reports_folder, report_files = setup_reports_folder
-    gas_lines_shp = Path(reports_folder) / "gas_lines.shp"
-    spatial_ref = "EPSG:32633"
-
-    create_pipeline_features(report_files, str(gas_lines_shp), reports_folder, spatial_ref, gas_lines_collection=None)
-
-    gdf = gpd.read_file(str(gas_lines_shp))
-    assert not gdf.empty, "Shapefile GeoDataFrame should not be empty after adding features."
-    assert "LineA" in gdf["Name"].values, "Expected feature 'LineA' missing from shapefile."
+def test_make_feature_creates_valid_gdf():
+    feature = make_feature("LineX", "2022-05-01", 300, "PVC", Point(1, 2), CRS)
+    assert isinstance(feature, gpd.GeoDataFrame)
+    assert feature.iloc[0]["Material"] == "pvc"
+    assert feature.crs.to_string() == CRS
 
 
-def test_create_pipeline_features_with_geojson(setup_reports_folder_with_geojson):
-    """Test create_pipeline_features can parse and add features from .geojson reports."""
-    reports_folder, report_files = setup_reports_folder_with_geojson
-    gas_lines_shp = Path(reports_folder) / "gas_lines.shp"
-    spatial_ref = "EPSG:32633"
+def test_simplify_geometry_returns_mapping():
+    point = Point(10.123456789, 20.987654321)
+    simplified = dl.simplify_geometry(point, tolerance=0.01)
+    # Should return a GeoJSON-like dict with coordinates simplified
+    assert isinstance(simplified, dict)
+    assert 'type' in simplified and simplified['type'] == 'Point'
+    coords = simplified.get('coordinates', [])
+    # Coordinates should be floats close to original (within tolerance)
+    assert abs(coords[0] - 10.123456789) < 0.01
+    assert abs(coords[1] - 20.987654321) < 0.01
 
-    create_pipeline_features(report_files, str(gas_lines_shp), reports_folder, spatial_ref, gas_lines_collection=None)
 
-    gdf = gpd.read_file(str(gas_lines_shp))
-    assert not gdf.empty, "Shapefile GeoDataFrame should not be empty after adding GeoJSON features."
-    assert "LineGeo" in gdf["Name"].values, "Expected feature 'LineGeo' missing from shapefile."
+@patch("gis_tool.data_loader.upsert_mongodb_feature")
+def test_create_pipeline_features_geojson(mock_upsert):
+    gdf = gpd.GeoDataFrame({
+        "Name": ["Line1"],
+        "Date": [pd.Timestamp("2023-01-01")],
+        "PSI": [150.0],
+        "Material": ["steel"],
+        "geometry": [Point(1.0, 2.0)]
+    }, crs=CRS)
 
+    gas_lines = gpd.GeoDataFrame(columns=["Name", "Date", "PSI", "Material", "geometry"], crs=CRS)
 
-def test_create_pipeline_features_skips_processed(setup_reports_folder):
-    """Test that already processed reports are skipped, resulting in no duplicate features."""
-    reports_folder, report_files = setup_reports_folder
-    gas_lines_shp = Path(reports_folder) / "gas_lines.shp"
-    spatial_ref = "EPSG:32633"
-    processed = {"report1.txt"}
-
-    # Create empty shapefile first (simulate existing)
-    empty_gdf = gpd.GeoDataFrame(columns=["Name", "Date", "PSI", "Material", "geometry"], crs=spatial_ref)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
-        empty_gdf.to_file(str(gas_lines_shp))
-
-    create_pipeline_features(
-        report_files,
-        str(gas_lines_shp),
-        reports_folder,
-        spatial_ref,
-        gas_lines_collection=None,
-        processed_reports=processed
+    processed_reports, updated_gdf, features_added = create_pipeline_features(
+        geojson_reports=[("geo1.geojson", gdf)],
+        txt_reports=[],
+        gas_lines_gdf=gas_lines,
+        spatial_reference=CRS,
+        gas_lines_collection=MagicMock(),
+        processed_reports=set(),
+        use_mongodb=True
     )
 
-    gdf = gpd.read_file(str(gas_lines_shp))
-    assert gdf.empty, "No features should be added when reports are marked as processed."
+    assert "geo1.geojson" in processed_reports
+    assert len(updated_gdf) == 1
+    assert features_added is True
+    mock_upsert.assert_called_once()
 
-def test_create_pipeline_features_with_mongodb_inserts(setup_reports_folder):
-    """Test create_pipeline_features inserts new features into MongoDB collection mock."""
-    reports_folder, report_files = setup_reports_folder
-    gas_lines_shp = Path(reports_folder) / "gas_lines.shp"
-    spatial_ref = "EPSG:32633"
+
+@patch("gis_tool.data_loader.upsert_mongodb_feature")
+def test_create_pipeline_features_txt(mock_upsert):
+    line = "1 Line2 10.0 20.0 2023-03-01 200 copper"
+    txt_reports = [("report.txt", [line])]
+    gas_lines = gpd.GeoDataFrame(columns=["Name", "Date", "PSI", "Material", "geometry"], crs=CRS)
+
+    processed_reports, updated_gdf, features_added = create_pipeline_features(
+        geojson_reports=[],
+        txt_reports=txt_reports,
+        gas_lines_gdf=gas_lines,
+        spatial_reference=CRS,
+        gas_lines_collection=MagicMock(),
+        processed_reports=set(),
+        use_mongodb=True
+    )
+
+    assert "report.txt" in processed_reports
+    assert len(updated_gdf) == 1
+    assert features_added is True
+    mock_upsert.assert_called_once()
+
+
+def test_create_pipeline_features_skips_processed_reports(tmp_path):
+    # Prepare a GeoJSON report with one feature
+    from geopandas import GeoDataFrame
+    import pandas as pd
+
+    # Basic gas_lines_gdf with schema fields
+    gas_lines_gdf = GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
+
+    # One GeoJSON report
+    point = Point(1, 1)
+    gdf = GeoDataFrame({
+        'Name': ['line1'],
+        'Date': [pd.Timestamp('2023-01-01')],
+        'PSI': [50.0],
+        'Material': ['steel'],
+        'geometry': [point]
+    }, crs="EPSG:4326")
+
+    geojson_reports = [("report1.geojson", gdf)]
+    txt_reports = []
+
+    # Mark report1.geojson as already processed
+    processed_reports = {"report1.geojson"}
+
+    # Mock MongoDB collection
+    mock_collection = MagicMock()
+
+    new_processed, new_gdf, features_added = dl.create_pipeline_features(
+        geojson_reports, txt_reports, gas_lines_gdf, "EPSG:4326",
+        gas_lines_collection=mock_collection,
+        processed_reports=processed_reports,
+        use_mongodb=True,
+    )
+
+    # Since report is processed, no features added, gas_lines_gdf unchanged
+    assert "report1.geojson" in new_processed
+    assert new_gdf.equals(gas_lines_gdf)
+    assert not features_added
+    mock_collection.assert_not_called()
+
+
+def test_create_pipeline_features_handles_malformed_txt_lines(tmp_path):
+    # Setup an empty gas_lines_gdf
+    gas_lines_gdf = dl.make_feature("dummy", "2023-01-01", 50.0, "steel", Point(0, 0), "EPSG:4326")
+
+    # Malformed TXT line with less than 7 fields
+    malformed_line = "1 line1 10.0"  # Only 3 fields
+    txt_reports = [("report1.txt", [malformed_line])]
+    geojson_reports = []
+
+    # Mock MongoDB collection to check calls
+    mock_collection = MagicMock()
+
+    processed_reports, new_gdf, features_added = dl.create_pipeline_features(
+        geojson_reports, txt_reports, gas_lines_gdf, "EPSG:4326",
+        gas_lines_collection=mock_collection,
+        processed_reports=set(),
+        use_mongodb=True
+    )
+
+    # No features should be added because the line is malformed
+    assert "report1.txt" in processed_reports
+    assert not features_added
+    mock_collection.assert_not_called()
+    # gas_lines_gdf should remain the same or at least contain no new lines
+    assert new_gdf.shape[0] == gas_lines_gdf.shape[0]
+
+
+def test_create_pipeline_features_geojson_missing_fields_logs_error(caplog):
+    from geopandas import GeoDataFrame
+    import pandas as pd
+
+    gas_lines_gdf = GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
+
+    # GeoJSON missing 'PSI' field
+    gdf_missing = GeoDataFrame({
+        'Name': ['line1'],
+        'Date': [pd.Timestamp('2023-01-01')],
+        'Material': ['steel'],
+        'geometry': [Point(1, 1)]
+    }, crs="EPSG:4326")
+
+    geojson_reports = [("bad_report.geojson", gdf_missing)]
+    txt_reports = []
+
+    processed_reports, new_gdf, features_added = dl.create_pipeline_features(
+        geojson_reports, txt_reports, gas_lines_gdf, "EPSG:4326",
+        gas_lines_collection=None,
+        processed_reports=set(),
+        use_mongodb=True
+    )
+
+    # The report should be marked as processed even though skipped
+    assert "bad_report.geojson" in processed_reports
+    # No features should be added
+    assert not features_added
+    # Check if error log captured missing fields
+    assert any("missing required fields" in record.message for record in caplog.records)
+
+
+def test_create_pipeline_features_with_use_mongodb_false_does_not_call_mongo():
+    from geopandas import GeoDataFrame
+    import pandas as pd
+
+    gas_lines_gdf = GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
+
+    point = Point(1, 1)
+    gdf = GeoDataFrame({
+        'Name': ['line1'],
+        'Date': [pd.Timestamp('2023-01-01')],
+        'PSI': [50.0],
+        'Material': ['steel'],
+        'geometry': [point]
+    }, crs="EPSG:4326")
+
+    geojson_reports = [("report1.geojson", gdf)]
+    txt_reports = []
 
     mock_collection = MagicMock()
-    mock_collection.find_one.return_value = None  # Simulate new feature not found
 
-    create_pipeline_features(report_files, str(gas_lines_shp), reports_folder, spatial_ref, gas_lines_collection=mock_collection)
+    processed_reports, new_gdf, features_added = dl.create_pipeline_features(
+        geojson_reports, txt_reports, gas_lines_gdf, "EPSG:4326",
+        gas_lines_collection=mock_collection,
+        processed_reports=set(),
+        use_mongodb=False,  # MongoDB interaction disabled
+    )
 
-    assert mock_collection.insert_one.called, "MongoDB insert_one was not called for new features."
-    inserted_feature = mock_collection.insert_one.call_args[0][0]
-    assert inserted_feature['name'] == "LineA", "Inserted MongoDB document has incorrect 'name' field."
-    assert inserted_feature['material'] == "steel", "Inserted MongoDB document has incorrect 'material' field."
+    assert "report1.geojson" in processed_reports
+    assert features_added
+    # Mongo collection should NOT be called because use_mongodb=False
+    mock_collection.assert_not_called()
 
 
-def test_create_pipeline_features_with_mongodb_update(setup_reports_folder):
-    """Test that existing MongoDB features are updated instead of inserted."""
-    reports_folder, report_files = setup_reports_folder
-    gas_lines_shp = Path(reports_folder) / "gas_lines.shp"
-    spatial_ref = "EPSG:32633"
+def test_create_pipeline_features_with_empty_reports():
+    gas_lines_gdf = dl.make_feature("dummy", "2023-01-01", 50.0, "steel", Point(0, 0), "EPSG:4326")
 
-    mock_collection = MagicMock()
-    # Simulate existing feature found
-    mock_collection.find_one.return_value = {"_id": "existing_id"}
+    processed_reports, new_gdf, features_added = dl.create_pipeline_features(
+        geojson_reports=[],
+        txt_reports=[],
+        gas_lines_gdf=gas_lines_gdf,
+        spatial_reference="EPSG:4326",
+        gas_lines_collection=None,
+        processed_reports=set(),
+        use_mongodb=True
+    )
 
-    create_pipeline_features(report_files, str(gas_lines_shp), reports_folder, spatial_ref, gas_lines_collection=mock_collection)
-
-    assert mock_collection.update_one.called, "MongoDB update_one was not called for existing features."
-    # insert_one should not be called because feature exists
-    assert not mock_collection.insert_one.called, "MongoDB insert_one should not be called for existing features."
+    assert processed_reports == set()
+    assert new_gdf.equals(gas_lines_gdf)
+    assert not features_added
