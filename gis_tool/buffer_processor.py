@@ -1,13 +1,15 @@
 # buffer_processor.py
 
 import os
-import logging
 import geopandas as gpd
 import pandas as pd
 from gis_tool.config import DEFAULT_CRS
 import fiona.errors
 from typing import Optional
 from typing import Any
+import logging
+
+logger = logging.getLogger("gis_tool")
 
 
 def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -26,7 +28,7 @@ def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     if gdf.crs is None:
         raise ValueError("Input GeoDataFrame has no CRS defined.")
     if not gdf.crs.is_projected:
-        logging.info(f"Reprojecting GeoDataFrame from {gdf.crs} to projected CRS {DEFAULT_CRS} for buffering.")
+        logger.info(f"Reprojecting GeoDataFrame from {gdf.crs} to projected CRS {DEFAULT_CRS} for buffering.")
         gdf = gdf.to_crs(DEFAULT_CRS)
     return gdf
 
@@ -49,7 +51,7 @@ def fix_geometry(g: Any) -> Optional[Any]:
             return None
         return fixed
     except Exception as exc:
-        logging.error(f"Failed to fix geometry: {exc}")
+        logger.error(f"Failed to fix geometry: {exc}")
         return None
 
 
@@ -76,14 +78,14 @@ def create_buffer_with_geopandas(
         gas_lines_gdf = gpd.read_file(input_gas_lines_path)
 
         if gas_lines_gdf.crs is None:
-            logging.warning("Input gas lines layer has no CRS defined; assuming EPSG:32633")
+            logger.warning("Input gas lines layer has no CRS defined; assuming EPSG:32633")
             gas_lines_gdf.set_crs("EPSG:32633", inplace=True)
         gas_lines_gdf = ensure_projected_crs(gas_lines_gdf)
         gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
-        logging.info(f"Buffer created for {len(gas_lines_gdf)} gas line features.")
+        logger.info(f"Buffer created for {len(gas_lines_gdf)} gas line features.")
         return gas_lines_gdf
     except Exception as e:
-        logging.error(f"Error in create_buffer_with_geopandas: {e}")
+        logger.error(f"Error in create_buffer_with_geopandas: {e}")
         raise
 
 
@@ -112,22 +114,22 @@ def merge_buffers_into_planning_file(
         future_dev_gdf = gpd.read_file(future_development_feature_class)
 
         if buffer_gdf.empty:
-            logging.warning("Buffer GeoDataFrame is empty; no geometries to merge.")
+            logger.warning("Buffer GeoDataFrame is empty; no geometries to merge.")
             return gpd.GeoDataFrame(geometry=[], crs=future_dev_gdf.crs)
         if future_dev_gdf.empty:
-            logging.warning("Future Development GeoDataFrame is empty; result will contain only buffer polygons.")
+            logger.warning("Future Development GeoDataFrame is empty; result will contain only buffer polygons.")
 
         # Set CRS if missing (safe defaults)
         if future_dev_gdf.crs is None:
-            logging.warning("Future Development layer missing CRS; defaulting to EPSG:4326.")
+            logger.warning("Future Development layer missing CRS; defaulting to EPSG:4326.")
             future_dev_gdf = future_dev_gdf.set_crs("EPSG:4326", allow_override=True)
         if buffer_gdf.crs is None:
-            logging.warning("Buffer layer missing CRS; defaulting to EPSG:32610.")
+            logger.warning("Buffer layer missing CRS; defaulting to EPSG:32610.")
             buffer_gdf = buffer_gdf.set_crs("EPSG:32610", allow_override=True)
 
         # Reproject buffer to Future Development CRS if needed
         if buffer_gdf.crs != future_dev_gdf.crs:
-            logging.info(f"Reprojecting buffer from {buffer_gdf.crs} to {future_dev_gdf.crs}")
+            logger.info(f"Reprojecting buffer from {buffer_gdf.crs} to {future_dev_gdf.crs}")
             buffer_gdf = buffer_gdf.to_crs(future_dev_gdf.crs)
 
         # Ensure buffer geometries are polygons
@@ -143,7 +145,7 @@ def merge_buffers_into_planning_file(
 
         # Convert Future Development non-polygon geometries to polygons by buffering points or lines
         if future_geom_type not in ['Polygon', 'MultiPolygon']:
-            logging.info(f"Converting Future Development geometries from {future_geom_type} to polygons by buffering with {point_buffer_distance} meters.")
+            logger.info(f"Converting Future Development geometries from {future_geom_type} to polygons by buffering with {point_buffer_distance} meters.")
             if future_geom_type in ['Point', 'LineString']:
                 original_crs = future_dev_gdf.crs
                 projected = future_dev_gdf.to_crs(epsg=3857)
@@ -182,16 +184,16 @@ def merge_buffers_into_planning_file(
             merged_gdf.geometry.is_valid &
             ~merged_gdf.geometry.is_empty
         ]
-        logging.info(f"Merged GeoDataFrame has {len(merged_gdf)} features after merging and cleaning.")
+        logger.info(f"Merged GeoDataFrame has {len(merged_gdf)} features after merging and cleaning.")
 
         if os.path.splitext(future_development_feature_class)[1].lower() == ".geojson":
             merged_gdf.to_file(future_development_feature_class, driver="GeoJSON")
         else:
             merged_gdf.to_file(future_development_feature_class, driver="ESRI Shapefile")
 
-        logging.info(f"Merged data saved to {future_development_feature_class}")
+        logger.info(f"Merged data saved to {future_development_feature_class}")
         return merged_gdf
 
     except (IOError, ValueError, fiona.errors.FionaError) as e:
-        logging.error(f"Error: {e}")
+        logger.error(f"Error: {e}")
         raise

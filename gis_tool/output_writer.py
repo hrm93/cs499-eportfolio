@@ -11,12 +11,11 @@ Currently, supports:
 
 import geopandas as gpd
 import pandas as pd
-import logging
 from pathlib import Path
 import gis_tool.config as config
+import logging
 
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("gis_tool")
 
 def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = config.OUTPUT_FORMAT) -> None:
     """

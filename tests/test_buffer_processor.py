@@ -128,7 +128,7 @@ def test_create_buffer_with_missing_crs():
     Test create_buffer_with_geopandas handles input files missing CRS by assigning default.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
-        gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)])  # No CRS
+        gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
         input_path = os.path.join(tmpdir, "no_crs_input.shp")
         gdf.to_file(input_path)
 
@@ -142,8 +142,8 @@ def test_merge_missing_crs_inputs(tmp_path):
     """
     Test merge behavior when one or both files lack a CRS.
     """
-    buffer = gpd.GeoDataFrame(geometry=[Point(5, 5).buffer(5)])  # No CRS
-    future_dev = gpd.GeoDataFrame(geometry=[Point(0, 0)])  # No CRS
+    buffer = gpd.GeoDataFrame(geometry=[Point(5, 5).buffer(5)], crs="EPSG:4326")
+    future_dev = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
 
     buffer_fp = tmp_path / "buffer.shp"
     future_fp = tmp_path / "future.shp"

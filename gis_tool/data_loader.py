@@ -34,7 +34,6 @@ Typical usage:
 """
 
 import os
-import logging
 from typing import Any, List, Optional, Set, Tuple, Union
 import geopandas as gpd
 import pandas as pd
@@ -46,6 +45,9 @@ from pymongo.errors import ConnectionFailure
 from pymongo.database import Database
 from dateutil.parser import parse
 from gis_tool.config import MONGODB_URI, DB_NAME
+import logging
+
+logger = logging.getLogger("gis_tool")
 
 # Note: 'material' field is normalized to lowercase for consistency.
 # Other string fields like 'name' retain original casing.
@@ -96,10 +98,10 @@ def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Databa
     try:
         client = MongoClient(uri, serverSelectionTimeoutMS=5000)
         client.admin.command('ping')  # Test the connection
-        logging.info("Connected to MongoDB successfully.")
+        logger.info("Connected to MongoDB successfully.")
         return client[db_name]
     except ConnectionFailure as e:
-        logging.error(f"Could not connect to MongoDB: {e}")
+        logger.error(f"Could not connect to MongoDB: {e}")
         raise
 
 
@@ -141,12 +143,12 @@ def upsert_mongodb_feature(collection: Collection, name: str, date, psi: float, 
 
         if changes:
             collection.update_one({'_id': existing['_id']}, {'$set': changes})
-            logging.info(f"Updated MongoDB record for {name} with changes: {changes}")
+            logger.info(f"Updated MongoDB record for {name} with changes: {changes}")
         else:
-            logging.info(f"No changes detected for MongoDB record {name}, skipping update.")
+            logger.info(f"No changes detected for MongoDB record {name}, skipping update.")
     else:
         collection.insert_one(feature_doc)
-        logging.info(f"Inserted new MongoDB record for {name}.")
+        logger.info(f"Inserted new MongoDB record for {name}.")
 
 
 def make_feature(
@@ -176,15 +178,15 @@ def find_new_reports(input_folder: str) -> List[str]:
     try:
         all_files = [entry.name for entry in os.scandir(input_folder) if entry.is_file()]
     except FileNotFoundError:
-        logging.error(f"Input folder does not exist: {input_folder}")
+        logger.error(f"Input folder does not exist: {input_folder}")
         return []
 
     new_reports = [f for f in all_files if f.lower().endswith(('.txt', '.geojson'))]
 
     if not new_reports:
-        logging.info("No new reports found in the input folder.")
+        logger.info("No new reports found in the input folder.")
     else:
-        logging.info(f"Found {len(new_reports)} new report(s): {new_reports}")
+        logger.info(f"Found {len(new_reports)} new report(s): {new_reports}")
 
     return new_reports
 
@@ -213,10 +215,10 @@ def load_txt_report_lines(filepath: str) -> List[str]:
         with open(filepath, 'r') as f:
             return [line for line in f.read().splitlines() if line.strip()]
     except FileNotFoundError:
-        logging.error(f"TXT report file not found: {filepath}")
+        logger.error(f"TXT report file not found: {filepath}")
         return []
     except IOError as e:
-        logging.error(f"Error reading TXT report file {filepath}: {e}")
+        logger.error(f"Error reading TXT report file {filepath}: {e}")
         return []
 
 
@@ -253,7 +255,7 @@ def create_pipeline_features(
                 try:
                     new_feat[col] = new_feat[col].astype(base_gdf[col].dtype)
                 except Exception as exc:
-                    logging.debug(f"Could not convert column '{col}' dtype: {exc}")
+                    logger.debug(f"Could not convert column '{col}' dtype: {exc}")
         if 'geometry' in new_feat.columns:
             new_feat.set_geometry('geometry', inplace=True)
         return new_feat
@@ -261,7 +263,7 @@ def create_pipeline_features(
     # Process GeoJSON reports
     for report_name, gdf in geojson_reports:
         if report_name in processed_reports:
-            logging.info(f"Skipping already processed report: {report_name}")
+            logger.info(f"Skipping already processed report: {report_name}")
             continue
 
         # gdf already normalized to spatial_reference above
@@ -269,7 +271,7 @@ def create_pipeline_features(
         required_fields = set(SCHEMA_FIELDS) - {"geometry"}
         missing_fields = required_fields - set(gdf.columns)
         if missing_fields:
-            logging.error(f"GeoJSON report '{report_name}' missing required fields: {missing_fields}")
+            logger.error(f"GeoJSON report '{report_name}' missing required fields: {missing_fields}")
             processed_reports.add(report_name)
             continue
 
@@ -302,7 +304,7 @@ def create_pipeline_features(
     # Process TXT reports
     for report_name, lines in txt_reports:
         if report_name in processed_reports:
-            logging.info(f"Skipping already processed report: {report_name}")
+            logger.info(f"Skipping already processed report: {report_name}")
             continue
 
         for line_number, line in enumerate(lines, start=1):
@@ -311,7 +313,7 @@ def create_pipeline_features(
 
             data = line.strip().split()
             if len(data) < 7:
-                logging.warning(
+                logger.warning(
                     f"Skipping malformed line {line_number} in {report_name} "
                     f"(expected at least 7 fields): {line.strip()}"
                 )
@@ -325,7 +327,7 @@ def create_pipeline_features(
                 psi = float(data[5])
                 material = data[6].lower()
             except (ValueError, IndexError) as e:
-                logging.warning(
+                logger.warning(
                     f"Skipping line {line_number} in {report_name} due to parse error: "
                     f"{line.strip()} | Error: {e}"
                 )

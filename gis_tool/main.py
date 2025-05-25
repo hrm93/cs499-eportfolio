@@ -32,6 +32,7 @@ from gis_tool.buffer_processor import (
 )
 from gis_tool.output_writer import write_gis_output
 
+logger = logging.getLogger("gis_tool")  # Get the configured logger
 
 def read_reports(report_names: List[str], reports_folder_path: Path):
     """
@@ -51,16 +52,16 @@ def read_reports(report_names: List[str], reports_folder_path: Path):
                 gdf = gpd.read_file(report_path)
                 geojson_reports.append((report_name, gdf))
             except Exception as e:
-                logging.error(f"Failed to read GeoJSON report {report_name}: {e}")
+                logger.error(f"Failed to read GeoJSON report {report_name}: {e}")
         elif report_name.lower().endswith(".txt"):
             try:
                 with open(report_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
                 txt_reports.append((report_name, lines))
             except Exception as e:
-                logging.error(f"Failed to read TXT report {report_name}: {e}")
+                logger.error(f"Failed to read TXT report {report_name}: {e}")
         else:
-            logging.warning(f"Unsupported report type: {report_name}")
+            logger.warning(f"Unsupported report type: {report_name}")
 
     return geojson_reports, txt_reports
 
@@ -92,7 +93,7 @@ def process_report_chunk(
     """
     try:
         if gas_lines_collection is None:
-            logging.info("MongoDB insert disabled for this process (parallel worker).")
+            logger.info("MongoDB insert disabled for this process (parallel worker).")
 
         reports_folder_path = Path(reports_folder)
         geojson_reports, txt_reports = read_reports(report_chunk, reports_folder_path)
@@ -109,7 +110,7 @@ def process_report_chunk(
         )
 
     except Exception as e:
-        logging.error(f"Error in multiprocessing report chunk: {e}")
+        logger.error(f"Error in multiprocessing report chunk: {e}")
 
 
 def main() -> None:
@@ -126,7 +127,7 @@ def main() -> None:
     """
     setup_logging()
     args = parse_args()
-    logging.info("Pipeline processing started.")
+    logger.info("Pipeline processing started.")
 
     use_mongodb = args.use_mongodb
     gas_lines_collection = None
@@ -135,9 +136,9 @@ def main() -> None:
         try:
             db = connect_to_mongodb()
             gas_lines_collection = db["gas_lines"]
-            logging.info("Connected to MongoDB.")
+            logger.info("Connected to MongoDB.")
         except Exception as e:
-            logging.warning(f"MongoDB connection failed: {e}")
+            logger.warning(f"MongoDB connection failed: {e}")
             use_mongodb = False  # Disable MongoDB if connection fails
 
     input_folder = args.input_folder
@@ -155,21 +156,21 @@ def main() -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path_obj = output_dir / output_path_obj.name
     output_path = str(output_path_obj)
-    logging.info(f"Output path set to: {output_path}")
+    logger.info(f"Output path set to: {output_path}")
 
     report_files = find_new_reports(input_folder)
     if not report_files:
-        logging.info("No new reports to process. Exiting.")
+        logger.info("No new reports to process. Exiting.")
         return
 
     reports_folder_path = Path(args.input_folder)
     if not report_files:
-        logging.info("No new reports to process. Exiting.")
+        logger.info("No new reports to process. Exiting.")
         return
 
     if use_parallel:
         # Parallel processing -- no need to create geojson_reports or txt_reports here
-        logging.info(f"Starting parallel processing of {len(report_files)} report files.")
+        logger.info(f"Starting parallel processing of {len(report_files)} report files.")
         cpu_count = os.cpu_count() or 1
         chunk_size = max(1, len(report_files) // cpu_count)
         chunks = [report_files[i: i + chunk_size] for i in range(0, len(report_files), chunk_size)]
@@ -191,7 +192,7 @@ def main() -> None:
                 try:
                     future.result()
                 except Exception as e:
-                    logging.error(f"Error in parallel processing: {e}")
+                    logger.error(f"Error in parallel processing: {e}")
     else:
         # Sequential processing - reuse the same function
         geojson_reports, txt_reports = read_reports(report_files, reports_folder_path)
@@ -219,7 +220,7 @@ def main() -> None:
     # Merge buffer results into future development planning shapefile
     merge_buffers_into_planning_file(output_path, future_development_shp)
 
-    logging.info("Pipeline processing completed.")
+    logger.info("Pipeline processing completed.")
 
 
 if __name__ == "__main__":
