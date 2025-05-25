@@ -3,10 +3,11 @@
 import os
 import geopandas as gpd
 import pandas as pd
-from gis_tool.config import DEFAULT_CRS
+from gis_tool import config
 import fiona.errors
 from typing import Optional
-from typing import Any
+from shapely.geometry.base import BaseGeometry
+from shapely.errors import TopologicalError
 import logging
 
 logger = logging.getLogger("gis_tool")
@@ -28,12 +29,12 @@ def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     if gdf.crs is None:
         raise ValueError("Input GeoDataFrame has no CRS defined.")
     if not gdf.crs.is_projected:
-        logger.info(f"Reprojecting GeoDataFrame from {gdf.crs} to projected CRS {DEFAULT_CRS} for buffering.")
-        gdf = gdf.to_crs(DEFAULT_CRS)
+        logger.info(f"Reprojecting GeoDataFrame from {gdf.crs} to projected CRS {config.DEFAULT_CRS} for buffering.")
+        gdf = gdf.to_crs(config.DEFAULT_CRS)
     return gdf
 
 
-def fix_geometry(g: Any) -> Optional[Any]:
+def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:
     """
     Fix invalid geometries by applying a zero-width buffer.
 
@@ -42,6 +43,12 @@ def fix_geometry(g: Any) -> Optional[Any]:
 
     Returns:
         Geometry or None: Valid geometry or None if it cannot be fixed.
+
+    Notes:
+        Buffering with zero-width is a common fix for invalid geometries,
+        but may raise Shapely-specific exceptions such as TopologicalError.
+        This function catches these explicitly to prevent crashing and logs errors.
+        It also catches generic exceptions as a fallback for unexpected errors.
     """
     if g.is_valid:
         return g
@@ -50,42 +57,48 @@ def fix_geometry(g: Any) -> Optional[Any]:
         if fixed.is_empty or not fixed.is_valid:
             return None
         return fixed
+    except TopologicalError as exc:
+        logger.error(f"Topological error fixing geometry: {exc}")
+        return None
     except Exception as exc:
-        logger.error(f"Failed to fix geometry: {exc}")
+        logger.error(f"Unexpected error fixing geometry: {exc}")
         return None
 
 
 def create_buffer_with_geopandas(
     input_gas_lines_path: str,
-    buffer_distance_ft: float = 25.0
+    buffer_distance_ft: Optional[float] = None
 ) -> gpd.GeoDataFrame:
     """
     Create a buffer polygon around gas lines features using GeoPandas.
 
     Args:
         input_gas_lines_path (str): File path to input gas lines layer (shapefile, GeoPackage, etc.).
-        buffer_distance_ft (float): Buffer distance in feet.
+        buffer_distance_ft (float, optional): Buffer distance in feet.
 
     Returns:
         gpd.GeoDataFrame: A GeoDataFrame containing the buffered geometries.
-
-    Raises:
-        ValueError: If CRS is missing.
-        Exception: For any IO or processing errors.
     """
+    if buffer_distance_ft is None:
+        buffer_distance_ft = config.DEFAULT_BUFFER_DISTANCE_FT
+
     buffer_distance_m = buffer_distance_ft * 0.3048  # Convert feet to meters
+
     try:
         gas_lines_gdf = gpd.read_file(input_gas_lines_path)
 
         if gas_lines_gdf.crs is None:
-            logger.warning("Input gas lines layer has no CRS defined; assuming EPSG:32633")
-            gas_lines_gdf.set_crs("EPSG:32633", inplace=True)
+            logger.warning("Input gas lines layer has no CRS defined; assuming default.")
+            gas_lines_gdf = gas_lines_gdf.set_crs(config.DEFAULT_CRS)
+
         gas_lines_gdf = ensure_projected_crs(gas_lines_gdf)
         gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
+
         logger.info(f"Buffer created for {len(gas_lines_gdf)} gas line features.")
         return gas_lines_gdf
+
     except Exception as e:
-        logger.error(f"Error in create_buffer_with_geopandas: {e}")
+        logger.exception(f"Error in create_buffer_with_geopandas: {e}")
         raise
 
 
@@ -98,16 +111,14 @@ def merge_buffers_into_planning_file(
     Merge buffer polygons into a Future Development planning layer by appending features.
 
     ⚠️ WARNING: This function overwrites the input Future Development shapefile.
-    Make a backup or save to a different file path to prevent data loss.
 
     Args:
         unique_output_buffer (str): File path to the buffer polygons shapefile.
         future_development_feature_class (str): File path to the Future Development shapefile.
         point_buffer_distance (float): Buffer distance in meters to convert non-polygon features to polygons.
 
-    Raises:
-        ValueError: If CRS is missing or geometry types are incompatible.
-        Exception: For any read/write or processing failures.
+    Returns:
+        gpd.GeoDataFrame: The merged GeoDataFrame.
     """
     try:
         buffer_gdf = gpd.read_file(unique_output_buffer)
@@ -115,35 +126,33 @@ def merge_buffers_into_planning_file(
 
         if buffer_gdf.empty:
             logger.warning("Buffer GeoDataFrame is empty; no geometries to merge.")
+            logger.info(
+                f"No update performed on '{future_development_feature_class}'; existing data remains unchanged.")
             return gpd.GeoDataFrame(geometry=[], crs=future_dev_gdf.crs)
+
         if future_dev_gdf.empty:
             logger.warning("Future Development GeoDataFrame is empty; result will contain only buffer polygons.")
 
-        # Set CRS if missing (safe defaults)
-        if future_dev_gdf.crs is None:
+        if not future_dev_gdf.crs or future_dev_gdf.crs.to_string() == '':
             logger.warning("Future Development layer missing CRS; defaulting to EPSG:4326.")
-            future_dev_gdf = future_dev_gdf.set_crs("EPSG:4326", allow_override=True)
-        if buffer_gdf.crs is None:
+            future_dev_gdf = future_dev_gdf.set_crs(config.GEOGRAPHIC_CRS, allow_override=True)
+        if not buffer_gdf.crs or buffer_gdf.to_string() == '':
             logger.warning("Buffer layer missing CRS; defaulting to EPSG:32610.")
-            buffer_gdf = buffer_gdf.set_crs("EPSG:32610", allow_override=True)
+            buffer_gdf = buffer_gdf.set_crs(config.BUFFER_LAYER_CRS, allow_override=True)
 
-        # Reproject buffer to Future Development CRS if needed
         if buffer_gdf.crs != future_dev_gdf.crs:
             logger.info(f"Reprojecting buffer from {buffer_gdf.crs} to {future_dev_gdf.crs}")
             buffer_gdf = buffer_gdf.to_crs(future_dev_gdf.crs)
 
-        # Ensure buffer geometries are polygons
         if not buffer_gdf.geom_type.isin(['Polygon', 'MultiPolygon']).all():
             raise ValueError("Buffer shapefile must contain only polygon or multipolygon geometries.")
 
-        # Check Future Development geometry types uniformity
         unique_future_geom_types = future_dev_gdf.geom_type.unique()
         if len(unique_future_geom_types) != 1:
             raise ValueError(f"Future Development shapefile has mixed geometry types: {unique_future_geom_types}")
 
         future_geom_type = unique_future_geom_types[0]
 
-        # Convert Future Development non-polygon geometries to polygons by buffering points or lines
         if future_geom_type not in ['Polygon', 'MultiPolygon']:
             logger.info(f"Converting Future Development geometries from {future_geom_type} to polygons by buffering with {point_buffer_distance} meters.")
             if future_geom_type in ['Point', 'LineString']:
@@ -154,46 +163,25 @@ def merge_buffers_into_planning_file(
             else:
                 raise ValueError(f"Unsupported Future Development geometry type '{future_geom_type}' for conversion.")
 
-        # Clean invalid and null geometries
-        future_dev_gdf = future_dev_gdf[future_dev_gdf.geometry.notnull()]
+        # Clean and fix geometries
         future_dev_gdf['geometry'] = future_dev_gdf.geometry.apply(fix_geometry)
-        future_dev_gdf = future_dev_gdf[
-            future_dev_gdf.geometry.notnull() &
-            future_dev_gdf.geometry.is_valid &
-            ~future_dev_gdf.geometry.is_empty
-        ]
-
-        buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull()]
         buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
-        buffer_gdf = buffer_gdf[
-            buffer_gdf.geometry.notnull() &
-            buffer_gdf.geometry.is_valid &
-            ~buffer_gdf.geometry.is_empty
-        ]
 
-        # Concatenate GeoDataFrames
-        frames = [df for df in [future_dev_gdf, buffer_gdf]
-                  if not df.empty and not df.isna().all(axis=1).all()]
+        future_dev_gdf = future_dev_gdf[future_dev_gdf.geometry.notnull() & future_dev_gdf.geometry.is_valid & ~future_dev_gdf.geometry.is_empty]
+        buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty]
 
-        merged_gdf = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True),
-                                      crs=future_dev_gdf.crs)
+        frames = [df for df in [future_dev_gdf, buffer_gdf] if not df.empty]
 
-        # Final filter for valid geometries
-        merged_gdf = merged_gdf[
-            merged_gdf.geometry.notnull() &
-            merged_gdf.geometry.is_valid &
-            ~merged_gdf.geometry.is_empty
-        ]
+        merged_gdf = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=future_dev_gdf.crs)
+
         logger.info(f"Merged GeoDataFrame has {len(merged_gdf)} features after merging and cleaning.")
 
-        if os.path.splitext(future_development_feature_class)[1].lower() == ".geojson":
-            merged_gdf.to_file(future_development_feature_class, driver="GeoJSON")
-        else:
-            merged_gdf.to_file(future_development_feature_class, driver="ESRI Shapefile")
-
+        # Use configured output format via helper
+        driver = config.get_driver_from_extension(future_development_feature_class)
+        merged_gdf.to_file(future_development_feature_class, driver=driver)
         logger.info(f"Merged data saved to {future_development_feature_class}")
         return merged_gdf
 
-    except (IOError, ValueError, fiona.errors.FionaError) as e:
-        logger.error(f"Error: {e}")
+    except (OSError, IOError, ValueError, fiona.errors.FionaError) as e:
+        logger.exception(f"Error in merge_buffers_into_planning_file: {e}")
         raise

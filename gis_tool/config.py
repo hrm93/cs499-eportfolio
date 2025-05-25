@@ -71,6 +71,22 @@ def getenv_bool(var_name: str, default: bool) -> bool:
     return val.strip().lower() in ['1', 'true', 'yes', 'on']
 
 
+def get_driver_from_extension(path: str) -> str:
+    """
+    Get the appropriate file driver for saving GeoDataFrames based on file extension.
+
+    Args:
+        path (str): File path.
+
+    Returns:
+        str: GDAL driver string (e.g., 'GeoJSON' or 'ESRI Shapefile').
+    """
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".geojson":
+        return "GeoJSON"
+    return "ESRI Shapefile"
+
+
 # MongoDB connection settings
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
 """str: URI to connect to MongoDB."""
@@ -81,6 +97,12 @@ DB_NAME = os.getenv('DB_NAME', 'gis_database')
 # Spatial settings
 DEFAULT_CRS = os.getenv('DEFAULT_CRS', 'EPSG:32633')
 """str: Default Coordinate Reference System for spatial data."""
+
+GEOGRAPHIC_CRS = os.getenv('GEOGRAPHIC_CRS', 'EPSG:4326')
+"""str: Geographic CRS for lat/lon data (default: WGS84)."""
+
+BUFFER_LAYER_CRS = os.getenv('BUFFER_LAYER_CRS', DEFAULT_CRS)
+"""str: CRS to assume for buffer input if missing (defaults to DEFAULT_CRS)."""
 
 DEFAULT_BUFFER_DISTANCE_FT = getenv_float('DEFAULT_BUFFER_DISTANCE_FT', 25.0)
 """float: Default buffer distance around gas lines in feet."""
