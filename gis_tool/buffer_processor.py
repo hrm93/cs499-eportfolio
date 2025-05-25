@@ -1,6 +1,5 @@
 # buffer_processor.py
 
-import os
 import geopandas as gpd
 import pandas as pd
 from gis_tool import config

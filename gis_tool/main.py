@@ -18,7 +18,6 @@ import fiona.errors
 import logging
 from pathlib import Path
 import geopandas as gpd
-from typing import List
 from pymongo.errors import PyMongoError
 from gis_tool.cli import parse_args
 from gis_tool.logger import setup_logging
@@ -36,7 +35,7 @@ from gis_tool.output_writer import write_gis_output
 
 logger = logging.getLogger("gis_tool")  # Get the configured logger
 
-def read_reports(report_names: List[str], reports_folder_path: Path):
+def read_reports(report_names: list[str], reports_folder_path: Path):
     """
     Reads reports from given filenames.
 

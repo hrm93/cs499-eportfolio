@@ -79,14 +79,56 @@ def parse_args():
 
     args = parser.parse_args()
 
-    # Validate report file extensions
-    for f in args.report_files:
-        ext = os.path.splitext(f)[1].lower()
-        if ext not in ['.txt', '.geojson']:
-            parser.error(f"Unsupported report file extension: {f}")
+    # === VALIDATION START ===
 
-    # Adjust log level if verbose flag is set
+    # Input folder must exist
+    if not os.path.isdir(args.input_folder):
+        parser.error(f"Input folder does not exist or is not a directory: {args.input_folder}")
+
+    # Validate report file extensions and existence
+    def is_valid_report_file(file: str) -> bool:
+        return os.path.splitext(file)[1].lower() in ['.txt', '.geojson']
+
+    invalid_files = []
+    missing_files = []
+
+    for f in args.report_files:
+        if not is_valid_report_file(f):
+            invalid_files.append(f)
+        full_path = os.path.join(args.input_folder, f)
+        if not os.path.isfile(full_path):
+            missing_files.append(f)
+
+    if invalid_files:
+        parser.error(f"Unsupported report file extensions: {', '.join(invalid_files)}")
+    if missing_files:
+        parser.error(f"Report files not found in input folder: {', '.join(missing_files)}")
+
+    # Output path’s parent directory must exist
+    output_dir = os.path.dirname(args.output_path)
+    if output_dir and not os.path.isdir(output_dir):
+        parser.error(f"Output path directory does not exist: {output_dir}")
+
+    # CRS basic format check
+    if not args.crs.upper().startswith('EPSG:'):
+        parser.error(f"Invalid CRS format. Expected format like 'EPSG:32633', got: {args.crs}")
+
+    # Buffer distance must be positive
+    if args.buffer_distance <= 0:
+        parser.error("Buffer distance must be a positive number.")
+
+    # Validate max workers if specified
+    if args.max_workers is not None and args.max_workers < 1:
+        parser.error("Max workers must be at least 1.")
+
+    # Warn if using MongoDB but no config file specified
+    if args.use_mongodb and not args.config_file:
+        print("Warning: MongoDB enabled but no --config-file provided. Using defaults.")
+
+    # Handle verbose flag override
     if args.verbose:
         args.log_level = 'DEBUG'
+
+    # === VALIDATION END ===
 
     return args
