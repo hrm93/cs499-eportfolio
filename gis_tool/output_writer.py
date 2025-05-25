@@ -13,10 +13,12 @@ import geopandas as gpd
 import pandas as pd
 import logging
 from pathlib import Path
+import gis_tool.config as config
+
 
 logger = logging.getLogger(__name__)
 
-def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = "shp") -> None:
+def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = config.OUTPUT_FORMAT) -> None:
     """
     Write a GeoDataFrame to a file in the specified format.
 
@@ -27,9 +29,11 @@ def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str
     """
     try:
         path = Path(output_path)
-        if not path.parent.exists():
-            raise FileNotFoundError(f"Directory does not exist: {path.parent}")
-
+        if path.exists() and not config.ALLOW_OVERWRITE_OUTPUT:
+            raise FileExistsError(f"{output_path} exists and overwriting is disabled.")
+        if config.DRY_RUN_MODE:
+            logger.info(f"Dry run enabled: Skipping write of {output_path}")
+            return
         if output_format == "geojson":
             gdf.to_file(output_path, driver="GeoJSON")
         elif output_format == "shp":
@@ -40,6 +44,7 @@ def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str
     except Exception as e:
         logger.error(f"Failed to write {output_format} file: {e}")
         raise
+
 
 def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
     """

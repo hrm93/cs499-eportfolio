@@ -298,6 +298,7 @@ def test_main_with_real_data(monkeypatch):
         "--no-mongodb"
     ]
     monkeypatch.setattr("sys.argv", testargs)
+    monkeypatch.setattr("gis_tool.config.ALLOW_OVERWRITE_OUTPUT", True)
 
     try:
         main()
