@@ -17,6 +17,7 @@ import logging
 
 logger = logging.getLogger("gis_tool")
 
+
 def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = config.OUTPUT_FORMAT) -> None:
     """
     Write a GeoDataFrame to a file in the specified format.
@@ -26,6 +27,9 @@ def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str
         output_path (str): Path to the output file (.shp or .geojson).
         output_format (str): Output format: 'shp' or 'geojson'.
     """
+    if gdf.empty:
+        logger.warning(f"GeoDataFrame is empty. No file written to {output_path}.")
+        return
     try:
         path = Path(output_path)
         if path.exists() and not config.ALLOW_OVERWRITE_OUTPUT:

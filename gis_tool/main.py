@@ -14,10 +14,12 @@ Designed for robust, scalable, and parallel execution with clear logging.
 
 from concurrent.futures import ProcessPoolExecutor
 import os
+import fiona.errors
 import logging
 from pathlib import Path
 import geopandas as gpd
 from typing import List
+from pymongo.errors import PyMongoError
 from gis_tool.cli import parse_args
 from gis_tool.logger import setup_logging
 from gis_tool.config import DEFAULT_CRS
@@ -51,14 +53,14 @@ def read_reports(report_names: List[str], reports_folder_path: Path):
             try:
                 gdf = gpd.read_file(report_path)
                 geojson_reports.append((report_name, gdf))
-            except Exception as e:
+            except (FileNotFoundError, OSError, fiona.errors.DriverError) as e:
                 logger.error(f"Failed to read GeoJSON report {report_name}: {e}")
         elif report_name.lower().endswith(".txt"):
             try:
                 with open(report_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
                 txt_reports.append((report_name, lines))
-            except Exception as e:
+            except (FileNotFoundError, OSError) as e:
                 logger.error(f"Failed to read TXT report {report_name}: {e}")
         else:
             logger.warning(f"Unsupported report type: {report_name}")
@@ -109,8 +111,11 @@ def process_report_chunk(
             use_mongodb=use_mongodb,
         )
 
+    except (FileNotFoundError, OSError, fiona.errors.DriverError) as e:
+        logger.error(f"I/O error in multiprocessing report chunk: {e}")
+
     except Exception as e:
-        logger.error(f"Error in multiprocessing report chunk: {e}")
+        logger.error(f"Unexpected error in multiprocessing report chunk: {e}")
 
 
 def main() -> None:
@@ -137,7 +142,7 @@ def main() -> None:
             db = connect_to_mongodb()
             gas_lines_collection = db["gas_lines"]
             logger.info("Connected to MongoDB.")
-        except Exception as e:
+        except PyMongoError as e:
             logger.warning(f"MongoDB connection failed: {e}")
             use_mongodb = False  # Disable MongoDB if connection fails
 
@@ -164,9 +169,6 @@ def main() -> None:
         return
 
     reports_folder_path = Path(args.input_folder)
-    if not report_files:
-        logger.info("No new reports to process. Exiting.")
-        return
 
     if use_parallel:
         # Parallel processing -- no need to create geojson_reports or txt_reports here
@@ -214,14 +216,16 @@ def main() -> None:
         buffer_distance_ft=buffer_distance,
     )
 
-    # Write GIS output in specified format
-    write_gis_output(gdf_buffer, output_path, output_format=args.output_format)
+    if gdf_buffer.empty:
+        logger.warning("Generated buffer GeoDataFrame is empty. Skipping output write and merge.")
+    else:
+        # Write GIS output in specified format
+        write_gis_output(gdf_buffer, output_path, output_format=args.output_format)
 
-    # Merge buffer results into future development planning shapefile
-    merge_buffers_into_planning_file(output_path, future_development_shp)
+        # Merge buffer results into future development planning shapefile
+        merge_buffers_into_planning_file(output_path, future_development_shp)
 
     logger.info("Pipeline processing completed.")
-
 
 if __name__ == "__main__":
     main()

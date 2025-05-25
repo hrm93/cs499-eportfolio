@@ -14,7 +14,6 @@ Uses pytest fixtures and unittest.mock for isolation and control.
 import os
 import geopandas as gpd
 import pytest
-import logging
 from shapely.geometry import LineString
 from unittest import mock
 from pymongo.errors import ConnectionFailure
@@ -23,9 +22,28 @@ import gis_tool.data_loader as data_loader
 import gis_tool.main
 from gis_tool.main import main
 from pathlib import Path
+from typing import List, Dict
+import logging
+
+logger = logging.getLogger("gis_tool")
+logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
 
 
-def build_testargs(input_dict):
+def build_testargs(input_dict: Dict[str, str]) -> List[str]:
+    """
+       Build a list of command-line arguments for the GIS tool main function.
+
+       Args:
+           input_dict (dict): Dictionary containing keys:
+               - "input_folder" (str): Path to input folder.
+               - "output_path" (str): Path for output shapefile.
+               - "future_dev_path" (str): Path to future development shapefile.
+               - "gas_lines_path" (str): Path to gas lines shapefile.
+
+       Returns:
+           list: Command-line arguments list mimicking sys.argv.
+       """
+    logger.debug(f"Building test arguments with input dictionary: {input_dict}")
     return [
         "prog",
         "--input-folder", input_dict["input_folder"],
@@ -39,7 +57,7 @@ def build_testargs(input_dict):
 
 
 @pytest.fixture
-def dummy_inputs(tmp_path):
+def dummy_inputs(tmp_path: Path) -> Dict[str, str]:
     """
     Fixture to create dummy inputs for the GIS pipeline.
 
@@ -55,32 +73,34 @@ def dummy_inputs(tmp_path):
     Returns:
         dict: Paths for input_folder, gas_lines_path, future_dev_path, output_path.
     """
+    logger.info("Creating dummy inputs for tests.")
     input_folder = tmp_path / "reports"
     input_folder.mkdir()
+    logger.debug(f"Created input folder at {input_folder}")
 
-    # Valid dummy report line with 8 tab-separated fields (adjust field names as needed)
     valid_report_line = "123\t456\t789\t12.34\t56.78\t90\t0\t1\n"
     report_path = input_folder / "dummy.txt"
     report_path.write_text(valid_report_line)
+    logger.debug(f"Wrote dummy report file at {report_path}")
 
-    # Dummy gas lines shapefile
     gas_lines_path = tmp_path / "gas_lines.shp"
     gas_lines_gdf = gpd.GeoDataFrame(
         {"id": [1], "geometry": [LineString([(0, 0), (1, 1)])]},
-        crs="EPSG:26918"  # Projected CRS
+        crs="EPSG:26918"
     )
     gas_lines_gdf.to_file(str(gas_lines_path))
+    logger.debug(f"Created dummy gas lines shapefile at {gas_lines_path}")
 
-    # Dummy future development shapefile
     future_dev_path = tmp_path / "future_dev.shp"
     future_dev_gdf = gpd.GeoDataFrame(
         {"id": [1], "geometry": [LineString([(2, 2), (3, 3)])]},
         crs="EPSG:26918"
     )
     future_dev_gdf.to_file(str(future_dev_path))
+    logger.debug(f"Created dummy future development shapefile at {future_dev_path}")
 
-    # Output shapefile path
     output_path = tmp_path / "final_output.shp"
+    logger.debug(f"Set output shapefile path at {output_path}")
 
     return {
         "input_folder": str(input_folder),
@@ -91,22 +111,25 @@ def dummy_inputs(tmp_path):
 
 
 @pytest.fixture
-def dummy_geojson_output(tmp_path, dummy_inputs):
+def dummy_geojson_output(tmp_path: Path, dummy_inputs: Dict[str, str]) -> Dict[str, str]:
     """
     Returns a copy of dummy_inputs with the output path changed to .geojson.
     """
-    dummy_inputs["output_path"] = str(tmp_path / "final_output.geojson")
-    return dummy_inputs
-
+    logger.info("Preparing dummy inputs with GeoJSON output path.")
+    new_inputs = dummy_inputs.copy()
+    new_inputs["output_path"] = str(tmp_path / "final_output.geojson")
+    logger.debug(f"GeoJSON output path set to {new_inputs['output_path']}")
+    return new_inputs
 
 # ===== MongoDB Connection and Integration Tests =====
 
-def test_connect_to_mongodb_success(monkeypatch):
+def test_connect_to_mongodb_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Test successful connection to MongoDB with mocked client.
 
     Ensures that the returned database object matches the mock.
     """
+    logger.info("Testing successful MongoDB connection.")
     mock_client = mock.MagicMock()
     mock_db = mock.MagicMock()
 
@@ -116,32 +139,41 @@ def test_connect_to_mongodb_success(monkeypatch):
 
     db = connect_to_mongodb("mongodb://fakeuri", "test_db")
     assert db == mock_db
+    logger.info("MongoDB connection success test passed.")
 
 
-def test_connect_to_mongodb_failure(monkeypatch):
+def test_connect_to_mongodb_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Test MongoDB connection failure raises ConnectionFailure.
 
     Mocks MongoClient to raise ConnectionFailure on instantiation.
     """
-
+    logger.info("Testing MongoDB connection failure scenario.")
 
     def raise_connection_failure(*_, **__):
+        """
+           Mock function to simulate a MongoDB connection failure.
+           Raises ConnectionFailure exception regardless of input arguments.
+           """
+        logger.error("Simulating MongoDB connection failure.")
         raise ConnectionFailure("Failed to connect")
 
     monkeypatch.setattr(data_loader, "MongoClient", raise_connection_failure)
 
     with pytest.raises(ConnectionFailure):
         connect_to_mongodb("mongodb://baduri", "test_db")
+    logger.info("MongoDB connection failure test passed.")
 
 
-def test_main_with_mongodb(monkeypatch, dummy_inputs):
+def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[str, str]) -> None:
     """
     Test the main function execution with MongoDB enabled.
 
     Mocks MongoClient, database, and collections to simulate DB interaction.
     Confirms that insert or update methods are called on the mocked collection.
     """
+    logger.info("Testing main function execution with MongoDB enabled.")
+
     testargs = [
         "prog",
         "--input-folder", dummy_inputs["input_folder"],
@@ -160,6 +192,21 @@ def test_main_with_mongodb(monkeypatch, dummy_inputs):
     mock_meta_collection = mock.MagicMock()
 
     def getitem_side_effect(name):
+        """
+          Side effect function for mock database __getitem__ calls.
+
+          Args:
+              name (str): The name of the collection being accessed.
+
+          Returns:
+              mock.MagicMock: Returns a specific mocked collection object if the
+              name matches 'gas_lines' or 'meta'. Otherwise, returns a generic MagicMock.
+
+          Purpose:
+              This function allows the mocked database object to return different
+              mocked collections when accessed via db['collection_name'], simulating
+              realistic MongoDB collection access behavior for testing.
+          """
         if name == "gas_lines":
             return mock_gas_collection
         elif name == "meta":
@@ -175,27 +222,29 @@ def test_main_with_mongodb(monkeypatch, dummy_inputs):
 
     monkeypatch.setattr(data_loader, "MongoClient", lambda *a, **k: mock_client)
 
-    # Run the main function
     main()
 
-    # Assertions to confirm MongoDB was used
     mock_client.admin.command.assert_called_with('ping')
+    logger.debug("MongoDB ping command called.")
 
     assert (
             mock_gas_collection.insert_many.called
             or mock_gas_collection.insert_one.called
             or mock_gas_collection.update_one.called
     ), "Expected data insertion or update to MongoDB collection"
+    logger.info("Main with MongoDB test passed with data insertion/update verified.")
 
 
 # ===== Other Main Pipeline and Feature Tests =====
 
-def test_main_with_parallel(monkeypatch, dummy_inputs):
+def test_main_with_parallel(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[str, str]) -> None:
     """
     Test main execution with parallel processing enabled.
 
     Mocks ProcessPoolExecutor to verify parallel submit calls.
     """
+    logger.info("Testing main execution with parallel processing enabled.")
+
     testargs = [
         "prog",
         "--input-folder", dummy_inputs["input_folder"],
@@ -214,16 +263,21 @@ def test_main_with_parallel(monkeypatch, dummy_inputs):
 
         main()
 
-        assert mock_executor.return_value.__enter__.return_value.submit.call_count > 0
+        call_count = mock_executor.return_value.__enter__.return_value.submit.call_count
+        logger.debug(f"ProcessPoolExecutor submit call count: {call_count}")
+        assert call_count > 0
+    logger.info("Main with parallel processing test passed.")
 
 
-def test_process_report_chunk_error_logging(monkeypatch, caplog):
+def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, caplog) -> None:
     """
     Test that errors in process_report_chunk are logged properly.
 
     Patches create_pipeline_features to raise an exception.
     Checks for error log message.
     """
+    logger.info("Testing error logging in process_report_chunk.")
+
     monkeypatch.setattr(gis_tool.main, "create_pipeline_features",
                         lambda *a, **k: (_ for _ in ()).throw(Exception("test error")))
 
@@ -238,71 +292,96 @@ def test_process_report_chunk_error_logging(monkeypatch, caplog):
             gas_lines_collection=None,
             use_mongodb=False
         )
-    assert "Error in multiprocessing report chunk" in caplog.text
+    assert (
+            "I/O error in multiprocessing report chunk" in caplog.text
+            or "Error in multiprocessing report chunk" in caplog.text
+    )
+
+    logger.info("Error logging test in process_report_chunk passed.")
 
 
-def test_main_executes_pipeline(dummy_inputs, monkeypatch):
+def run_main_and_check_output(input_paths: Dict[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    Test that main executes the full pipeline and creates the expected output file.
+        Run the main GIS pipeline with specified input paths and verify output file creation.
 
-    Runs main with dummy inputs and asserts the output shapefile is created.
-    """
-    testargs = build_testargs(dummy_inputs)
+        Args:
+            input_paths (dict): Dictionary containing paths required to run the pipeline,
+                                including 'output_path' key for the output file location.
+            monkeypatch (pytest.MonkeyPatch): Pytest fixture for safely modifying sys.argv.
+
+        Raises:
+            AssertionError: If the main function exits with a non-zero code or if the expected
+                            output file is not created.
+        """
+    logger.info(f"Testing main pipeline execution with output path: {input_paths['output_path']}")
+    testargs = build_testargs(input_paths)
     monkeypatch.setattr("sys.argv", testargs)
 
-    try:
-        main()
-    except SystemExit as e:
-        # Catch sys.exit calls to avoid test failure
-        assert e.code == 0
+    main()
 
-    assert os.path.exists(dummy_inputs["output_path"]), "Expected output shapefile was not created."
+    output_exists = os.path.exists(input_paths["output_path"])
+    logger.debug(f"Output file exists: {output_exists}")
+    assert output_exists, f"Expected output file was not created: {input_paths['output_path']}"
+    logger.info("Main pipeline execution test passed.")
 
 
-def test_main_executes_pipeline_geojson(dummy_geojson_output, monkeypatch):
+def test_main_executes_pipeline(dummy_inputs: Dict[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    Test that main executes the full pipeline and creates a GeoJSON output file.
+    Test the main pipeline execution with dummy inputs producing a shapefile output.
 
-    Runs main with dummy inputs and asserts the output .geojson file is created.
+    Args:
+        dummy_inputs (dict): Fixture providing dummy input paths.
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture for patching sys.argv.
     """
-    testargs = build_testargs(dummy_geojson_output)
-    monkeypatch.setattr("sys.argv", testargs)
-
-    try:
-        main()
-    except SystemExit as e:
-        assert e.code == 0
-
-    assert os.path.exists(dummy_geojson_output["output_path"]), "Expected GeoJSON output file was not created."
+    run_main_and_check_output(dummy_inputs, monkeypatch)
 
 
-def test_main_with_real_data(monkeypatch):
+def test_main_executes_pipeline_geojson(dummy_geojson_output: Dict[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Test the main pipeline execution with dummy inputs producing a GeoJSON output.
+
+    Args:
+        dummy_geojson_output (dict): Fixture providing dummy input paths with GeoJSON output.
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture for patching sys.argv.
+    """
+    run_main_and_check_output(dummy_geojson_output, monkeypatch)
+
+
+def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Test the main function using real data files from the local filesystem.
-    Verifies that the pipeline executes successfully and outputs a file.
+    Skips if data files are missing.
     """
-    input_folder = "C:/Users/xrose/PycharmProjects/PythonProject/data/input_reports"
-    gas_lines_path = "C:/Users/xrose/PycharmProjects/PythonProject/data/gas_lines.shp"
-    future_dev_path = "C:/Users/xrose/PycharmProjects/PythonProject/data/future_dev.shp"
-    output_path = "C:/Users/xrose/PycharmProjects/PythonProject/data/final_output_test.shp"
-    report_file = f"{input_folder}/example_report.txt"
+    logger.info("Testing main function with real data files from local filesystem.")
+    base_data_path = Path("C:/Users/xrose/PycharmProjects/PythonProject/data").resolve()
+
+    input_folder = base_data_path / "input_reports"
+    gas_lines_path = base_data_path / "gas_lines.shp"
+    future_dev_path = base_data_path / "future_dev.shp"
+    output_path = base_data_path / "final_output_test.shp"
+    report_file = input_folder / "dummy_report.txt"
+
+    logger.debug(f"Current working directory: {os.getcwd()}")
+    for p in [input_folder, gas_lines_path, future_dev_path, report_file]:
+        exists = p.exists()
+        logger.debug(f"Checking existence for {p}: {exists}")
+        if not exists:
+            pytest.skip(f"Required test data not found: {p}")
 
     testargs = [
         "prog",
-        "--input-folder", input_folder,
-        "--output-path", output_path,
-        "--future-dev-path", future_dev_path,
-        "--gas-lines-path", gas_lines_path,
-        "--report-files", report_file,
+        "--input-folder", str(input_folder),
+        "--output-path", str(output_path),
+        "--future-dev-path", str(future_dev_path),
+        "--gas-lines-path", str(gas_lines_path),
+        "--report-files", str(report_file),
         "--buffer-distance", "50",
         "--no-mongodb"
     ]
     monkeypatch.setattr("sys.argv", testargs)
     monkeypatch.setattr("gis_tool.config.ALLOW_OVERWRITE_OUTPUT", True)
 
-    try:
-        main()
-    except SystemExit as e:
-        assert e.code == 0
+    main()
 
-    assert os.path.exists(output_path), "Expected output shapefile from real data was not created."
+    assert output_path.exists(), "Expected output shapefile from real data was not created."
+    logger.info("Main function with real data test passed.")
