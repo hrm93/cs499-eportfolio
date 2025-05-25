@@ -127,7 +127,8 @@ def merge_buffers_into_planning_file(
             logger.warning("Buffer GeoDataFrame is empty; no geometries to merge.")
             logger.info(
                 f"No update performed on '{future_development_feature_class}'; existing data remains unchanged.")
-            return gpd.GeoDataFrame(geometry=[], crs=future_dev_gdf.crs)
+            # Return the original future development GeoDataFrame unchanged
+            return future_dev_gdf
 
         if future_dev_gdf.empty:
             logger.warning("Future Development GeoDataFrame is empty; result will contain only buffer polygons.")
@@ -169,17 +170,21 @@ def merge_buffers_into_planning_file(
         future_dev_gdf = future_dev_gdf[future_dev_gdf.geometry.notnull() & future_dev_gdf.geometry.is_valid & ~future_dev_gdf.geometry.is_empty]
         buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty]
 
-        frames = [df for df in [future_dev_gdf, buffer_gdf] if not df.empty]
+        driver = config.get_driver_from_extension(future_development_feature_class)
 
+        frames = [df for df in [future_dev_gdf, buffer_gdf] if not df.empty]
         merged_gdf = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=future_dev_gdf.crs)
 
         logger.info(f"Merged GeoDataFrame has {len(merged_gdf)} features after merging and cleaning.")
 
-        # Use configured output format via helper
-        driver = config.get_driver_from_extension(future_development_feature_class)
-        merged_gdf.to_file(future_development_feature_class, driver=driver)
-        logger.info(f"Merged data saved to {future_development_feature_class}")
-        return merged_gdf
+        if merged_gdf.empty:
+            logger.warning(f"Merged GeoDataFrame is empty; skipping writing to {future_development_feature_class}")
+            # Return empty GeoDataFrame with correct CRS without writing file
+            return gpd.GeoDataFrame(geometry=[], crs=future_dev_gdf.crs)
+        else:
+            merged_gdf.to_file(future_development_feature_class, driver=driver)
+            logger.info(f"Merged data saved to {future_development_feature_class}")
+            return merged_gdf
 
     except (OSError, IOError, ValueError, fiona.errors.FionaError) as e:
         logger.exception(f"Error in merge_buffers_into_planning_file: {e}")

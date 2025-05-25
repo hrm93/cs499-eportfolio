@@ -245,23 +245,42 @@ def test_merge_buffers_into_planning_file(tmp_path):
     assert len(merged_gdf) == 2
     assert all(geom in ['Polygon', 'MultiPolygon'] for geom in merged_gdf.geom_type)
     logger.info("test_merge_buffers_into_planning_file passed.")
+
+
 def test_merge_empty_buffer_file(tmp_path):
     """
-    Test merge function with an empty buffer file.
+    Test that merge function skips writing if the buffer file is empty,
+    avoiding Fiona empty write warning.
     """
+    # Create empty buffer GeoDataFrame
     empty_buffer = gpd.GeoDataFrame(geometry=[], crs="EPSG:32633")
+    # Create future development GeoDataFrame with one point
     future_dev = gpd.GeoDataFrame(geometry=[Point(2, 2)], crs="EPSG:32633")
 
-    buffer_fp = tmp_path / "empty_buffer.shp"
+    buffer_fp = tmp_path / "empty_buffer.geojson"
     future_fp = tmp_path / "future_dev.shp"
 
-    empty_buffer.to_file(str(buffer_fp))
+    # Write empty buffer as GeoJSON (empty file)
+    empty_buffer.to_file(str(buffer_fp), driver="GeoJSON")
+    # Write future development shapefile (non-empty)
     future_dev.to_file(str(future_fp))
 
-    merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=10.0)
-    result = gpd.read_file(future_fp)
+    # Read original future development file contents for later comparison
+    original_future = gpd.read_file(future_fp)
 
-    assert len(result) == 1  # Only the original future point should remain
+    # Call merge; this should skip writing empty merged file and return merged GeoDataFrame
+    merged_gdf = merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=10.0)
+
+    # After merge, read the future file again
+    after_merge_future = gpd.read_file(future_fp)
+
+    # Assert merged GeoDataFrame is not empty and matches the original future dev data (unchanged)
+    assert not merged_gdf.empty
+    assert len(merged_gdf) == len(original_future)
+    assert after_merge_future.equals(original_future), "Future dev file should not be overwritten if buffer is empty"
+
+    # Confirm merged_gdf has same CRS as future_dev
+    assert merged_gdf.crs == future_dev.crs
 
 
 def test_merge_buffer_non_polygon(tmp_path):

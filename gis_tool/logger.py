@@ -23,7 +23,9 @@ def setup_logging(log_file: str = None, level: int = None) -> None:
     logger.setLevel(level)
 
     if logger.hasHandlers():
-        logger.handlers.clear()
+        for handler in logger.handlers[:]:
+            handler.close()
+            logger.removeHandler(handler)
 
     formatter = logging.Formatter(
         fmt='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s:%(lineno)d - %(message)s',
