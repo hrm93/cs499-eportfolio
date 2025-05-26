@@ -1,11 +1,13 @@
 # test buffer_processor:
 import os
 import geopandas as gpd
+import shapely.geometry
 from shapely.geometry import Point, Polygon
 from shapely.geometry.base import BaseGeometry
 import tempfile
 import pytest
-from gis_tool.buffer_processor import fix_geometry, create_buffer_with_geopandas, merge_buffers_into_planning_file, ensure_projected_crs
+from gis_tool.buffer_processor import fix_geometry, create_buffer_with_geopandas, merge_buffers_into_planning_file, \
+    ensure_projected_crs, subtract_parks_from_buffer
 from gis_tool import config
 from unittest.mock import Mock
 import logging
@@ -184,6 +186,49 @@ def test_merge_missing_crs_inputs(tmp_path):
     assert not result.empty
     assert result.crs is not None
     logger.info("test_merge_missing_crs_inputs passed.")
+
+
+def test_subtract_parks_from_buffer(tmp_path):
+    """
+     Test that subtract_parks_from_buffer correctly subtracts park polygons
+     from buffer polygons.
+
+     This test creates a simple square buffer polygon and a smaller overlapping
+     park polygon, writes the park polygon to a temporary GeoJSON file, and
+     verifies that the resulting buffered polygon has a 'hole' where the park
+     polygon overlapped.
+
+     Assertions:
+     - The result GeoDataFrame is not empty.
+     - The CRS remains unchanged after subtraction.
+     - Each resulting geometry is valid, non-empty, and has an area reflecting
+       the subtraction of the overlapping park polygon.
+     """
+    # Create simple buffer polygon (square)
+    buffer_poly = shapely.geometry.box(0, 0, 10, 10)
+    buffer_gdf = gpd.GeoDataFrame(geometry=[buffer_poly], crs="EPSG:3857")
+
+    # Create park polygon overlapping part of buffer (smaller square inside)
+    park_poly = shapely.geometry.box(5, 5, 15, 15)
+    parks_gdf = gpd.GeoDataFrame(geometry=[park_poly], crs="EPSG:3857")
+
+    # Save parks to temporary GeoJSON file
+    parks_path = tmp_path / "parks.geojson"
+    parks_gdf.to_file(str(parks_path), driver="GeoJSON")
+
+    # Call function under test
+    result = subtract_parks_from_buffer(buffer_gdf, str(parks_path))
+
+    # Basic assertions
+    assert not result.empty, "Resulting GeoDataFrame should not be empty."
+    assert result.crs == buffer_gdf.crs, "CRS should remain the same after subtraction."
+
+    # Check area reduction due to subtraction
+    expected_area = buffer_poly.area - buffer_poly.intersection(park_poly).area
+    for geom in result.geometry:
+        assert geom.is_valid, "Geometry should be valid."
+        assert not geom.is_empty, "Geometry should not be empty."
+        assert abs(geom.area - expected_area) < 1e-6, "Geometry area should reflect subtraction."
 
 
 def test_create_buffer_with_geopandas(sample_gdf):

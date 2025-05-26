@@ -64,9 +64,60 @@ def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:
         return None
 
 
+def subtract_parks_from_buffer(
+    buffer_gdf: gpd.GeoDataFrame,
+    parks_path: str
+) -> gpd.GeoDataFrame:
+    """
+    Subtract park polygons from buffer polygons.
+
+    Args:
+        buffer_gdf: GeoDataFrame of buffered gas lines (polygons).
+        parks_path: File path to park polygons layer.
+
+    Returns:
+        GeoDataFrame with parks subtracted from buffer polygons.
+    """
+    try:
+        parks_gdf = gpd.read_file(parks_path)
+
+        if parks_gdf.crs != buffer_gdf.crs:
+            parks_gdf = parks_gdf.to_crs(buffer_gdf.crs)
+
+        parks_gdf['geometry'] = parks_gdf.geometry.apply(fix_geometry)
+        buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
+
+        parks_gdf = parks_gdf[parks_gdf.geometry.notnull() & parks_gdf.geometry.is_valid]
+        buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid]
+
+        def subtract_park(buffer_geom):
+            for park_geom in parks_gdf.geometry:
+                if buffer_geom.is_empty:
+                    break
+                try:
+                    buffer_geom = buffer_geom.difference(park_geom)
+                except Exception as e:
+                    logger.error(f"Error subtracting park geometry: {e}")
+            return buffer_geom
+
+        buffer_gdf['geometry'] = buffer_gdf.geometry.apply(subtract_park)
+
+        buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
+        buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty]
+
+        logger.info(f"Subtracted parks from buffer polygons. Remaining features: {len(buffer_gdf)}")
+
+        return buffer_gdf
+
+    except Exception as e:
+        logger.exception(f"Error in subtract_parks_from_buffer: {e}")
+        raise
+
+
 def create_buffer_with_geopandas(
     input_gas_lines_path: str,
-    buffer_distance_ft: Optional[float] = None
+    buffer_distance_ft: Optional[float] = None,
+    parks_path: Optional[str] = None,
 ) -> gpd.GeoDataFrame:
     """
     Create a buffer polygon around gas lines features using GeoPandas.
@@ -74,9 +125,10 @@ def create_buffer_with_geopandas(
     Args:
         input_gas_lines_path (str): File path to input gas lines layer (shapefile, GeoPackage, etc.).
         buffer_distance_ft (float, optional): Buffer distance in feet.
+        parks_path (str, optional): File path to park polygons to subtract from buffer.
 
     Returns:
-        gpd.GeoDataFrame: A GeoDataFrame containing the buffered geometries.
+        gpd.GeoDataFrame: A GeoDataFrame containing the buffered geometries (with parks subtracted if applicable).
     """
     if buffer_distance_ft is None:
         buffer_distance_ft = config.DEFAULT_BUFFER_DISTANCE_FT
@@ -91,9 +143,16 @@ def create_buffer_with_geopandas(
             gas_lines_gdf = gas_lines_gdf.set_crs(config.DEFAULT_CRS)
 
         gas_lines_gdf = ensure_projected_crs(gas_lines_gdf)
-        gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
 
+        # Create buffers
+        gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
         logger.info(f"Buffer created for {len(gas_lines_gdf)} gas line features.")
+
+        # Subtract parks if path provided
+        if parks_path:
+            logger.info(f"Subtracting park polygons from buffers using parks layer at {parks_path}")
+            gas_lines_gdf = subtract_parks_from_buffer(gas_lines_gdf, parks_path)
+
         return gas_lines_gdf
 
     except Exception as e:

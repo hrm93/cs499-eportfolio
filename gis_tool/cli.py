@@ -48,6 +48,8 @@ def parse_args():
     # Optional arguments
     parser.add_argument('--buffer-distance', type=float, default=25.0,
                         help="Buffer distance around gas lines in feet (default: 25 feet).")
+    parser.add_argument("--parks-path", default=None,
+                        help="Optional path to park polygons to subtract.")
     parser.add_argument('--crs', type=str, default='EPSG:32633',
                         help="CRS for spatial data (default: EPSG:32633).")
     parser.add_argument('--parallel', action='store_true',

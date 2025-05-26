@@ -213,6 +213,7 @@ def main() -> None:
     gdf_buffer = create_buffer_with_geopandas(
         gas_lines_shp,
         buffer_distance_ft=buffer_distance,
+        parks_path=args.parks_path,
     )
 
     if gdf_buffer.empty:
