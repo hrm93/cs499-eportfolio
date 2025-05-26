@@ -4,9 +4,10 @@ import geopandas as gpd
 import pandas as pd
 from gis_tool import config
 import fiona.errors
-from typing import Optional
+from typing import Optional, Iterable, Callable, Any, List
 from shapely.geometry.base import BaseGeometry
 from shapely.errors import TopologicalError
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import logging
 
 logger = logging.getLogger("gis_tool")
@@ -64,9 +65,33 @@ def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:
         return None
 
 
+def buffer_geometry(geom, buffer_distance_m):
+    try:
+        return geom.buffer(buffer_distance_m)
+    except Exception as e:
+        logger.error(f"Buffering error for geometry: {e}")
+        return None
+
+
+def subtract_park_from_geom(buffer_geom, parks_geoms):
+    """
+    Subtract all park geometries from a single buffer geometry.
+    """
+    try:
+        for park_geom in parks_geoms:
+            if buffer_geom.is_empty:
+                break
+            buffer_geom = buffer_geom.difference(park_geom)
+        return buffer_geom
+    except Exception as e:
+        logger.error(f"Error subtracting park geometry: {e}")
+        return buffer_geom  # Return original if error
+
+
 def subtract_parks_from_buffer(
     buffer_gdf: gpd.GeoDataFrame,
-    parks_path: str
+    parks_path: str,
+    use_multiprocessing: bool = False,
 ) -> gpd.GeoDataFrame:
     """
     Subtract park polygons from buffer polygons.
@@ -74,6 +99,7 @@ def subtract_parks_from_buffer(
     Args:
         buffer_gdf: GeoDataFrame of buffered gas lines (polygons).
         parks_path: File path to park polygons layer.
+        use_multiprocessing: If True, subtract parks using multiprocessing.
 
     Returns:
         GeoDataFrame with parks subtracted from buffer polygons.
@@ -90,20 +116,22 @@ def subtract_parks_from_buffer(
         parks_gdf = parks_gdf[parks_gdf.geometry.notnull() & parks_gdf.geometry.is_valid]
         buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid]
 
-        def subtract_park(buffer_geom):
-            for park_geom in parks_gdf.geometry:
-                if buffer_geom.is_empty:
-                    break
-                try:
-                    buffer_geom = buffer_geom.difference(park_geom)
-                except Exception as e:
-                    logger.error(f"Error subtracting park geometry: {e}")
-            return buffer_geom
+        parks_geoms = list(parks_gdf.geometry)
 
-        buffer_gdf['geometry'] = buffer_gdf.geometry.apply(subtract_park)
+        if use_multiprocessing:
+            buffer_gdf['geometry'] = parallel_process(
+                lambda geom: subtract_park_from_geom(geom, parks_geoms),
+                buffer_gdf.geometry
+            )
+        else:
+            buffer_gdf['geometry'] = buffer_gdf.geometry.apply(
+                lambda geom: subtract_park_from_geom(geom, parks_geoms)
+            )
 
         buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
-        buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty]
+        buffer_gdf = buffer_gdf[
+            buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty
+        ]
 
         logger.info(f"Subtracted parks from buffer polygons. Remaining features: {len(buffer_gdf)}")
 
@@ -114,10 +142,36 @@ def subtract_parks_from_buffer(
         raise
 
 
+def parallel_process(
+    func: Callable,
+    items: Iterable,
+    max_workers: int = None,
+) -> List[Any]:
+    """
+    Run a function on a list of items in parallel using ProcessPoolExecutor.
+
+    Args:
+        func: Function to run on each item.
+        items: Iterable of input items.
+        max_workers: Max number of worker processes; defaults to number of processors.
+
+    Returns:
+        List of results in the order they complete (not guaranteed original order).
+    """
+    results = []
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(func, item): idx for idx, item in enumerate(items)}
+        for future in as_completed(futures):
+            idx = futures[future]
+            results[idx] = future.result()
+    return results
+
+
 def create_buffer_with_geopandas(
     input_gas_lines_path: str,
     buffer_distance_ft: Optional[float] = None,
     parks_path: Optional[str] = None,
+    use_multiprocessing: bool = False,
 ) -> gpd.GeoDataFrame:
     """
     Create a buffer polygon around gas lines features using GeoPandas.
@@ -129,30 +183,34 @@ def create_buffer_with_geopandas(
 
     Returns:
         gpd.GeoDataFrame: A GeoDataFrame containing the buffered geometries (with parks subtracted if applicable).
+        :param input_gas_lines_path:
+        :param parks_path:
+        :param buffer_distance_ft:
+        :param use_multiprocessing:
     """
     if buffer_distance_ft is None:
         buffer_distance_ft = config.DEFAULT_BUFFER_DISTANCE_FT
-
     buffer_distance_m = buffer_distance_ft * 0.3048  # Convert feet to meters
 
     try:
         gas_lines_gdf = gpd.read_file(input_gas_lines_path)
-
         if gas_lines_gdf.crs is None:
             logger.warning("Input gas lines layer has no CRS defined; assuming default.")
             gas_lines_gdf = gas_lines_gdf.set_crs(config.DEFAULT_CRS)
-
         gas_lines_gdf = ensure_projected_crs(gas_lines_gdf)
 
-        # Create buffers
-        gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
+        if use_multiprocessing:
+            gas_lines_gdf['geometry'] = parallel_process(
+                lambda geom: buffer_geometry(geom, buffer_distance_m),
+                gas_lines_gdf.geometry
+            )
+        else:
+            gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
         logger.info(f"Buffer created for {len(gas_lines_gdf)} gas line features.")
 
-        # Subtract parks if path provided
         if parks_path:
             logger.info(f"Subtracting park polygons from buffers using parks layer at {parks_path}")
             gas_lines_gdf = subtract_parks_from_buffer(gas_lines_gdf, parks_path)
-
         return gas_lines_gdf
 
     except Exception as e:
