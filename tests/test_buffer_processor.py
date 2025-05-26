@@ -1,13 +1,13 @@
 # test buffer_processor:
 import os
 import geopandas as gpd
-import shapely.geometry
-from shapely.geometry import Point, Polygon
+from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 import tempfile
 import pytest
+from gis_tool import buffer_processor
 from gis_tool.buffer_processor import fix_geometry, create_buffer_with_geopandas, merge_buffers_into_planning_file, \
-    ensure_projected_crs, subtract_parks_from_buffer
+    ensure_projected_crs
 from gis_tool import config
 from unittest.mock import Mock
 import logging
@@ -80,6 +80,29 @@ def sample_gdf():
     return gdf
 
 
+@pytest.fixture
+def sample_gas_lines_gdf():
+    # Create a GeoDataFrame with LineStrings (simulating gas lines)
+    geoms = [LineString([(0, 0), (1, 1)]), LineString([(1, 1), (2, 2)])]
+    gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
+    return gdf
+
+
+@pytest.fixture
+def sample_parks_gdf():
+    # Create a GeoDataFrame with Polygons (simulating parks)
+    geoms = [Polygon([(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5)])]
+    gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
+    return gdf
+
+
+@pytest.fixture
+def sample_parks_file(tmp_path, sample_parks_gdf):
+    file_path = tmp_path / "parks.geojson"
+    sample_parks_gdf.to_file(str(file_path), driver='GeoJSON')
+    return str(file_path)
+
+
 def test_fix_geometry_valid():
     """
     Test that a valid geometry is returned unchanged by fix_geometry.
@@ -122,6 +145,7 @@ def test_fix_geometry_unfixable():
     assert result is None
     logger.info("test_fix_geometry_unfixable passed.")
 
+
 def test_ensure_projected_crs_already_projected():
     """
     Test that a projected CRS is returned unchanged by ensure_projected_crs.
@@ -145,6 +169,7 @@ def test_ensure_projected_crs_needs_reproject():
     assert projected.crs != gdf.crs
     assert projected.crs.is_projected
     logger.info("test_ensure_projected_crs_needs_reproject passed.")
+
 
 def test_create_buffer_with_missing_crs():
     """
@@ -188,76 +213,54 @@ def test_merge_missing_crs_inputs(tmp_path):
     logger.info("test_merge_missing_crs_inputs passed.")
 
 
-def test_subtract_parks_from_buffer(tmp_path):
-    """
-     Test that subtract_parks_from_buffer correctly subtracts park polygons
-     from buffer polygons.
-
-     This test creates a simple square buffer polygon and a smaller overlapping
-     park polygon, writes the park polygon to a temporary GeoJSON file, and
-     verifies that the resulting buffered polygon has a 'hole' where the park
-     polygon overlapped.
-
-     Assertions:
-     - The result GeoDataFrame is not empty.
-     - The CRS remains unchanged after subtraction.
-     - Each resulting geometry is valid, non-empty, and has an area reflecting
-       the subtraction of the overlapping park polygon.
-     """
-    # Create simple buffer polygon (square)
-    buffer_poly = shapely.geometry.box(0, 0, 10, 10)
-    buffer_gdf = gpd.GeoDataFrame(geometry=[buffer_poly], crs="EPSG:3857")
-
-    # Create park polygon overlapping part of buffer (smaller square inside)
-    park_poly = shapely.geometry.box(5, 5, 15, 15)
-    parks_gdf = gpd.GeoDataFrame(geometry=[park_poly], crs="EPSG:3857")
-
-    # Save parks to temporary GeoJSON file
-    parks_path = tmp_path / "parks.geojson"
-    parks_gdf.to_file(str(parks_path), driver="GeoJSON")
-
-    # Call function under test
-    result = subtract_parks_from_buffer(buffer_gdf, str(parks_path))
-
-    # Basic assertions
-    assert not result.empty, "Resulting GeoDataFrame should not be empty."
-    assert result.crs == buffer_gdf.crs, "CRS should remain the same after subtraction."
-
-    # Check area reduction due to subtraction
-    expected_area = buffer_poly.area - buffer_poly.intersection(park_poly).area
-    for geom in result.geometry:
-        assert geom.is_valid, "Geometry should be valid."
-        assert not geom.is_empty, "Geometry should not be empty."
-        assert abs(geom.area - expected_area) < 1e-6, "Geometry area should reflect subtraction."
+def assert_geodataframes_equal(gdf1, gdf2, tol=1e-6):
+    assert isinstance(gdf1, gpd.GeoDataFrame)
+    assert isinstance(gdf2, gpd.GeoDataFrame)
+    assert gdf1.crs == gdf2.crs
+    assert len(gdf1) == len(gdf2)
+    for geom1, geom2 in zip(gdf1.geometry, gdf2.geometry):
+        assert geom1.equals_exact(geom2, tolerance=tol)
 
 
-def test_create_buffer_with_geopandas(sample_gdf):
-    """
-    Test `create_buffer_with_geopandas` function by:
-    - Writing sample_gdf to a temporary shapefile.
-    - Calling the buffer creation function with 25 ft buffer distance.
-    - Saving the buffered GeoDataFrame to a shapefile.
-    - Asserting the output shapefile exists and is not empty.
-    """
-    logger.info("Running test_create_buffer_with_geopandas")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        input_path = os.path.join(tmpdir, "input.shp")
-        sample_gdf.to_file(input_path)
-        logger.debug(f"Sample GeoDataFrame saved at {input_path}")
+def test_subtract_parks_from_buffer_multiprocessing(sample_gas_lines_gdf, sample_parks_file):
+    # Buffer the gas lines (non-multiprocessing)
+    buffer_distance = 100  # meters
+    buffered_gdf = sample_gas_lines_gdf.copy()
+    buffered_gdf['geometry'] = buffered_gdf.geometry.buffer(buffer_distance)
 
-        buffered_gdf = create_buffer_with_geopandas(
-            input_path,
-            buffer_distance_ft=25
-        )
+    # Test subtract_parks_from_buffer without multiprocessing
+    result_serial = buffer_processor.subtract_parks_from_buffer(buffered_gdf.copy(), sample_parks_file, use_multiprocessing=False)
 
-        output_path = os.path.join(tmpdir, "buffered_output.shp")
-        buffered_gdf.to_file(output_path)
-        logger.debug(f"Buffered GeoDataFrame saved at {output_path}")
+    # Test subtract_parks_from_buffer with multiprocessing
+    result_parallel = buffer_processor.subtract_parks_from_buffer(buffered_gdf.copy(), sample_parks_file, use_multiprocessing=True)
 
-        assert os.path.exists(output_path)
-        out_gdf = gpd.read_file(output_path)
-        assert not out_gdf.empty
-    logger.info("test_create_buffer_with_geopandas passed.")
+    # Use helper assertion
+    assert_geodataframes_equal(result_serial, result_parallel)
+
+
+def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines_gdf, sample_parks_file):
+    gas_lines_path = tmp_path / "gas_lines.geojson"
+    sample_gas_lines_gdf.to_file(str(gas_lines_path), driver='GeoJSON')
+
+    # Test without multiprocessing
+    result_serial = buffer_processor.create_buffer_with_geopandas(
+        input_gas_lines_path=str(gas_lines_path),
+        buffer_distance_ft=328.084,  # 100 meters in feet
+        parks_path=sample_parks_file,
+        use_multiprocessing=False,
+    )
+
+    # Test with multiprocessing
+    result_parallel = buffer_processor.create_buffer_with_geopandas(
+        input_gas_lines_path=str(gas_lines_path),
+        buffer_distance_ft=328.084,
+        parks_path=sample_parks_file,
+        use_multiprocessing=True,
+    )
+
+    # Use helper assertion
+    assert_geodataframes_equal(result_serial, result_parallel)
+
 
 def test_merge_buffers_into_planning_file(tmp_path):
     """

@@ -4,13 +4,23 @@ import geopandas as gpd
 import pandas as pd
 from gis_tool import config
 import fiona.errors
-from typing import Optional, Iterable, Callable, Any, List
+from typing import Optional, Callable, Any, List, Sequence
 from shapely.geometry.base import BaseGeometry
 from shapely.errors import TopologicalError
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import logging
 
 logger = logging.getLogger("gis_tool")
+
+
+def subtract_park_from_geom_helper(geom_and_parks):
+    geom, parks_geoms = geom_and_parks
+    return subtract_park_from_geom(geom, parks_geoms)
+
+
+def buffer_geometry_helper(geom_and_distance):
+    geom, distance = geom_and_distance
+    return buffer_geometry(geom, distance)
 
 
 def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -119,10 +129,9 @@ def subtract_parks_from_buffer(
         parks_geoms = list(parks_gdf.geometry)
 
         if use_multiprocessing:
-            buffer_gdf['geometry'] = parallel_process(
-                lambda geom: subtract_park_from_geom(geom, parks_geoms),
-                buffer_gdf.geometry
-            )
+            # Prepare tuples of (geom, parks_geoms) because multiprocessing functions only accept one argument
+            args = [(geom, parks_geoms) for geom in buffer_gdf.geometry]
+            buffer_gdf['geometry'] = parallel_process(subtract_park_from_geom_helper, args)
         else:
             buffer_gdf['geometry'] = buffer_gdf.geometry.apply(
                 lambda geom: subtract_park_from_geom(geom, parks_geoms)
@@ -144,7 +153,7 @@ def subtract_parks_from_buffer(
 
 def parallel_process(
     func: Callable,
-    items: Iterable,
+    items: Sequence,
     max_workers: int = None,
 ) -> List[Any]:
     """
@@ -158,7 +167,7 @@ def parallel_process(
     Returns:
         List of results in the order they complete (not guaranteed original order).
     """
-    results = []
+    results = [None] * len(items)
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(func, item): idx for idx, item in enumerate(items)}
         for future in as_completed(futures):
@@ -200,13 +209,10 @@ def create_buffer_with_geopandas(
         gas_lines_gdf = ensure_projected_crs(gas_lines_gdf)
 
         if use_multiprocessing:
-            gas_lines_gdf['geometry'] = parallel_process(
-                lambda geom: buffer_geometry(geom, buffer_distance_m),
-                gas_lines_gdf.geometry
-            )
+            args = [(geom, buffer_distance_m) for geom in gas_lines_gdf.geometry]
+            gas_lines_gdf['geometry'] = parallel_process(buffer_geometry_helper, args)
         else:
             gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
-        logger.info(f"Buffer created for {len(gas_lines_gdf)} gas line features.")
 
         if parks_path:
             logger.info(f"Subtracting park polygons from buffers using parks layer at {parks_path}")
