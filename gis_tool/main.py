@@ -81,8 +81,8 @@ def process_report_chunk(
     Note:
         - MongoDB insert/update operations are disabled in parallel workers because
           MongoDB connections usually cannot be shared across processes.
-        - `gas_lines_collection` will be None in parallel workers.
-        - `use_mongodb` flag may still be True, but no DB writes happen in workers.
+        - gas_lines_collection will be None in parallel workers.
+        - use_mongodb flag may still be True, but no DB writes happen in workers.
 
     Args:
         report_chunk (list[str]): List of report filenames to process.
@@ -229,4 +229,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

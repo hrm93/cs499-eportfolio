@@ -15,6 +15,12 @@ All tests isolate changes using monkeypatching and module reloading.
 import pytest
 import importlib
 import gis_tool.config as config
+from gis_tool import logger
+
+
+@pytest.fixture(scope="session", autouse=True)
+def configure_logging():
+    logger.setup_logging()
 
 
 @pytest.fixture(autouse=True)

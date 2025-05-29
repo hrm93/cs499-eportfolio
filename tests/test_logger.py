@@ -1,24 +1,26 @@
 ### test_logger.py
-
+import pytest
 import logging
 import os
 from gis_tool.logger import setup_logging
 from logging.handlers import RotatingFileHandler
 
 
+@pytest.fixture(scope="session", autouse=True)
+def init_logger():
+    setup_logging()
+
+
 def reset_logging():
     """
-    Reset the 'gis_tool' logger by removing all handlers and shutting down logging.
-
-    This ensures that each test starts with a clean logging state,
-    avoiding interference from previously added handlers.
+    Reset the 'gis_tool' logger by removing all handlers.
+    Avoids calling logging.shutdown() to prevent affecting other tests.
     """
     logger = logging.getLogger('gis_tool')
     if logger.hasHandlers():
         for handler in logger.handlers[:]:
             handler.close()
             logger.removeHandler(handler)
-    logging.shutdown()
 
 
 def test_setup_logging_creates_log_file(tmp_path, capsys):

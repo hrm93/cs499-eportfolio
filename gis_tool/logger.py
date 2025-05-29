@@ -32,6 +32,9 @@ def setup_logging(log_file: str = None, level: int = None) -> None:
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
+    # Ensure log directory exists
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
     file_handler = logging.handlers.RotatingFileHandler(
         log_file, maxBytes=5 * 1024 * 1024, backupCount=3
     )

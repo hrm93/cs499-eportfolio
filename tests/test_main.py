@@ -14,13 +14,13 @@ Uses pytest fixtures and unittest.mock for isolation and control.
 import os
 import geopandas as gpd
 import pytest
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 from unittest import mock
 from pymongo.errors import ConnectionFailure
 from gis_tool.data_loader import connect_to_mongodb
 import gis_tool.data_loader as data_loader
 import gis_tool.main
-from gis_tool.main import main
+from gis_tool.main import main, process_report_chunk
 from pathlib import Path
 from typing import List, Dict
 import logging
@@ -50,7 +50,7 @@ def build_testargs(input_dict: Dict[str, str]) -> List[str]:
         "--output-path", input_dict["output_path"],
         "--future-dev-path", input_dict["future_dev_path"],
         "--gas-lines-path", input_dict["gas_lines_path"],
-        "--report-files", str(Path(input_dict["input_folder"]) / "dummy.txt"),
+        "--report-files", str(Path(input_dict["input_folder"]) / "dummy_report.txt"),
         "--buffer-distance", "50",
         "--no-mongodb"
     ]
@@ -79,7 +79,7 @@ def dummy_inputs(tmp_path: Path) -> Dict[str, str]:
     logger.debug(f"Created input folder at {input_folder}")
 
     valid_report_line = "123\t456\t789\t12.34\t56.78\t90\t0\t1\n"
-    report_path = input_folder / "dummy.txt"
+    report_path = input_folder / "dummy_report.txt"
     report_path.write_text(valid_report_line)
     logger.debug(f"Wrote dummy report file at {report_path}")
 
@@ -120,6 +120,7 @@ def dummy_geojson_output(tmp_path: Path, dummy_inputs: Dict[str, str]) -> Dict[s
     new_inputs["output_path"] = str(tmp_path / "final_output.geojson")
     logger.debug(f"GeoJSON output path set to {new_inputs['output_path']}")
     return new_inputs
+
 
 # ===== MongoDB Connection and Integration Tests =====
 
@@ -165,14 +166,15 @@ def test_connect_to_mongodb_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     logger.info("MongoDB connection failure test passed.")
 
 
-def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[str, str]) -> None:
+def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[str, str], caplog) -> None:
     """
     Test the main function execution with MongoDB enabled.
 
     Mocks MongoClient, database, and collections to simulate DB interaction.
     Confirms that insert or update methods are called on the mocked collection.
     """
-    logger.info("Testing main function execution with MongoDB enabled.")
+    with caplog.at_level(logging.INFO):
+        logger.info("Testing main function execution with MongoDB enabled.")
 
     testargs = [
         "prog",
@@ -180,7 +182,7 @@ def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[s
         "--output-path", dummy_inputs["output_path"],
         "--future-dev-path", dummy_inputs["future_dev_path"],
         "--gas-lines-path", dummy_inputs["gas_lines_path"],
-        "--report-files", str(Path(dummy_inputs["input_folder"]) / "dummy.txt"),
+        "--report-files", str(Path(dummy_inputs["input_folder"]) / "dummy_report.txt"),
         "--buffer-distance", "50",
         "--use-mongodb"
     ]
@@ -190,6 +192,7 @@ def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[s
     mock_db = mock.MagicMock()
     mock_gas_collection = mock.MagicMock()
     mock_meta_collection = mock.MagicMock()
+
 
     def getitem_side_effect(name):
         """
@@ -232,7 +235,29 @@ def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[s
             or mock_gas_collection.insert_one.called
             or mock_gas_collection.update_one.called
     ), "Expected data insertion or update to MongoDB collection"
+
     logger.info("Main with MongoDB test passed with data insertion/update verified.")
+
+    assert "Testing main function execution with MongoDB enabled." in caplog.text
+    assert "Main with MongoDB test passed with data insertion/update verified." in caplog.text
+
+
+def test_connect_to_mongodb_failure_logs(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    """
+    Test that MongoDB connection failure logs the correct error.
+    """
+
+    def mock_mongo_fail(*args, **kwargs):
+        logging.getLogger("gis_tool").error("Simulating MongoDB connection failure")
+        raise ConnectionFailure("fail")
+
+    monkeypatch.setattr(data_loader, "MongoClient", mock_mongo_fail)
+
+    with caplog.at_level(logging.ERROR, logger="gis_tool"):
+        with pytest.raises(ConnectionFailure):
+            connect_to_mongodb("baduri", "test_db")
+
+    assert "Simulating MongoDB connection failure" in caplog.text
 
 
 # ===== Other Main Pipeline and Feature Tests =====
@@ -251,7 +276,7 @@ def test_main_with_parallel(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[
         "--output-path", dummy_inputs["output_path"],
         "--future-dev-path", dummy_inputs["future_dev_path"],
         "--gas-lines-path", dummy_inputs["gas_lines_path"],
-        "--report-files", str(Path(dummy_inputs["input_folder"]) / "dummy.txt"),
+        "--report-files", str(Path(dummy_inputs["input_folder"]) / "dummy_report.txt"),
         "--buffer-distance", "50",
         "--no-mongodb",
         "--parallel"
@@ -269,7 +294,7 @@ def test_main_with_parallel(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[
     logger.info("Main with parallel processing test passed.")
 
 
-def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, caplog) -> None:
+def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, caplog, tmp_path) -> None:
     """
     Test that errors in process_report_chunk are logged properly.
 
@@ -278,25 +303,33 @@ def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, cap
     """
     logger.info("Testing error logging in process_report_chunk.")
 
-    monkeypatch.setattr(gis_tool.main, "create_pipeline_features",
-                        lambda *a, **k: (_ for _ in ()).throw(Exception("test error")))
+    input_folder = tmp_path / "input_folder"
+    input_folder.mkdir()
+    dummy_report = input_folder / "dummy_report.txt"
+    dummy_report.write_text("test content")
 
-    from gis_tool.main import process_report_chunk
+    # Monkeypatch geopandas.read_file to return a dummy GeoDataFrame (avoid reading gas_lines.shp)
+    dummy_gdf = gpd.GeoDataFrame({'geometry': [Point(0, 0)]}, crs="EPSG:4326")
+    monkeypatch.setattr(gpd, "read_file", lambda *args, **kwargs: dummy_gdf)
+
+    # Patch create_pipeline_features to throw an exception to trigger error logging
+    monkeypatch.setattr(
+        gis_tool.main,
+        "create_pipeline_features",
+        lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("dummy missing"))
+    )
 
     with caplog.at_level(logging.ERROR):
         process_report_chunk(
-            report_chunk=["dummy.txt"],
-            gas_lines_shp="fake.shp",
-            reports_folder=Path("fake_folder"),
+            report_chunk=["dummy_report.txt"],
+            gas_lines_shp=str(input_folder / "gas_lines.shp"),  # path won't be read due to patch
+            reports_folder=input_folder,
             spatial_reference="EPSG:4326",
             gas_lines_collection=None,
-            use_mongodb=False
+            use_mongodb=False,
         )
-    assert (
-            "I/O error in multiprocessing report chunk" in caplog.text
-            or "Error in multiprocessing report chunk" in caplog.text
-    )
 
+    assert any("I/O error in multiprocessing report chunk" in record.getMessage() for record in caplog.records)
     logger.info("Error logging test in process_report_chunk passed.")
 
 
@@ -355,7 +388,7 @@ def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch) -> None:
     logger.info("Testing main function with real data files from local filesystem.")
     base_data_path = Path("C:/Users/xrose/PycharmProjects/PythonProject/data").resolve()
 
-    input_folder = base_data_path / "input_reports"
+    input_folder = base_data_path / "input_folder"
     gas_lines_path = base_data_path / "gas_lines.shp"
     future_dev_path = base_data_path / "future_dev.shp"
     output_path = base_data_path / "final_output_test.shp"
