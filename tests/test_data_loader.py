@@ -17,29 +17,36 @@ mock objects to isolate dependencies, enabling reliable and repeatable tests.
 
 Test framework: pytest
 """
-import pytest
-import geopandas as gpd
-import pandas as pd
-from geopandas import GeoDataFrame
+import logging
 from unittest.mock import MagicMock, patch
+
+import pandas as pd
+import geopandas as gpd
+import pytest
+from geopandas import GeoDataFrame
 from shapely.geometry import Point
+
 from gis_tool import data_loader as dl
+from gis_tool.data_loader import (
+    robust_date_parse,
+    make_feature,
+    create_pipeline_features,
+)
 from gis_tool.report_reader import (
     find_new_reports,
     load_geojson_report,
     load_txt_report_lines,
 )
-from gis_tool.data_loader import (
-    robust_date_parse,
-    make_feature,
-    create_pipeline_features
-)
+
+# Constants
 CRS = "EPSG:4326"
-import logging
 
+# Logger setup
 logger = logging.getLogger("gis_tool")
-logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+logger.setLevel(logging.DEBUG)
 
+
+# ---- FIXTURES ----
 
 @pytest.fixture
 def sample_geojson_report():
@@ -69,6 +76,8 @@ def empty_gas_lines_gdf():
     return GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
 
 
+# ---- UNIT TESTS ----
+
 @pytest.mark.parametrize("input_str, expected", [
     ("2023-05-01", pd.Timestamp("2023-05-01")),
     ("01/05/2023", pd.Timestamp("2023-05-01")),
@@ -76,6 +85,7 @@ def empty_gas_lines_gdf():
     ("not a date", pd.NaT),
     (None, pd.NaT),
 ])
+
 def test_robust_date_parse(input_str, expected):
     """
      Tests the robust_date_parse function with various date string formats and invalid inputs.
@@ -90,6 +100,22 @@ def test_robust_date_parse(input_str, expected):
         assert result == expected
         logger.debug(f"Input '{input_str}' correctly parsed as {result}.")
 
+
+def test_make_feature_creates_valid_gdf():
+    """
+    Tests make_feature creates a GeoDataFrame with the expected schema,
+    applies case normalization to material, and sets the CRS.
+    """
+    logger.info("Testing make_feature function.")
+    feature = make_feature("LineX", "2022-05-01", 300, "PVC", Point(1, 2), CRS)
+    assert isinstance(feature, gpd.GeoDataFrame)
+    assert feature.iloc[0]["Material"] == "pvc"
+    assert feature.crs.to_string() == CRS
+    logger.debug("make_feature created a valid GeoDataFrame with correct CRS and normalized material.")
+    logger.info("make_feature test passed.")
+
+
+# ---- FILE I/O TESTS ----
 
 def test_find_new_reports(tmp_path):
     """
@@ -152,19 +178,7 @@ def test_load_geojson_report_crs(tmp_path):
     logger.info("load_geojson_report test passed.")
 
 
-def test_make_feature_creates_valid_gdf():
-    """
-    Tests make_feature creates a GeoDataFrame with the expected schema,
-    applies case normalization to material, and sets the CRS.
-    """
-    logger.info("Testing make_feature function.")
-    feature = make_feature("LineX", "2022-05-01", 300, "PVC", Point(1, 2), CRS)
-    assert isinstance(feature, gpd.GeoDataFrame)
-    assert feature.iloc[0]["Material"] == "pvc"
-    assert feature.crs.to_string() == CRS
-    logger.debug("make_feature created a valid GeoDataFrame with correct CRS and normalized material.")
-    logger.info("make_feature test passed.")
-
+# ---- PIPELINE FUNCTION TESTS ----
 
 @patch("gis_tool.data_loader.upsert_mongodb_feature")
 def test_create_pipeline_features_geojson(mock_upsert):

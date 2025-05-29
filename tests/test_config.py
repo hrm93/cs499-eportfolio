@@ -11,15 +11,23 @@ These tests verify:
 
 All tests isolate changes using monkeypatching and module reloading.
 """
+import importlib
 
 import pytest
-import importlib
+
 import gis_tool.config as config
 from gis_tool import logger
 
 
 @pytest.fixture(scope="session", autouse=True)
 def configure_logging():
+    """
+    Pytest fixture to set up logging for the test session.
+
+    This fixture automatically initializes the logging configuration
+    defined in the gis_tool.logger module before any tests run.
+    It ensures consistent logging behavior across all test modules.
+    """
     logger.setup_logging()
 
 
@@ -57,22 +65,33 @@ def reload_config():
 
 
 @pytest.mark.parametrize("env_var, env_value, expected", [
-    ("MONGODB_URI", None, "mongodb://localhost:27017/"),
-    ("MONGODB_URI", "mongodb://testhost:1234/", "mongodb://testhost:1234/"),
+    # Database-related
     ("DB_NAME", None, "gis_database"),
     ("DB_NAME", "test_db", "test_db"),
-    ("DEFAULT_CRS", None, "EPSG:32633"),
-    ("DEFAULT_CRS", "EPSG:4326", "EPSG:4326"),
+    ("MONGODB_URI", None, "mongodb://localhost:27017/"),
+    ("MONGODB_URI", "mongodb://testhost:1234/", "mongodb://testhost:1234/"),
+
+    # CRS and geometry settings
     ("DEFAULT_BUFFER_DISTANCE_FT", None, 25.0),
     ("DEFAULT_BUFFER_DISTANCE_FT", "50.5", 50.5),
+    ("DEFAULT_CRS", None, "EPSG:32633"),
+    ("DEFAULT_CRS", "EPSG:4326", "EPSG:4326"),
+
+    # Logging settings
     ("LOG_FILENAME", None, "pipeline_processing.log"),
     ("LOG_FILENAME", "custom.log", "custom.log"),
     ("LOG_LEVEL", None, "INFO"),
     ("LOG_LEVEL", "debug", "DEBUG"),
+
+    # Parallelism
     ("MAX_WORKERS", None, 2),
     ("MAX_WORKERS", "4", 4),
+
+    # Output
     ("OUTPUT_FORMAT", None, "shp"),
     ("OUTPUT_FORMAT", "GeoJSON", "geojson"),
+
+    # Execution behavior
     ("ALLOW_OVERWRITE_OUTPUT", None, False),
     ("ALLOW_OVERWRITE_OUTPUT", "true", True),
     ("DRY_RUN_MODE", None, False),
@@ -99,6 +118,33 @@ def test_env_var_override(monkeypatch, env_var, env_value, expected):
     assert value == expected
 
 
+@pytest.mark.parametrize("env_value, expected", [
+    # Truthy
+    ("true", True),
+    ("1", True),
+    ("yes", True),
+    ("on", True),
+
+    # Falsey
+    ("false", False),
+    ("0", False),
+    ("no", False),
+    ("off", False),
+    ("", False),
+
+    # Invalid
+    ("nonsense", False),
+])
+
+def test_boolean_parsing(monkeypatch, env_value, expected):
+    """
+    Test boolean environment parsing for DRY_RUN_MODE.
+    """
+    monkeypatch.setenv("DRY_RUN_MODE", env_value)
+    new_config = reload_config()
+    assert new_config.DRY_RUN_MODE == expected
+
+
 @pytest.mark.parametrize("bad_value", ["abc", "", "12.3.4"])
 def test_default_buffer_distance_invalid(monkeypatch, bad_value):
     """
@@ -117,26 +163,3 @@ def test_max_workers_invalid(monkeypatch, bad_value):
     monkeypatch.setenv("MAX_WORKERS", bad_value)
     new_config = reload_config()
     assert new_config.MAX_WORKERS == 2
-
-
-@pytest.mark.parametrize("env_value,expected", [
-    ("true", True),
-    ("1", True),
-    ("yes", True),
-    ("on", True),
-    ("false", False),
-    ("0", False),
-    ("no", False),
-    ("off", False),
-    ("", False),
-    ("nonsense", False),
-])
-
-
-def test_boolean_parsing(monkeypatch, env_value, expected):
-    """
-    Test boolean environment parsing for DRY_RUN_MODE.
-    """
-    monkeypatch.setenv("DRY_RUN_MODE", env_value)
-    new_config = reload_config()
-    assert new_config.DRY_RUN_MODE == expected

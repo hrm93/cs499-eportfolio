@@ -1,6 +1,9 @@
+# Tests for db_utils.py
+
 import logging
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from pymongo.errors import ConnectionFailure
 from shapely.geometry import Point
 
