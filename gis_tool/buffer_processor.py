@@ -4,10 +4,11 @@ import geopandas as gpd
 import pandas as pd
 from gis_tool import config
 import fiona.errors
-from typing import Optional, Callable, Any, List, Sequence
+from typing import Optional, Callable, Any, List, Sequence, Dict
 from shapely.geometry.base import BaseGeometry
 from shapely.errors import TopologicalError
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from shapely.geometry import Point, mapping
 import logging
 
 logger = logging.getLogger("gis_tool")
@@ -149,6 +150,26 @@ def subtract_parks_from_buffer(
     except Exception as e:
         logger.exception(f"Error in subtract_parks_from_buffer: {e}")
         raise
+
+
+def simplify_geometry(geom: Point, tolerance: float = 0.00001) -> Dict:
+    """
+    Simplify a Point geometry to reduce floating point precision issues.
+
+    Uses Shapely's simplify method with topology preservation to reduce
+    the complexity of the geometry while maintaining its shape.
+
+    Args:
+        geom (Point): The input Shapely Point geometry to simplify.
+        tolerance (float, optional): The tolerance threshold for simplification.
+            Defaults to 0.00001.
+
+    Returns:
+        dict: A GeoJSON-like mapping dictionary of the simplified geometry.
+    """
+    # Simplify geometry to avoid floating point precision issues
+    simplified = geom.simplify(tolerance, preserve_topology=True)
+    return mapping(simplified)
 
 
 def parallel_process(

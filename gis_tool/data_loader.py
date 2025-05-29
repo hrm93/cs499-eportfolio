@@ -36,7 +36,7 @@ Typical usage:
 import os
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import Point, mapping
+from shapely.geometry import Point
 from pathlib import Path
 from pymongo import MongoClient
 from pymongo.collection import Collection
@@ -44,7 +44,9 @@ from pymongo.errors import ConnectionFailure
 from pymongo.database import Database
 from dateutil.parser import parse
 from gis_tool.config import MONGODB_URI, DB_NAME
-from typing import Any, Union, Dict, List, Tuple, Optional, Set
+from gis_tool.buffer_processor import simplify_geometry
+from gis_tool.db_utils import upsert_mongodb_feature
+from typing import Any, Union, List, Tuple, Optional, Set
 
 import logging
 
@@ -80,97 +82,6 @@ def robust_date_parse(date_val: Any) -> Union[pd.Timestamp, pd.NaT]:
         except (ValueError, TypeError):
             return pd.NaT
     return pd.NaT
-
-
-def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Database:
-    """
-    Establish a connection to a MongoDB database.
-
-    Args:
-        uri (str): MongoDB connection URI.
-        db_name (str): Name of the database to connect.
-
-    Returns:
-        pymongo.database.Database: Connected MongoDB database instance.
-
-    Raises:
-        ConnectionFailure: If the connection to MongoDB fails.
-    """
-    try:
-        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-        client.admin.command('ping')  # Test the connection
-        logger.info("Connected to MongoDB successfully.")
-        return client[db_name]
-    except ConnectionFailure as e:
-        logger.error(f"Could not connect to MongoDB: {e}")
-        raise
-
-
-def simplify_geometry(geom: Point, tolerance: float = 0.00001) -> Dict:
-    """
-    Simplify a Point geometry to reduce floating point precision issues.
-
-    Uses Shapely's simplify method with topology preservation to reduce
-    the complexity of the geometry while maintaining its shape.
-
-    Args:
-        geom (Point): The input Shapely Point geometry to simplify.
-        tolerance (float, optional): The tolerance threshold for simplification.
-            Defaults to 0.00001.
-
-    Returns:
-        dict: A GeoJSON-like mapping dictionary of the simplified geometry.
-    """
-    # Simplify geometry to avoid floating point precision issues
-    simplified = geom.simplify(tolerance, preserve_topology=True)
-    return mapping(simplified)
-
-
-def upsert_mongodb_feature(
-    collection: Collection,
-    name: str,
-    date: Union[str, pd.Timestamp],
-    psi: float,
-    material: str,
-    geometry: Point
-) -> None:
-    """
-    Insert or update a gas line feature in MongoDB.
-
-    Args:
-        collection (Collection): MongoDB collection to update/insert into.
-        name (str): Name of the gas line feature.
-        date: Date associated with the feature (can be string or datetime).
-        psi (float): Pressure specification.
-        material (str): Material type.
-        geometry (Point): Shapely Point geometry object.
-    """
-    feature_doc = {
-        'name': name,
-        'date': date,
-        'psi': psi,
-        'material': material,
-        'geometry': simplify_geometry(geometry)  # Use simplified geom
-    }
-    existing = collection.find_one({'name': name, 'geometry': feature_doc['geometry']})
-    if existing:
-        # Check if any fields changed before updating
-        changes = {}
-        if existing.get('date') != date:
-            changes['date'] = date
-        if existing.get('psi') != psi:
-            changes['psi'] = psi
-        if existing.get('material') != material:
-            changes['material'] = material
-
-        if changes:
-            collection.update_one({'_id': existing['_id']}, {'$set': changes})
-            logger.info(f"Updated MongoDB record for {name} with changes: {changes}")
-        else:
-            logger.info(f"No changes detected for MongoDB record {name}, skipping update.")
-    else:
-        collection.insert_one(feature_doc)
-        logger.info(f"Inserted new MongoDB record for {name}.")
 
 
 def make_feature(
@@ -329,6 +240,7 @@ def create_pipeline_features(
         if gdf.crs and gdf.crs.to_string() != spatial_reference:
             gdf = gdf.to_crs(spatial_reference)
             geojson_reports[i] = (report_name, gdf)
+
 
     # Helper to align columns and dtypes, fix geometry
     def align_feature_dtypes(new_feat: gpd.GeoDataFrame, base_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:

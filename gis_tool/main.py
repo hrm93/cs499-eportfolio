@@ -19,13 +19,13 @@ import logging
 from pathlib import Path
 import geopandas as gpd
 from pymongo.errors import PyMongoError
+from gis_tool.db_utils import connect_to_mongodb
 from gis_tool.cli import parse_args
 from gis_tool.logger import setup_logging
 from gis_tool.config import DEFAULT_CRS
 from gis_tool.data_loader import (
     find_new_reports,
     create_pipeline_features,
-    connect_to_mongodb,
 )
 from gis_tool.buffer_processor import (
     create_buffer_with_geopandas,

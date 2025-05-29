@@ -17,7 +17,8 @@ import pytest
 from shapely.geometry import LineString, Point
 from unittest import mock
 from pymongo.errors import ConnectionFailure
-from gis_tool.data_loader import connect_to_mongodb
+from gis_tool.db_utils import connect_to_mongodb
+import gis_tool.db_utils
 import gis_tool.data_loader as data_loader
 import gis_tool.main
 from gis_tool.main import main, process_report_chunk
@@ -134,7 +135,7 @@ def test_connect_to_mongodb_success(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_client = mock.MagicMock()
     mock_db = mock.MagicMock()
 
-    monkeypatch.setattr(data_loader, "MongoClient", lambda *args, **kwargs: mock_client)
+    monkeypatch.setattr(gis_tool.db_utils, "MongoClient", lambda *args, **kwargs: mock_client)
     mock_client.admin.command = mock.MagicMock(return_value={"ok": 1})
     mock_client.__getitem__.return_value = mock_db
 
@@ -159,7 +160,7 @@ def test_connect_to_mongodb_failure(monkeypatch: pytest.MonkeyPatch) -> None:
         logger.error("Simulating MongoDB connection failure.")
         raise ConnectionFailure("Failed to connect")
 
-    monkeypatch.setattr(data_loader, "MongoClient", raise_connection_failure)
+    monkeypatch.setattr(gis_tool.db_utils, "MongoClient", raise_connection_failure)
 
     with pytest.raises(ConnectionFailure):
         connect_to_mongodb("mongodb://baduri", "test_db")
@@ -223,7 +224,7 @@ def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[s
     mock_gas_collection.insert_one.side_effect = lambda *a, **k: mock.MagicMock()
     mock_gas_collection.insert_many.side_effect = lambda *a, **k: mock.MagicMock()
 
-    monkeypatch.setattr(data_loader, "MongoClient", lambda *a, **k: mock_client)
+    monkeypatch.setattr(gis_tool.db_utils, "MongoClient", lambda *a, **k: mock_client)
 
     main()
 
@@ -251,7 +252,7 @@ def test_connect_to_mongodb_failure_logs(monkeypatch: pytest.MonkeyPatch, caplog
         logging.getLogger("gis_tool").error("Simulating MongoDB connection failure")
         raise ConnectionFailure("fail")
 
-    monkeypatch.setattr(data_loader, "MongoClient", mock_mongo_fail)
+    monkeypatch.setattr(gis_tool.db_utils, "MongoClient", mock_mongo_fail)
 
     with caplog.at_level(logging.ERROR, logger="gis_tool"):
         with pytest.raises(ConnectionFailure):

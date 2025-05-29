@@ -164,22 +164,6 @@ def test_make_feature_creates_valid_gdf():
     logger.debug("make_feature created a valid GeoDataFrame with correct CRS and normalized material.")
     logger.info("make_feature test passed.")
 
-def test_simplify_geometry_returns_mapping():
-    """
-    Tests simplify_geometry returns a GeoJSON-like dict with geometry simplified
-    according to the specified tolerance.
-    """
-    logger.info("Testing simplify_geometry function.")
-    point = Point(10.123456789, 20.987654321)
-    simplified = dl.simplify_geometry(point, tolerance=0.01)
-    logger.debug(f"Simplified geometry output: {simplified}")
-    assert isinstance(simplified, dict)
-    assert 'type' in simplified and simplified['type'] == 'Point'
-    coords = simplified.get('coordinates', [])
-    assert abs(coords[0] - 10.123456789) < 0.01
-    assert abs(coords[1] - 20.987654321) < 0.01
-    logger.info("simplify_geometry test passed.")
-
 
 @patch("gis_tool.data_loader.upsert_mongodb_feature")
 def test_create_pipeline_features_geojson(mock_upsert):

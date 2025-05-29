@@ -9,6 +9,7 @@ from gis_tool import buffer_processor
 from gis_tool.buffer_processor import fix_geometry, create_buffer_with_geopandas, merge_buffers_into_planning_file, \
     ensure_projected_crs
 from gis_tool import config
+from gis_tool import data_loader as dl
 from unittest.mock import Mock
 import logging
 
@@ -144,6 +145,23 @@ def test_fix_geometry_unfixable():
     logger.debug(f"Result from fix_geometry: {result}")
     assert result is None
     logger.info("test_fix_geometry_unfixable passed.")
+
+
+def test_simplify_geometry_returns_mapping():
+    """
+    Tests simplify_geometry returns a GeoJSON-like dict with geometry simplified
+    according to the specified tolerance.
+    """
+    logger.info("Testing simplify_geometry function.")
+    point = Point(10.123456789, 20.987654321)
+    simplified = dl.simplify_geometry(point, tolerance=0.01)
+    logger.debug(f"Simplified geometry output: {simplified}")
+    assert isinstance(simplified, dict)
+    assert 'type' in simplified and simplified['type'] == 'Point'
+    coords = simplified.get('coordinates', [])
+    assert abs(coords[0] - 10.123456789) < 0.01
+    assert abs(coords[1] - 20.987654321) < 0.01
+    logger.info("simplify_geometry test passed.")
 
 
 def test_ensure_projected_crs_already_projected():
