@@ -3,7 +3,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import fiona
 import geopandas as gpd
@@ -70,33 +70,57 @@ def load_txt_report_lines(filepath: str) -> List[str]:
         return []
 
 
-def read_reports(report_names: list[str], reports_folder_path: Path):
+def read_reports(report_names: List[str], reports_folder_path: Path) -> Tuple[List[Tuple[str, gpd.GeoDataFrame]], List[Tuple[str, List[str]]]]:
     """
-    Reads reports from given filenames.
+    Read multiple reports from given filenames, distinguishing by file type.
+
+    Args:
+        report_names (List[str]): List of report filenames.
+        reports_folder_path (Path): Path object to the folder containing the reports.
 
     Returns:
-        geojson_reports (list of tuples): (filename, GeoDataFrame)
-        txt_reports (list of tuples): (filename, list of lines)
+        Tuple[
+            List[Tuple[str, gpd.GeoDataFrame]],  # geojson_reports: list of (filename, GeoDataFrame)
+            List[Tuple[str, List[str]]]          # txt_reports: list of (filename, list of lines)
+        ]
     """
     geojson_reports = []
     txt_reports = []
 
+    logger.debug(f"Reading reports from folder {reports_folder_path} for files: {report_names}")
+
     for report_name in report_names:
         report_path = reports_folder_path / report_name
+        logger.debug(f"Processing report: {report_name}")
+
         if report_name.lower().endswith(".geojson"):
             try:
                 gdf = gpd.read_file(report_path)
+                assert isinstance(gdf, gpd.GeoDataFrame), f"Loaded data is not a GeoDataFrame for {report_name}"
+                assert not gdf.empty, f"GeoDataFrame is empty for {report_name}"
                 geojson_reports.append((report_name, gdf))
+                logger.info(f"Successfully read GeoJSON report: {report_name}")
+            except AssertionError as e:
+                logger.error(f"Assertion error in GeoJSON report {report_name}: {e}")
             except (FileNotFoundError, OSError, fiona.errors.DriverError) as e:
                 logger.error(f"Failed to read GeoJSON report {report_name}: {e}")
+
         elif report_name.lower().endswith(".txt"):
             try:
                 with open(report_path, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
+                    lines = [line.strip() for line in f if line.strip()]
+                assert isinstance(lines, list), f"Loaded lines is not a list for {report_name}"
+                assert all(isinstance(line, str) for line in lines), f"Not all lines are strings in {report_name}"
                 txt_reports.append((report_name, lines))
+                logger.info(f"Successfully read TXT report: {report_name} with {len(lines)} lines")
+            except AssertionError as e:
+                logger.error(f"Assertion error in TXT report {report_name}: {e}")
             except (FileNotFoundError, OSError) as e:
                 logger.error(f"Failed to read TXT report {report_name}: {e}")
+
         else:
             logger.warning(f"Unsupported report type: {report_name}")
+
+    logger.info(f"Finished reading reports. GeoJSON: {len(geojson_reports)}, TXT: {len(txt_reports)}")
 
     return geojson_reports, txt_reports

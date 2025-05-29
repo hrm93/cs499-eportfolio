@@ -1,20 +1,25 @@
 ### test_logger.py
-import pytest
 import logging
 import os
-from gis_tool.logger import setup_logging
+import pytest
 from logging.handlers import RotatingFileHandler
+
+from gis_tool.logger import setup_logging
 
 
 @pytest.fixture(scope="session", autouse=True)
 def init_logger():
+    """
+    Session-scoped fixture to initialize logging configuration once per test session.
+    """
     setup_logging()
 
 
 def reset_logging():
     """
-    Reset the 'gis_tool' logger by removing all handlers.
-    Avoids calling logging.shutdown() to prevent affecting other tests.
+    Reset the 'gis_tool' logger by removing all attached handlers.
+
+    This avoids calling logging.shutdown() to prevent side effects in other tests.
     """
     logger = logging.getLogger('gis_tool')
     if logger.hasHandlers():
@@ -56,7 +61,7 @@ def test_setup_logging_creates_log_file(tmp_path, capsys):
 def test_setup_logging_respects_log_level_env(monkeypatch, capsys):
     """
     Test that setup_logging respects the LOG_LEVEL environment variable
-    to configure the logger's level accordingly.
+    and sets the logger's level accordingly.
     """
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     reset_logging()

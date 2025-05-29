@@ -1,10 +1,12 @@
 # test_report_reader
-import pytest
-from unittest.mock import patch
-import geopandas as gpd
-from shapely.geometry import Point
-from gis_tool import report_reader as rr
 import logging
+from unittest.mock import patch
+
+import geopandas as gpd
+import pytest
+from shapely.geometry import Point
+
+from gis_tool import report_reader as rr
 
 logger = logging.getLogger("gis_tool")
 
@@ -16,6 +18,9 @@ def tmp_reports_dir(tmp_path):
     - A valid GeoJSON file
     - A valid TXT file
     - An unsupported file type for testing filtering
+
+    Returns:
+        pathlib.Path: Path to the temporary directory with sample files.
     """
     logger.info("Setting up temporary reports directory with sample files.")
 
@@ -49,6 +54,10 @@ def tmp_reports_dir(tmp_path):
 
 
 def test_find_new_reports(tmp_reports_dir):
+    """
+    Test that find_new_reports correctly identifies supported report files
+    and excludes unsupported file types.
+    """
     logger.info("Testing find_new_reports function.")
     found = rr.find_new_reports(str(tmp_reports_dir))
     logger.debug(f"Reports found: {found}")
@@ -58,7 +67,25 @@ def test_find_new_reports(tmp_reports_dir):
     logger.info("test_find_new_reports passed.")
 
 
+def test_find_new_reports_nonexistent_folder(caplog):
+    """
+    Test that find_new_reports handles a nonexistent folder gracefully,
+    logs an error, and returns an empty list.
+    """
+    logger.info("Testing find_new_reports with nonexistent folder.")
+    caplog.set_level("ERROR")
+    result = rr.find_new_reports("nonexistent_folder_xyz")
+    logger.debug(f"Result for nonexistent folder: {result}")
+    assert result == []
+    assert any("does not exist" in rec.message for rec in caplog.records)
+    logger.info("test_find_new_reports_nonexistent_folder passed.")
+
+
 def test_load_txt_report_lines(tmp_reports_dir):
+    """
+    Test that load_txt_report_lines correctly reads lines from a text report,
+    ignoring blank lines, and returns an empty list if file is missing.
+    """
     logger.info("Testing load_txt_report_lines function.")
     txt_file = tmp_reports_dir / "test.txt"
     lines = rr.load_txt_report_lines(str(txt_file))
@@ -72,6 +99,10 @@ def test_load_txt_report_lines(tmp_reports_dir):
 
 
 def test_load_geojson_report(tmp_reports_dir):
+    """
+    Test that load_geojson_report reads a GeoJSON file into a GeoDataFrame
+    and applies the correct target CRS.
+    """
     logger.info("Testing load_geojson_report function.")
     geojson_file = tmp_reports_dir / "test.geojson"
     target_crs = "EPSG:4326"
@@ -83,24 +114,12 @@ def test_load_geojson_report(tmp_reports_dir):
     logger.info("test_load_geojson_report passed.")
 
 
-def test_read_reports(tmp_reports_dir):
-    logger.info("Testing read_reports function.")
-    reports = ["test.geojson", "test.txt", "bad.xyz"]
-
-    geojson_reports, txt_reports = rr.read_reports(reports, tmp_reports_dir)
-    logger.debug(f"GeoJSON reports returned: {[r[0] for r in geojson_reports]}")
-    logger.debug(f"TXT reports returned: {[r[0] for r in txt_reports]}")
-
-    assert any(r[0] == "test.geojson" and isinstance(r[1], gpd.GeoDataFrame) for r in geojson_reports)
-    assert any(r[0] == "test.txt" and isinstance(r[1], list) for r in txt_reports)
-
-    unsupported_names = [r[0] for r in geojson_reports] + [r[0] for r in txt_reports]
-    assert "bad.xyz" not in unsupported_names
-    logger.info("test_read_reports passed.")
-
-
 @patch("geopandas.read_file")
 def test_load_geojson_report_transforms_crs(mock_read_file, tmp_reports_dir):
+    """
+    Test that load_geojson_report correctly transforms CRS when the source CRS
+    differs from the target CRS, using a mocked GeoDataFrame.
+    """
     logger.info("Testing load_geojson_report with CRS transformation.")
     gdf_mock = gpd.GeoDataFrame(
         geometry=[Point(0, 0)],
@@ -117,17 +136,30 @@ def test_load_geojson_report_transforms_crs(mock_read_file, tmp_reports_dir):
     logger.info("test_load_geojson_report_transforms_crs passed.")
 
 
-def test_find_new_reports_nonexistent_folder(caplog):
-    logger.info("Testing find_new_reports with nonexistent folder.")
-    caplog.set_level("ERROR")
-    result = rr.find_new_reports("nonexistent_folder_xyz")
-    logger.debug(f"Result for nonexistent folder: {result}")
-    assert result == []
-    assert any("does not exist" in rec.message for rec in caplog.records)
-    logger.info("test_find_new_reports_nonexistent_folder passed.")
+def test_read_reports(tmp_reports_dir):
+    """
+    Test that read_reports returns correct GeoJSON and TXT reports
+    and excludes unsupported file types.
+    """
+    logger.info("Testing read_reports function.")
+    reports = ["test.geojson", "test.txt", "bad.xyz"]
+
+    geojson_reports, txt_reports = rr.read_reports(reports, tmp_reports_dir)
+    logger.debug(f"GeoJSON reports returned: {[r[0] for r in geojson_reports]}")
+    logger.debug(f"TXT reports returned: {[r[0] for r in txt_reports]}")
+
+    assert any(r[0] == "test.geojson" and isinstance(r[1], gpd.GeoDataFrame) for r in geojson_reports)
+    assert any(r[0] == "test.txt" and isinstance(r[1], list) for r in txt_reports)
+
+    unsupported_names = [r[0] for r in geojson_reports] + [r[0] for r in txt_reports]
+    assert "bad.xyz" not in unsupported_names
+    logger.info("test_read_reports passed.")
 
 
 def test_read_reports_logs_warnings_and_errors(tmp_reports_dir, caplog):
+    """
+    Test that read_reports logs warnings for unsupported file types.
+    """
     logger.info("Testing read_reports logs for unsupported file types.")
     caplog.set_level("WARNING")
 

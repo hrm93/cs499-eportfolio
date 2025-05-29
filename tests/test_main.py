@@ -1,32 +1,30 @@
 # test for main:
 """
-Unit and integration tests for the GIS pipeline main module.
+Test module for GIS Tool main functionalities and database utilities.
 
-Tests cover:
-- MongoDB connection success and failure scenarios.
-- Main pipeline execution with and without MongoDB.
-- Parallel processing behavior.
-- Error handling and logging in multiprocessing chunks.
-- End-to-end pipeline execution with file creation verification.
-
-Uses pytest fixtures and unittest.mock for isolation and control.
+Includes tests for MongoDB connections, main processing pipeline,
+and report chunk processing.
 """
 import os
-import geopandas as gpd
-import pytest
-from shapely.geometry import LineString, Point
-from unittest import mock
-from pymongo.errors import ConnectionFailure
-from gis_tool.db_utils import connect_to_mongodb
-import gis_tool.db_utils
-import gis_tool.main
-from gis_tool.main import main, process_report_chunk
 from pathlib import Path
 from typing import List, Dict
 import logging
+from unittest import mock
 
+import pytest
+import geopandas as gpd
+from shapely.geometry import LineString, Point
+from pymongo.errors import ConnectionFailure
+
+import gis_tool.db_utils
+from gis_tool.db_utils import connect_to_mongodb
+import gis_tool.main
+from gis_tool.main import main, process_report_chunk
+
+
+# Logger setup for test module
 logger = logging.getLogger("gis_tool")
-logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+logger.setLevel(logging.DEBUG)  # Capture all logs during testing
 
 
 def build_testargs(input_dict: Dict[str, str]) -> List[str]:
@@ -166,6 +164,24 @@ def test_connect_to_mongodb_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     logger.info("MongoDB connection failure test passed.")
 
 
+def test_connect_to_mongodb_failure_logs(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    """
+    Test that MongoDB connection failure logs the correct error.
+    """
+
+    def mock_mongo_fail(*args, **kwargs):
+        logging.getLogger("gis_tool").error("Simulating MongoDB connection failure")
+        raise ConnectionFailure("fail")
+
+    monkeypatch.setattr(gis_tool.db_utils, "MongoClient", mock_mongo_fail)
+
+    with caplog.at_level(logging.ERROR, logger="gis_tool"):
+        with pytest.raises(ConnectionFailure):
+            connect_to_mongodb("baduri", "test_db")
+
+    assert "Simulating MongoDB connection failure" in caplog.text
+
+
 def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[str, str], caplog) -> None:
     """
     Test the main function execution with MongoDB enabled.
@@ -240,24 +256,6 @@ def test_main_with_mongodb(monkeypatch: pytest.MonkeyPatch, dummy_inputs: Dict[s
 
     assert "Testing main function execution with MongoDB enabled." in caplog.text
     assert "Main with MongoDB test passed with data insertion/update verified." in caplog.text
-
-
-def test_connect_to_mongodb_failure_logs(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-    """
-    Test that MongoDB connection failure logs the correct error.
-    """
-
-    def mock_mongo_fail(*args, **kwargs):
-        logging.getLogger("gis_tool").error("Simulating MongoDB connection failure")
-        raise ConnectionFailure("fail")
-
-    monkeypatch.setattr(gis_tool.db_utils, "MongoClient", mock_mongo_fail)
-
-    with caplog.at_level(logging.ERROR, logger="gis_tool"):
-        with pytest.raises(ConnectionFailure):
-            connect_to_mongodb("baduri", "test_db")
-
-    assert "Simulating MongoDB connection failure" in caplog.text
 
 
 # ===== Other Main Pipeline and Feature Tests =====
