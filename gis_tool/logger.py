@@ -3,7 +3,9 @@
 import logging
 import logging.handlers
 import os
+
 from gis_tool import config
+
 
 def setup_logging(log_file: str = None, level: int = None) -> None:
     """

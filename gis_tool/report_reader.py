@@ -1,43 +1,14 @@
+# report_reader.py
+
+import logging
 import os
 from pathlib import Path
 from typing import List, Union
-import geopandas as gpd
+
 import fiona
-import logging
+import geopandas as gpd
 
 logger = logging.getLogger("gis_tool")
-
-
-def read_reports(report_names: list[str], reports_folder_path: Path):
-    """
-    Reads reports from given filenames.
-
-    Returns:
-        geojson_reports (list of tuples): (filename, GeoDataFrame)
-        txt_reports (list of tuples): (filename, list of lines)
-    """
-    geojson_reports = []
-    txt_reports = []
-
-    for report_name in report_names:
-        report_path = reports_folder_path / report_name
-        if report_name.lower().endswith(".geojson"):
-            try:
-                gdf = gpd.read_file(report_path)
-                geojson_reports.append((report_name, gdf))
-            except (FileNotFoundError, OSError, fiona.errors.DriverError) as e:
-                logger.error(f"Failed to read GeoJSON report {report_name}: {e}")
-        elif report_name.lower().endswith(".txt"):
-            try:
-                with open(report_path, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                txt_reports.append((report_name, lines))
-            except (FileNotFoundError, OSError) as e:
-                logger.error(f"Failed to read TXT report {report_name}: {e}")
-        else:
-            logger.warning(f"Unsupported report type: {report_name}")
-
-    return geojson_reports, txt_reports
 
 
 def find_new_reports(input_folder: str) -> List[str]:
@@ -97,3 +68,35 @@ def load_txt_report_lines(filepath: str) -> List[str]:
     except IOError as e:
         logger.error(f"Error reading TXT report file {filepath}: {e}")
         return []
+
+    
+def read_reports(report_names: list[str], reports_folder_path: Path):
+    """
+    Reads reports from given filenames.
+
+    Returns:
+        geojson_reports (list of tuples): (filename, GeoDataFrame)
+        txt_reports (list of tuples): (filename, list of lines)
+    """
+    geojson_reports = []
+    txt_reports = []
+
+    for report_name in report_names:
+        report_path = reports_folder_path / report_name
+        if report_name.lower().endswith(".geojson"):
+            try:
+                gdf = gpd.read_file(report_path)
+                geojson_reports.append((report_name, gdf))
+            except (FileNotFoundError, OSError, fiona.errors.DriverError) as e:
+                logger.error(f"Failed to read GeoJSON report {report_name}: {e}")
+        elif report_name.lower().endswith(".txt"):
+            try:
+                with open(report_path, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                txt_reports.append((report_name, lines))
+            except (FileNotFoundError, OSError) as e:
+                logger.error(f"Failed to read TXT report {report_name}: {e}")
+        else:
+            logger.warning(f"Unsupported report type: {report_name}")
+
+    return geojson_reports, txt_reports

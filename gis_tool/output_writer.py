@@ -8,14 +8,45 @@ Currently, supports:
 - Writing CSV files from attribute data (DataFrames)
 - Writing plain text reports
 """
+import logging
+from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-from pathlib import Path
+
 import gis_tool.config as config
-import logging
 
 logger = logging.getLogger("gis_tool")
+
+
+def write_csv(df: pd.DataFrame, output_path: str) -> None:
+    """
+    Write a DataFrame to a CSV file.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing tabular data.
+        output_path (str): Path to the output CSV file.
+    """
+    path = Path(output_path)
+    if not path.parent.exists():
+        raise FileNotFoundError(f"Directory does not exist: {path.parent}")
+    df.to_csv(path, index=False)
+    logger.info(f"CSV file written to {path}")
+
+
+def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
+    """
+    Write a GeoDataFrame to a GeoJSON file.
+
+    Args:
+        gdf (gpd.GeoDataFrame): GeoDataFrame containing spatial features.
+        output_path (str): Path to the output GeoJSON file.
+    """
+    path = Path(output_path)
+    if not path.parent.exists():
+        raise FileNotFoundError(f"Directory does not exist: {path.parent}")
+    gdf.to_file(str(path), driver="GeoJSON")
+    logger.info(f"GEOJSON file written to {path}")
 
 
 def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = config.OUTPUT_FORMAT) -> None:
@@ -48,34 +79,6 @@ def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str
         logger.error(f"Failed to write {output_format} file: {e}")
         raise
 
-
-def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
-    """
-    Write a GeoDataFrame to a GeoJSON file.
-
-    Args:
-        gdf (gpd.GeoDataFrame): GeoDataFrame containing spatial features.
-        output_path (str): Path to the output GeoJSON file.
-    """
-    path = Path(output_path)
-    if not path.parent.exists():
-        raise FileNotFoundError(f"Directory does not exist: {path.parent}")
-    gdf.to_file(str(path), driver="GeoJSON")
-    logger.info(f"GEOJSON file written to {path}")
-
-def write_csv(df: pd.DataFrame, output_path: str) -> None:
-    """
-    Write a DataFrame to a CSV file.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing tabular data.
-        output_path (str): Path to the output CSV file.
-    """
-    path = Path(output_path)
-    if not path.parent.exists():
-        raise FileNotFoundError(f"Directory does not exist: {path.parent}")
-    df.to_csv(path, index=False)
-    logger.info(f"CSV file written to {path}")
 
 def write_report(text: str, output_path: str) -> None:
     """
