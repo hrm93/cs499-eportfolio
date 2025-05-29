@@ -32,15 +32,16 @@ Typical usage:
     create_pipeline_features(new_reports, "gas_lines.shp", "/path/to/reports", "EPSG:4326",
                              gas_lines_collection=db['gas_lines'])
 """
-import geopandas as gpd
-import pandas as pd
-from shapely.geometry import Point
-from pymongo.collection import Collection
-from dateutil.parser import parse
-from gis_tool.db_utils import upsert_mongodb_feature
+import logging
 from typing import Any, Union, List, Tuple, Optional, Set
 
-import logging
+import geopandas as gpd
+import pandas as pd
+from dateutil.parser import parse
+from pymongo.collection import Collection
+from shapely.geometry import Point
+
+from gis_tool.db_utils import upsert_mongodb_feature
 
 logger = logging.getLogger("gis_tool")
 
