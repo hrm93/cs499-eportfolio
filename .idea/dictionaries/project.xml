@@ -7,11 +7,13 @@
       <w>capsys</w>
       <w>fakeuri</w>
       <w>falsey</w>
+      <w>geodataframes</w>
       <w>getcwd</w>
       <w>gpkg</w>
       <w>iterrows</w>
       <w>levelname</w>
       <w>morgenstein</w>
+      <w>nonpoly</w>
       <w>strftime</w>
       <w>testargs</w>
       <w>testhost</w>

@@ -1,16 +1,28 @@
-### test for cli.py
+### Tests for cli.py ###
 
-import pytest
-from gis_tool.cli import parse_args
 import sys
 import os
 import logging
+import pytest
+from gis_tool.cli import parse_args
 
+# Configure logger for the gis_tool package
 logger = logging.getLogger("gis_tool")
-logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+logger.setLevel(logging.DEBUG)  # Capture all debug and above logs
 
 
 def mock_isdir(path: str) -> bool:
+    """
+    Mock function to simulate checking if a directory exists.
+
+    Args:
+        path (str): The directory path to check.
+
+    Returns:
+        bool: False if the path is 'missing_input' or 'missing_output_dir', True otherwise.
+
+    Logs a debug message with the path checked and a warning if the directory does not exist.
+    """
     logger.debug(f"Checking if directory exists: {path}")
     # Simulate that any path except 'missing_input' or 'missing_output_dir' exists
     if path in ['missing_input', 'missing_output_dir']:
@@ -18,13 +30,26 @@ def mock_isdir(path: str) -> bool:
         return False
     return True
 
+
 def mock_isfile(path: str) -> bool:
+    """
+      Mock function to simulate checking if a file exists.
+
+      Args:
+          path (str): The file path to check.
+
+      Returns:
+          bool: False if the filename contains 'missing_report', True otherwise.
+
+      Logs a debug message with the path checked and a warning if the file does not exist.
+      """
     logger.debug(f"Checking if file exists: {path}")
     # Simulate that files named 'missing_report.txt' or 'missing_report.geojson' don't exist
     if 'missing_report' in path:
         logger.warning(f"File does not exist: {path}")
         return False
     return True
+
 
 def test_parse_args_required(monkeypatch: "pytest.MonkeyPatch") -> None:
     """
@@ -172,28 +197,6 @@ def test_parse_args_no_mongodb(monkeypatch: "pytest.MonkeyPatch") -> None:
     assert args.use_mongodb is False
 
 
-def test_parse_args_invalid_report_extension(monkeypatch: "pytest.MonkeyPatch") -> None:
-    """
-    Test CLI parser error handling when unsupported report file extension is used.
-    """
-    logger.info("Running test_parse_args_invalid_report_extension")
-    testargs = [
-        "prog",
-        "--input-folder", "input",
-        "--output-path", "out.shp",
-        "--future-dev-path", "future.shp",
-        "--gas-lines-path", "gas.shp",
-        "--report-files", "report.invalid",
-    ]
-    monkeypatch.setattr(sys, "argv", testargs)
-    monkeypatch.setattr(os.path, "isdir", mock_isdir)
-    monkeypatch.setattr(os.path, "isfile", mock_isfile)
-
-    with pytest.raises(SystemExit):
-        logger.debug("Expecting SystemExit due to invalid report extension")
-        parse_args()
-
-
 def test_parse_args_multiple_report_files(monkeypatch: "pytest.MonkeyPatch") -> None:
     """
     Test CLI parser accepting multiple report files with supported extensions.
@@ -218,8 +221,27 @@ def test_parse_args_multiple_report_files(monkeypatch: "pytest.MonkeyPatch") -> 
     assert "report2.geojson" in args.report_files
 
 
+def test_parse_args_invalid_report_extension(monkeypatch: "pytest.MonkeyPatch") -> None:
+    """
+    Test CLI parser error handling when unsupported report file extension is used.
+    """
+    logger.info("Running test_parse_args_invalid_report_extension")
+    testargs = [
+        "prog",
+        "--input-folder", "input",
+        "--output-path", "out.shp",
+        "--future-dev-path", "future.shp",
+        "--gas-lines-path", "gas.shp",
+        "--report-files", "report.invalid",
+    ]
+    monkeypatch.setattr(sys, "argv", testargs)
+    monkeypatch.setattr(os.path, "isdir", mock_isdir)
+    monkeypatch.setattr(os.path, "isfile", mock_isfile)
 
-# New tests for added validations:
+    with pytest.raises(SystemExit):
+        logger.debug("Expecting SystemExit due to invalid report extension")
+        parse_args()
+
 
 def test_input_folder_missing(monkeypatch: "pytest.MonkeyPatch") -> None:
     """

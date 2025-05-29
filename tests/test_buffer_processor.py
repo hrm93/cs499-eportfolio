@@ -1,11 +1,15 @@
 # test buffer_processor:
 import os
+import tempfile
+import logging
+from unittest.mock import Mock
+
+import pytest
 import geopandas as gpd
 from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
-import tempfile
-import pytest
-from gis_tool import buffer_processor
+
+from gis_tool import buffer_processor, config
 from gis_tool.buffer_processor import (
     fix_geometry,
     create_buffer_with_geopandas,
@@ -13,12 +17,65 @@ from gis_tool.buffer_processor import (
     ensure_projected_crs,
     simplify_geometry
 )
-from gis_tool import config
-from unittest.mock import Mock
-import logging
 
 logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+
+
+@pytest.fixture
+def sample_gdf():
+    """
+    Fixture that returns a sample GeoDataFrame with one point feature.
+
+    The GeoDataFrame uses EPSG:32633 projected CRS suitable for metric buffering.
+    """
+    logger.debug("Creating sample GeoDataFrame fixture.")
+    gdf = gpd.GeoDataFrame(
+        {
+            "Name": ["test"],
+            "Date": ["2020-01-01"],
+            "PSI": [100],
+            "Material": ["steel"],
+            "geometry": [Point(0, 0)]
+        },
+        crs="EPSG:32633"
+    )
+    logger.debug("Sample GeoDataFrame created.")
+    return gdf
+
+
+@pytest.fixture
+def sample_gas_lines_gdf():
+    """
+        Pytest fixture that creates a sample GeoDataFrame containing LineString geometries
+        representing gas lines for testing purposes.
+
+        Returns
+        -------
+        geopandas.GeoDataFrame
+            A GeoDataFrame with two LineString geometries and CRS set to EPSG:3857.
+        """
+    # Create a GeoDataFrame with LineStrings (simulating gas lines)
+    geoms = [LineString([(0, 0), (1, 1)]), LineString([(1, 1), (2, 2)])]
+    gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
+    return gdf
+
+
+@pytest.fixture
+def sample_parks_gdf():
+    """
+    Pytest fixture that creates a sample GeoDataFrame containing Polygon geometries
+    representing parks for testing purposes.
+
+    Returns
+    -------
+    geopandas.GeoDataFrame
+        A GeoDataFrame with one Polygon geometry and CRS set to EPSG:3857.
+    """
+    # Create a GeoDataFrame with Polygons (simulating parks)
+    geoms = [Polygon([(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5)])]
+    gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
+    return gdf
 
 
 @pytest.fixture
@@ -64,48 +121,52 @@ def sample_buffer(tmp_path):
 
 
 @pytest.fixture
-def sample_gdf():
-    """
-    Fixture that returns a sample GeoDataFrame with one point feature.
-
-    The GeoDataFrame uses EPSG:32633 projected CRS suitable for metric buffering.
-    """
-    logger.debug("Creating sample GeoDataFrame fixture.")
-    gdf = gpd.GeoDataFrame(
-        {
-            "Name": ["test"],
-            "Date": ["2020-01-01"],
-            "PSI": [100],
-            "Material": ["steel"],
-            "geometry": [Point(0, 0)]
-        },
-        crs="EPSG:32633"
-    )
-    logger.debug("Sample GeoDataFrame created.")
-    return gdf
-
-
-@pytest.fixture
-def sample_gas_lines_gdf():
-    # Create a GeoDataFrame with LineStrings (simulating gas lines)
-    geoms = [LineString([(0, 0), (1, 1)]), LineString([(1, 1), (2, 2)])]
-    gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
-    return gdf
-
-
-@pytest.fixture
-def sample_parks_gdf():
-    # Create a GeoDataFrame with Polygons (simulating parks)
-    geoms = [Polygon([(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5)])]
-    gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
-    return gdf
-
-
-@pytest.fixture
 def sample_parks_file(tmp_path, sample_parks_gdf):
+    """
+       Pytest fixture that writes the sample parks GeoDataFrame to a temporary GeoJSON file.
+
+       Parameters
+       ----------
+       tmp_path : pathlib.Path
+           Temporary directory path provided by pytest for storing intermediate files.
+       sample_parks_gdf : GeoDataFrame
+           GeoDataFrame containing sample park geometries.
+
+       Returns
+       -------
+       str
+           File path to the created temporary GeoJSON file containing park geometries.
+       """
     file_path = tmp_path / "parks.geojson"
     sample_parks_gdf.to_file(str(file_path), driver='GeoJSON')
     return str(file_path)
+
+
+def assert_geodataframes_equal(gdf1, gdf2, tol=1e-6):
+    """
+      Assert that two GeoDataFrames are equal in terms of CRS, length, and geometry,
+      with geometries compared using an exact match within a given tolerance.
+
+      Parameters
+      ----------
+      gdf1 : geopandas.GeoDataFrame
+          The first GeoDataFrame to compare.
+      gdf2 : geopandas.GeoDataFrame
+          The second GeoDataFrame to compare.
+      tol : float, optional
+          Tolerance for geometry equality comparison (default is 1e-6).
+
+      Raises
+      ------
+      AssertionError
+          If any of the checks (type, CRS, length, geometry equality) fail.
+      """
+    assert isinstance(gdf1, gpd.GeoDataFrame)
+    assert isinstance(gdf2, gpd.GeoDataFrame)
+    assert gdf1.crs == gdf2.crs
+    assert len(gdf1) == len(gdf2)
+    for geom1, geom2 in zip(gdf1.geometry, gdf2.geometry):
+        assert geom1.equals_exact(geom2, tolerance=tol)
 
 
 def test_fix_geometry_valid():
@@ -168,6 +229,40 @@ def test_simplify_geometry_returns_mapping():
     logger.info("simplify_geometry test passed.")
 
 
+def test_merge_future_dev_mixed_geometry(tmp_path):
+    """
+    Test merging when future development file has mixed geometry types.
+    """
+    logger.info("Starting test_merge_future_dev_mixed_geometry")
+    future_dev = gpd.GeoDataFrame(
+        geometry=[
+            Point(0, 0),
+            Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+        ],
+        crs="EPSG:32633"
+    )
+    buffer = gpd.GeoDataFrame(
+        geometry=[Polygon([(2, 2), (3, 2), (3, 3), (2, 3)])],
+        crs="EPSG:32633"
+    )
+
+    buffer_fp = tmp_path / "buffer.shp"
+    future_fp = tmp_path / "mixed_future.geojson"
+
+    buffer.to_file(str(buffer_fp))
+    future_dev.to_file(str(future_fp), driver="GeoJSON")
+    logger.debug(f"Created buffer shapefile at {buffer_fp} and future GeoJSON at {future_fp} with mixed geometries")
+
+    with pytest.raises(ValueError, match=r"mixed geometry types"):
+        logger.info("Calling merge_buffers_into_planning_file expecting ValueError due to mixed geometry types")
+        merge_buffers_into_planning_file(
+            str(buffer_fp),
+            str(future_fp),
+            point_buffer_distance=10.0
+        )
+    logger.info("Completed test_merge_future_dev_mixed_geometry")
+
+
 def test_ensure_projected_crs_already_projected():
     """
     Test that a projected CRS is returned unchanged by ensure_projected_crs.
@@ -212,55 +307,24 @@ def test_create_buffer_with_missing_crs():
     logger.info("test_create_buffer_with_missing_crs passed.")
 
 
-def test_merge_missing_crs_inputs(tmp_path):
-    """
-    Test merge behavior when one or both files lack a CRS.
-    """
-    logger.info("Running test_merge_missing_crs_inputs")
-    buffer = gpd.GeoDataFrame(geometry=[Point(5, 5).buffer(5)], crs="EPSG:4326")
-    future_dev = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
-
-    buffer_fp = tmp_path / "buffer.shp"
-    future_fp = tmp_path / "future.shp"
-    buffer.to_file(str(buffer_fp))
-    future_dev.to_file(str(future_fp))
-    logger.debug(f"Buffer and future development shapefiles saved at {buffer_fp} and {future_fp}")
-
-    merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=5.0)
-    result = gpd.read_file(future_fp)
-
-    logger.debug(f"Merged shapefile CRS: {result.crs}, feature count: {len(result)}")
-    assert not result.empty
-    assert result.crs is not None
-    logger.info("test_merge_missing_crs_inputs passed.")
-
-
-def assert_geodataframes_equal(gdf1, gdf2, tol=1e-6):
-    assert isinstance(gdf1, gpd.GeoDataFrame)
-    assert isinstance(gdf2, gpd.GeoDataFrame)
-    assert gdf1.crs == gdf2.crs
-    assert len(gdf1) == len(gdf2)
-    for geom1, geom2 in zip(gdf1.geometry, gdf2.geometry):
-        assert geom1.equals_exact(geom2, tolerance=tol)
-
-
-def test_subtract_parks_from_buffer_multiprocessing(sample_gas_lines_gdf, sample_parks_file):
-    # Buffer the gas lines (non-multiprocessing)
-    buffer_distance = 100  # meters
-    buffered_gdf = sample_gas_lines_gdf.copy()
-    buffered_gdf['geometry'] = buffered_gdf.geometry.buffer(buffer_distance)
-
-    # Test subtract_parks_from_buffer without multiprocessing
-    result_serial = buffer_processor.subtract_parks_from_buffer(buffered_gdf.copy(), sample_parks_file, use_multiprocessing=False)
-
-    # Test subtract_parks_from_buffer with multiprocessing
-    result_parallel = buffer_processor.subtract_parks_from_buffer(buffered_gdf.copy(), sample_parks_file, use_multiprocessing=True)
-
-    # Use helper assertion
-    assert_geodataframes_equal(result_serial, result_parallel)
-
-
 def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines_gdf, sample_parks_file):
+    """
+    Test the `create_buffer_with_geopandas` function with and without multiprocessing
+    to verify that both modes produce identical GeoDataFrame outputs.
+
+    This test writes the sample gas lines GeoDataFrame to a temporary GeoJSON file,
+    then calls the buffering function twice: once without multiprocessing and once with.
+    It asserts that the resulting GeoDataFrames are equal to ensure consistent behavior.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory path provided by pytest for storing intermediate files.
+    sample_gas_lines_gdf :
+        GeoDataFrame containing sample gas line geometries.
+    sample_parks_file : str or Path
+        File path to the parks data used for subtracting from buffers.
+    """
     gas_lines_path = tmp_path / "gas_lines.geojson"
     sample_gas_lines_gdf.to_file(str(gas_lines_path), driver='GeoJSON')
 
@@ -282,6 +346,29 @@ def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines
 
     # Use helper assertion
     assert_geodataframes_equal(result_serial, result_parallel)
+
+
+def test_merge_missing_crs_inputs(tmp_path):
+    """
+    Test merge behavior when one or both files lack a CRS.
+    """
+    logger.info("Running test_merge_missing_crs_inputs")
+    buffer = gpd.GeoDataFrame(geometry=[Point(5, 5).buffer(5)], crs="EPSG:4326")
+    future_dev = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
+
+    buffer_fp = tmp_path / "buffer.shp"
+    future_fp = tmp_path / "future.shp"
+    buffer.to_file(str(buffer_fp))
+    future_dev.to_file(str(future_fp))
+    logger.debug(f"Buffer and future development shapefiles saved at {buffer_fp} and {future_fp}")
+
+    merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=5.0)
+    result = gpd.read_file(future_fp)
+
+    logger.debug(f"Merged shapefile CRS: {result.crs}, feature count: {len(result)}")
+    assert not result.empty
+    assert result.crs is not None
+    logger.info("test_merge_missing_crs_inputs passed.")
 
 
 def test_merge_buffers_into_planning_file(tmp_path):
@@ -399,35 +486,33 @@ def test_merge_saves_to_geojson(tmp_path):
     logger.info("Completed test_merge_saves_to_geojson")
 
 
-def test_merge_future_dev_mixed_geometry(tmp_path):
+def test_subtract_parks_from_buffer_multiprocessing(sample_gas_lines_gdf, sample_parks_file):
     """
-    Test merging when future development file has mixed geometry types.
+    Test the `subtract_parks_from_buffer` function with and without multiprocessing
+    to ensure consistent results.
+
+    This test creates buffered geometries around sample gas lines and calls the
+    `subtract_parks_from_buffer` function twice: once with multiprocessing disabled,
+    and once with multiprocessing enabled. It asserts that the resulting GeoDataFrames
+    are equal, verifying that multiprocessing does not affect the output correctness.
+
+    Parameters
+    ----------
+    sample_gas_lines_gdf :
+        GeoDataFrame containing geometries of gas lines to buffer.
+    sample_parks_file :
+        Path to the parks data used to subtract from the buffered geometries.
     """
-    logger.info("Starting test_merge_future_dev_mixed_geometry")
-    future_dev = gpd.GeoDataFrame(
-        geometry=[
-            Point(0, 0),
-            Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
-        ],
-        crs="EPSG:32633"
-    )
-    buffer = gpd.GeoDataFrame(
-        geometry=[Polygon([(2, 2), (3, 2), (3, 3), (2, 3)])],
-        crs="EPSG:32633"
-    )
+    # Buffer the gas lines (non-multiprocessing)
+    buffer_distance = 100  # meters
+    buffered_gdf = sample_gas_lines_gdf.copy()
+    buffered_gdf['geometry'] = buffered_gdf.geometry.buffer(buffer_distance)
 
-    buffer_fp = tmp_path / "buffer.shp"
-    future_fp = tmp_path / "mixed_future.geojson"
+    # Test subtract_parks_from_buffer without multiprocessing
+    result_serial = buffer_processor.subtract_parks_from_buffer(buffered_gdf.copy(), sample_parks_file, use_multiprocessing=False)
 
-    buffer.to_file(str(buffer_fp))
-    future_dev.to_file(str(future_fp), driver="GeoJSON")
-    logger.debug(f"Created buffer shapefile at {buffer_fp} and future GeoJSON at {future_fp} with mixed geometries")
+    # Test subtract_parks_from_buffer with multiprocessing
+    result_parallel = buffer_processor.subtract_parks_from_buffer(buffered_gdf.copy(), sample_parks_file, use_multiprocessing=True)
 
-    with pytest.raises(ValueError, match=r"mixed geometry types"):
-        logger.info("Calling merge_buffers_into_planning_file expecting ValueError due to mixed geometry types")
-        merge_buffers_into_planning_file(
-            str(buffer_fp),
-            str(future_fp),
-            point_buffer_distance=10.0
-        )
-    logger.info("Completed test_merge_future_dev_mixed_geometry")
+    # Use helper assertion
+    assert_geodataframes_equal(result_serial, result_parallel)

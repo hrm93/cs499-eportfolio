@@ -69,7 +69,7 @@ def load_txt_report_lines(filepath: str) -> List[str]:
         logger.error(f"Error reading TXT report file {filepath}: {e}")
         return []
 
-    
+
 def read_reports(report_names: list[str], reports_folder_path: Path):
     """
     Reads reports from given filenames.
