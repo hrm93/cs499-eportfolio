@@ -1,48 +1,19 @@
 # buffer_processor.py
 
+import logging
+from typing import Optional, Callable, Any, List, Sequence, Dict
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 import geopandas as gpd
 import pandas as pd
-from gis_tool import config
 import fiona.errors
-from typing import Optional, Callable, Any, List, Sequence, Dict
+from shapely.geometry import Point, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.errors import TopologicalError
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from shapely.geometry import Point, mapping
-import logging
+
+from gis_tool import config
 
 logger = logging.getLogger("gis_tool")
-
-
-def subtract_park_from_geom_helper(geom_and_parks):
-    geom, parks_geoms = geom_and_parks
-    return subtract_park_from_geom(geom, parks_geoms)
-
-
-def buffer_geometry_helper(geom_and_distance):
-    geom, distance = geom_and_distance
-    return buffer_geometry(geom, distance)
-
-
-def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """
-    Ensure the GeoDataFrame has a projected CRS. If not, reproject to DEFAULT_CRS.
-
-    Args:
-        gdf (GeoDataFrame): Input GeoDataFrame to check/reproject.
-
-    Returns:
-        GeoDataFrame: Projected GeoDataFrame in DEFAULT_CRS.
-
-    Raises:
-        ValueError: If input GeoDataFrame has no CRS defined.
-    """
-    if gdf.crs is None:
-        raise ValueError("Input GeoDataFrame has no CRS defined.")
-    if not gdf.crs.is_projected:
-        logger.info(f"Reprojecting GeoDataFrame from {gdf.crs} to projected CRS {config.DEFAULT_CRS} for buffering.")
-        gdf = gdf.to_crs(config.DEFAULT_CRS)
-    return gdf
 
 
 def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:
@@ -76,12 +47,59 @@ def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:
         return None
 
 
+def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Ensure the GeoDataFrame has a projected CRS. If not, reproject to DEFAULT_CRS.
+
+    Args:
+        gdf (GeoDataFrame): Input GeoDataFrame to check/reproject.
+
+    Returns:
+        GeoDataFrame: Projected GeoDataFrame in DEFAULT_CRS.
+
+    Raises:
+        ValueError: If input GeoDataFrame has no CRS defined.
+    """
+    if gdf.crs is None:
+        raise ValueError("Input GeoDataFrame has no CRS defined.")
+    if not gdf.crs.is_projected:
+        logger.info(f"Reprojecting GeoDataFrame from {gdf.crs} to projected CRS {config.DEFAULT_CRS} for buffering.")
+        gdf = gdf.to_crs(config.DEFAULT_CRS)
+    return gdf
+
+
 def buffer_geometry(geom, buffer_distance_m):
+    """
+    Creates a buffer around a given geometry by the specified distance.
+
+    Parameters:
+    - geom: a geometry object (e.g., from Shapely) to buffer
+    - buffer_distance_m: buffer distance in meters (float or int)
+
+    Returns:
+    - A new geometry buffered by buffer_distance_m, or None if an error occurs.
+    """
     try:
         return geom.buffer(buffer_distance_m)
     except Exception as e:
         logger.error(f"Buffering error for geometry: {e}")
         return None
+
+
+def buffer_geometry_helper(geom_and_distance):
+    """
+    Helper function to unpack arguments and call buffer_geometry.
+
+    Parameters:
+    - geom_and_distance: tuple containing
+        - geom: a geometry object to buffer
+        - distance: buffer distance in meters
+
+    Returns:
+    - Buffered geometry result from buffer_geometry(geom, distance)
+    """
+    geom, distance = geom_and_distance
+    return buffer_geometry(geom, distance)
 
 
 def subtract_park_from_geom(buffer_geom, parks_geoms):
@@ -97,6 +115,47 @@ def subtract_park_from_geom(buffer_geom, parks_geoms):
     except Exception as e:
         logger.error(f"Error subtracting park geometry: {e}")
         return buffer_geom  # Return original if error
+
+
+def subtract_park_from_geom_helper(geom_and_parks):
+    """
+    Helper function to unpack arguments and call subtract_park_from_geom.
+
+    Parameters:
+    - geom_and_parks: tuple containing
+        - geom: a geometry object to subtract from
+        - parks_geoms: a collection of park geometries to subtract
+
+    Returns:
+    - Result of subtract_park_from_geom(geom, parks_geoms)
+    """
+    geom, parks_geoms = geom_and_parks
+    return subtract_park_from_geom(geom, parks_geoms)
+
+
+def parallel_process(
+    func: Callable,
+    items: Sequence,
+    max_workers: int = None,
+) -> List[Any]:
+    """
+    Run a function on a list of items in parallel using ProcessPoolExecutor.
+
+    Args:
+        func: Function to run on each item.
+        items: Iterable of input items.
+        max_workers: Max number of worker processes; defaults to number of processors.
+
+    Returns:
+        List of results in the order they complete (not guaranteed original order).
+    """
+    results = [None] * len(items)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(func, item): idx for idx, item in enumerate(items)}
+        for future in as_completed(futures):
+            idx = futures[future]
+            results[idx] = future.result()
+    return results
 
 
 def subtract_parks_from_buffer(
@@ -170,31 +229,6 @@ def simplify_geometry(geom: Point, tolerance: float = 0.00001) -> Dict:
     # Simplify geometry to avoid floating point precision issues
     simplified = geom.simplify(tolerance, preserve_topology=True)
     return mapping(simplified)
-
-
-def parallel_process(
-    func: Callable,
-    items: Sequence,
-    max_workers: int = None,
-) -> List[Any]:
-    """
-    Run a function on a list of items in parallel using ProcessPoolExecutor.
-
-    Args:
-        func: Function to run on each item.
-        items: Iterable of input items.
-        max_workers: Max number of worker processes; defaults to number of processors.
-
-    Returns:
-        List of results in the order they complete (not guaranteed original order).
-    """
-    results = [None] * len(items)
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(func, item): idx for idx, item in enumerate(items)}
-        for future in as_completed(futures):
-            idx = futures[future]
-            results[idx] = future.result()
-    return results
 
 
 def create_buffer_with_geopandas(
