@@ -24,12 +24,13 @@ from geopandas import GeoDataFrame
 from unittest.mock import MagicMock, patch
 from shapely.geometry import Point
 from gis_tool import data_loader as dl
-
-from gis_tool.data_loader import (
-    robust_date_parse,
+from gis_tool.report_reader import (
     find_new_reports,
     load_geojson_report,
     load_txt_report_lines,
+)
+from gis_tool.data_loader import (
+    robust_date_parse,
     make_feature,
     create_pipeline_features
 )

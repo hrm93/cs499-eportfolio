@@ -6,10 +6,14 @@ from shapely.geometry.base import BaseGeometry
 import tempfile
 import pytest
 from gis_tool import buffer_processor
-from gis_tool.buffer_processor import fix_geometry, create_buffer_with_geopandas, merge_buffers_into_planning_file, \
-    ensure_projected_crs
+from gis_tool.buffer_processor import (
+    fix_geometry,
+    create_buffer_with_geopandas,
+    merge_buffers_into_planning_file,
+    ensure_projected_crs,
+    simplify_geometry
+)
 from gis_tool import config
-from gis_tool import data_loader as dl
 from unittest.mock import Mock
 import logging
 
@@ -154,7 +158,7 @@ def test_simplify_geometry_returns_mapping():
     """
     logger.info("Testing simplify_geometry function.")
     point = Point(10.123456789, 20.987654321)
-    simplified = dl.simplify_geometry(point, tolerance=0.01)
+    simplified = simplify_geometry(point, tolerance=0.01)
     logger.debug(f"Simplified geometry output: {simplified}")
     assert isinstance(simplified, dict)
     assert 'type' in simplified and simplified['type'] == 'Point'

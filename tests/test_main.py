@@ -19,7 +19,6 @@ from unittest import mock
 from pymongo.errors import ConnectionFailure
 from gis_tool.db_utils import connect_to_mongodb
 import gis_tool.db_utils
-import gis_tool.data_loader as data_loader
 import gis_tool.main
 from gis_tool.main import main, process_report_chunk
 from pathlib import Path

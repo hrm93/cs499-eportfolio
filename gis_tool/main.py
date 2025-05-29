@@ -23,48 +23,15 @@ from gis_tool.db_utils import connect_to_mongodb
 from gis_tool.cli import parse_args
 from gis_tool.logger import setup_logging
 from gis_tool.config import DEFAULT_CRS
-from gis_tool.data_loader import (
-    find_new_reports,
-    create_pipeline_features,
-)
+from gis_tool.data_loader import create_pipeline_features
 from gis_tool.buffer_processor import (
     create_buffer_with_geopandas,
     merge_buffers_into_planning_file,
 )
 from gis_tool.output_writer import write_gis_output
+from gis_tool.report_reader import read_reports, find_new_reports
 
 logger = logging.getLogger("gis_tool")  # Get the configured logger
-
-def read_reports(report_names: list[str], reports_folder_path: Path):
-    """
-    Reads reports from given filenames.
-
-    Returns:
-        geojson_reports (list of tuples): (filename, GeoDataFrame)
-        txt_reports (list of tuples): (filename, list of lines)
-    """
-    geojson_reports = []
-    txt_reports = []
-
-    for report_name in report_names:
-        report_path = reports_folder_path / report_name
-        if report_name.lower().endswith(".geojson"):
-            try:
-                gdf = gpd.read_file(report_path)
-                geojson_reports.append((report_name, gdf))
-            except (FileNotFoundError, OSError, fiona.errors.DriverError) as e:
-                logger.error(f"Failed to read GeoJSON report {report_name}: {e}")
-        elif report_name.lower().endswith(".txt"):
-            try:
-                with open(report_path, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                txt_reports.append((report_name, lines))
-            except (FileNotFoundError, OSError) as e:
-                logger.error(f"Failed to read TXT report {report_name}: {e}")
-        else:
-            logger.warning(f"Unsupported report type: {report_name}")
-
-    return geojson_reports, txt_reports
 
 
 def process_report_chunk(
