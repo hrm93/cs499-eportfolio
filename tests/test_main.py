@@ -364,7 +364,12 @@ def test_main_executes_pipeline(dummy_inputs: Dict[str, str], monkeypatch: pytes
         dummy_inputs (dict): Fixture providing dummy input paths.
         monkeypatch (pytest.MonkeyPatch): Pytest fixture for patching sys.argv.
     """
+    logger.debug("Starting test_main_executes_pipeline with dummy inputs:")
+    logger.debug(dummy_inputs)
+
     run_main_and_check_output(dummy_inputs, monkeypatch)
+
+    logger.debug("Completed test_main_executes_pipeline")
 
 
 def test_main_executes_pipeline_geojson(dummy_geojson_output: Dict[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
@@ -375,7 +380,12 @@ def test_main_executes_pipeline_geojson(dummy_geojson_output: Dict[str, str], mo
         dummy_geojson_output (dict): Fixture providing dummy input paths with GeoJSON output.
         monkeypatch (pytest.MonkeyPatch): Pytest fixture for patching sys.argv.
     """
+    logger.debug("Starting test_main_executes_pipeline_geojson with dummy inputs:")
+    logger.debug(dummy_geojson_output)
+
     run_main_and_check_output(dummy_geojson_output, monkeypatch)
+
+    logger.debug("Completed test_main_executes_pipeline_geojson")
 
 
 def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch) -> None:

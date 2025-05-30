@@ -60,20 +60,29 @@ def robust_date_parse(date_val: Any) -> Union[pd.Timestamp, pd.NaT]:
     Returns:
         Union[pd.Timestamp, pd.NaT]: A valid pandas Timestamp or pd.NaT if parsing fails.
     """
+    logger.debug(f"Parsing date: {date_val}")
     if pd.isna(date_val):
+        logger.debug("Date value is NaN or None; returning pd.NaT.")
         return pd.NaT
     if isinstance(date_val, pd.Timestamp):
+        logger.debug("Date value is already a pandas Timestamp.")
         return date_val
     if isinstance(date_val, str):
         for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
             try:
-                return pd.to_datetime(date_val, format=fmt)
+                parsed = pd.to_datetime(date_val, format=fmt)
+                logger.debug(f"Date parsed using format {fmt}: {parsed}")
+                return parsed
             except (ValueError, TypeError):
                 continue
         try:
-            return pd.to_datetime(parse(date_val, fuzzy=False))
+            parsed = pd.to_datetime(parse(date_val, fuzzy=False))
+            logger.debug(f"Date parsed using dateutil: {parsed}")
+            return parsed
         except (ValueError, TypeError):
+            logger.warning(f"Failed to parse date: {date_val}; returning pd.NaT.")
             return pd.NaT
+    logger.warning(f"Unsupported date type: {type(date_val)}; returning pd.NaT.")
     return pd.NaT
 
 
@@ -103,6 +112,10 @@ def make_feature(
           gpd.GeoDataFrame: A GeoDataFrame with one row representing the feature,
           using the provided CRS.
       """
+    logger.debug(
+        f"Creating feature: name={name}, date={date}, psi={psi}, material={material}, "
+        f"geometry={geometry.wkt}, crs={crs}"
+    )
     data = {
         SCHEMA_FIELDS[0]: [name],
         SCHEMA_FIELDS[1]: [date],
@@ -160,24 +173,29 @@ def create_pipeline_features(
         - Duplicate features (based on name and geometry) are avoided in MongoDB.
         - Material field normalized to lowercase for consistency.
     """
+    logger.info("Starting pipeline feature creation...")
     if processed_reports is None:
         processed_reports = set()
 
     processed_pipelines = set()
     features_added = False
 
-    # ✅ Normalize gas_lines_gdf CRS to spatial_reference
+    # Normalize gas_lines_gdf CRS
     if gas_lines_gdf.crs and gas_lines_gdf.crs.to_string() != spatial_reference:
+        logger.info(
+            f"Reprojecting gas_lines_gdf from {gas_lines_gdf.crs.to_string()} to {spatial_reference}."
+        )
         gas_lines_gdf = gas_lines_gdf.to_crs(spatial_reference)
 
-    # ✅ Normalize GeoJSON report CRS to match spatial_reference
+    # Normalize GeoJSON report CRS
     for i, (report_name, gdf) in enumerate(geojson_reports):
         if gdf.crs and gdf.crs.to_string() != spatial_reference:
+            logger.info(
+                f"Reprojecting GeoJSON report '{report_name}' from {gdf.crs.to_string()} to {spatial_reference}."
+            )
             gdf = gdf.to_crs(spatial_reference)
             geojson_reports[i] = (report_name, gdf)
 
-
-    # Helper to align columns and dtypes, fix geometry
     def align_feature_dtypes(new_feat: gpd.GeoDataFrame, base_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         new_feat = new_feat.reindex(columns=base_gdf.columns)
         for col in base_gdf.columns:
@@ -196,8 +214,7 @@ def create_pipeline_features(
             logger.info(f"Skipping already processed report: {report_name}")
             continue
 
-        # gdf already normalized to spatial_reference above
-
+        logger.info(f"Processing GeoJSON report: {report_name}")
         required_fields = set(SCHEMA_FIELDS) - {"geometry"}
         missing_fields = required_fields - set(gdf.columns)
         if missing_fields:
@@ -207,11 +224,11 @@ def create_pipeline_features(
 
         for _, row in gdf.iterrows():
             point = row.geometry
-
             parsed_date = robust_date_parse(row["Date"])
             new_feature = make_feature(row["Name"], parsed_date, row["PSI"], row["Material"], point, spatial_reference)
 
             if use_mongodb and gas_lines_collection:
+                logger.debug(f"Inserting/updating feature in MongoDB: {row['Name']}")
                 upsert_mongodb_feature(
                     gas_lines_collection,
                     row["Name"],
@@ -225,6 +242,7 @@ def create_pipeline_features(
             valid_rows = new_feature.dropna(how="all")
 
             if not valid_rows.empty:
+                logger.debug(f"Adding new feature: {row['Name']}")
                 gas_lines_gdf = pd.concat([gas_lines_gdf, valid_rows], ignore_index=True)
                 processed_pipelines.add(row["Name"])
                 features_added = True
@@ -234,9 +252,10 @@ def create_pipeline_features(
     # Process TXT reports
     for report_name, lines in txt_reports:
         if report_name in processed_reports:
-            logger.info(f"Skipping already processed report: {report_name}")
+            logger.info(f"Skipping already processed TXT report: {report_name}")
             continue
 
+        logger.info(f"Processing TXT report: {report_name}")
         for line_number, line in enumerate(lines, start=1):
             if "Id Name" in line:
                 continue
@@ -269,6 +288,7 @@ def create_pipeline_features(
                 new_feature = make_feature(line_name, parsed_date, psi, material, point, spatial_reference)
 
                 if use_mongodb and gas_lines_collection:
+                    logger.debug(f"Inserting/updating feature in MongoDB: {line_name}")
                     upsert_mongodb_feature(
                         gas_lines_collection, line_name, date_completed, psi, material, point
                     )
@@ -277,13 +297,12 @@ def create_pipeline_features(
                 valid_rows = new_feature.dropna(how="all")
 
                 if not valid_rows.empty:
+                    logger.debug(f"Adding new feature from TXT: {line_name}")
                     gas_lines_gdf = pd.concat([gas_lines_gdf, valid_rows], ignore_index=True)
                     processed_pipelines.add(line_name)
                     features_added = True
 
         processed_reports.add(report_name)
 
+    logger.info("Finished processing reports.")
     return processed_reports, gas_lines_gdf, features_added
-
-
-

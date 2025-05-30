@@ -56,8 +56,10 @@ def sample_gas_lines_gdf():
             A GeoDataFrame with two LineString geometries and CRS set to EPSG:3857.
         """
     # Create a GeoDataFrame with LineStrings (simulating gas lines)
+    logger.info("Creating sample gas lines GeoDataFrame for testing.")
     geoms = [LineString([(0, 0), (1, 1)]), LineString([(1, 1), (2, 2)])]
     gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
+    logger.debug(f"Sample gas lines GeoDataFrame created with {len(gdf)} features.")
     return gdf
 
 
@@ -73,8 +75,10 @@ def sample_parks_gdf():
         A GeoDataFrame with one Polygon geometry and CRS set to EPSG:3857.
     """
     # Create a GeoDataFrame with Polygons (simulating parks)
+    logger.info("Creating sample parks GeoDataFrame for testing.")
     geoms = [Polygon([(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5)])]
     gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
+    logger.debug(f"Sample parks GeoDataFrame created with {len(gdf)} features.")
     return gdf
 
 
@@ -137,8 +141,10 @@ def sample_parks_file(tmp_path, sample_parks_gdf):
        str
            File path to the created temporary GeoJSON file containing park geometries.
        """
+    logger.info("Creating sample parks GeoJSON file for testing.")
     file_path = tmp_path / "parks.geojson"
     sample_parks_gdf.to_file(str(file_path), driver='GeoJSON')
+    logger.debug(f"Sample parks GeoJSON written: {file_path}")
     return str(file_path)
 
 
@@ -161,12 +167,20 @@ def assert_geodataframes_equal(gdf1, gdf2, tol=1e-6):
       AssertionError
           If any of the checks (type, CRS, length, geometry equality) fail.
       """
-    assert isinstance(gdf1, gpd.GeoDataFrame)
-    assert isinstance(gdf2, gpd.GeoDataFrame)
-    assert gdf1.crs == gdf2.crs
-    assert len(gdf1) == len(gdf2)
-    for geom1, geom2 in zip(gdf1.geometry, gdf2.geometry):
-        assert geom1.equals_exact(geom2, tolerance=tol)
+    logger.info("Comparing two GeoDataFrames for equality.")
+    assert isinstance(gdf1, gpd.GeoDataFrame), "First input is not a GeoDataFrame"
+    assert isinstance(gdf2, gpd.GeoDataFrame), "Second input is not a GeoDataFrame"
+    logger.debug(f"CRS check: {gdf1.crs} == {gdf2.crs}")
+    assert gdf1.crs == gdf2.crs, "CRS mismatch"
+    logger.debug(f"Length check: {len(gdf1)} == {len(gdf2)}")
+    assert len(gdf1) == len(gdf2), "GeoDataFrames have different lengths"
+
+    for i, (geom1, geom2) in enumerate(zip(gdf1.geometry, gdf2.geometry)):
+        equal = geom1.equals_exact(geom2, tolerance=tol)
+        logger.debug(f"Geometry check at index {i}: {'equal' if equal else 'not equal'}")
+        assert equal, f"Geometries at index {i} differ"
+
+    logger.info("GeoDataFrames are equal.")
 
 
 def test_fix_geometry_valid():
@@ -325,27 +339,36 @@ def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines
     sample_parks_file : str or Path
         File path to the parks data used for subtracting from buffers.
     """
+    logger.info("Starting test: create_buffer_with_geopandas_multiprocessing to compare serial and parallel outputs.")
+
     gas_lines_path = tmp_path / "gas_lines.geojson"
     sample_gas_lines_gdf.to_file(str(gas_lines_path), driver='GeoJSON')
+    logger.debug(f"Sample gas lines written to GeoJSON: {gas_lines_path}")
 
     # Test without multiprocessing
+    logger.info("Calling create_buffer_with_geopandas without multiprocessing.")
     result_serial = buffer_processor.create_buffer_with_geopandas(
         input_gas_lines_path=str(gas_lines_path),
         buffer_distance_ft=328.084,  # 100 meters in feet
         parks_path=sample_parks_file,
         use_multiprocessing=False,
     )
+    logger.debug("Buffering (serial) completed.")
 
     # Test with multiprocessing
+    logger.info("Calling create_buffer_with_geopandas with multiprocessing.")
     result_parallel = buffer_processor.create_buffer_with_geopandas(
         input_gas_lines_path=str(gas_lines_path),
         buffer_distance_ft=328.084,
         parks_path=sample_parks_file,
         use_multiprocessing=True,
     )
+    logger.debug("Buffering (parallel) completed.")
 
     # Use helper assertion
+    logger.info("Asserting equality of serial and parallel GeoDataFrame results.")
     assert_geodataframes_equal(result_serial, result_parallel)
+    logger.info("Test passed: Serial and parallel outputs match.")
 
 
 def test_merge_missing_crs_inputs(tmp_path):
@@ -409,35 +432,54 @@ def test_merge_empty_buffer_file(tmp_path):
     Test that merge function skips writing if the buffer file is empty,
     avoiding Fiona empty write warning.
     """
+    logger.info("Starting test: merge_empty_buffer_file to ensure merge skips empty buffers.")
+
     # Create empty buffer GeoDataFrame
     empty_buffer = gpd.GeoDataFrame(geometry=[], crs="EPSG:32633")
+    logger.debug("Created empty buffer GeoDataFrame.")
+
     # Create future development GeoDataFrame with one point
     future_dev = gpd.GeoDataFrame(geometry=[Point(2, 2)], crs="EPSG:32633")
+    logger.debug("Created future development GeoDataFrame with one point.")
 
     buffer_fp = tmp_path / "empty_buffer.geojson"
     future_fp = tmp_path / "future_dev.shp"
 
     # Write empty buffer as GeoJSON (empty file)
     empty_buffer.to_file(str(buffer_fp), driver="GeoJSON")
+    logger.debug(f"Wrote empty buffer GeoJSON to: {buffer_fp}")
+
     # Write future development shapefile (non-empty)
     future_dev.to_file(str(future_fp))
+    logger.debug(f"Wrote future development shapefile to: {future_fp}")
 
     # Read original future development file contents for later comparison
     original_future = gpd.read_file(future_fp)
+    logger.debug("Read original future development file.")
 
     # Call merge; this should skip writing empty merged file and return merged GeoDataFrame
-    merged_gdf = merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=10.0)
+    logger.info("Calling merge_buffers_into_planning_file with empty buffer file.")
+    merged_gdf = merge_buffers_into_planning_file(
+        str(buffer_fp), str(future_fp), point_buffer_distance=10.0
+    )
+    logger.debug("Merge function called successfully.")
 
     # After merge, read the future file again
     after_merge_future = gpd.read_file(future_fp)
+    logger.debug("Read future development file after merge.")
 
     # Assert merged GeoDataFrame is not empty and matches the original future dev data (unchanged)
+    logger.info("Asserting that merged GeoDataFrame is not empty and future dev file is unchanged.")
     assert not merged_gdf.empty
     assert len(merged_gdf) == len(original_future)
-    assert after_merge_future.equals(original_future), "Future dev file should not be overwritten if buffer is empty"
+    assert after_merge_future.equals(original_future), (
+        "Future dev file should not be overwritten if buffer is empty"
+    )
+    logger.debug("Assertions passed for empty buffer merge behavior.")
 
     # Confirm merged_gdf has same CRS as future_dev
     assert merged_gdf.crs == future_dev.crs
+    logger.info("Test passed: merge_empty_buffer_file behavior is as expected.")
 
 
 def test_merge_buffer_non_polygon(tmp_path):
@@ -504,15 +546,28 @@ def test_subtract_parks_from_buffer_multiprocessing(sample_gas_lines_gdf, sample
         Path to the parks data used to subtract from the buffered geometries.
     """
     # Buffer the gas lines (non-multiprocessing)
+    logger.info("Starting test: subtract_parks_from_buffer with and without multiprocessing.")
+
     buffer_distance = 100  # meters
     buffered_gdf = sample_gas_lines_gdf.copy()
     buffered_gdf['geometry'] = buffered_gdf.geometry.buffer(buffer_distance)
+    logger.debug("Buffered gas lines geometries created.")
 
-    # Test subtract_parks_from_buffer without multiprocessing
-    result_serial = buffer_processor.subtract_parks_from_buffer(buffered_gdf.copy(), sample_parks_file, use_multiprocessing=False)
+    # Test without multiprocessing
+    logger.info("Testing subtract_parks_from_buffer without multiprocessing.")
+    result_serial = buffer_processor.subtract_parks_from_buffer(
+        buffered_gdf.copy(), sample_parks_file, use_multiprocessing=False
+    )
+    logger.debug("Serial subtraction completed.")
 
-    # Test subtract_parks_from_buffer with multiprocessing
-    result_parallel = buffer_processor.subtract_parks_from_buffer(buffered_gdf.copy(), sample_parks_file, use_multiprocessing=True)
+    # Test with multiprocessing
+    logger.info("Testing subtract_parks_from_buffer with multiprocessing.")
+    result_parallel = buffer_processor.subtract_parks_from_buffer(
+        buffered_gdf.copy(), sample_parks_file, use_multiprocessing=True
+    )
+    logger.debug("Parallel subtraction completed.")
 
-    # Use helper assertion
+    # Verify that both outputs are identical
+    logger.info("Asserting that serial and parallel results are identical.")
     assert_geodataframes_equal(result_serial, result_parallel)
+    logger.info("Test passed: Outputs are consistent across modes.")
