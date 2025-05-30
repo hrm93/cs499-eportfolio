@@ -5,7 +5,11 @@
       "type": "Feature",
       "properties": {
         "report_id": "test001",
-        "status": "planned"
+        "status": "planned",
+        "PSI": 0,              // Example: 0 psi or actual pressure value
+        "Date": "2025-05-30",  // ISO date string format
+        "Name": "Sample Report",
+        "Material": "Concrete"
       },
       "geometry": {
         "type": "Point",
