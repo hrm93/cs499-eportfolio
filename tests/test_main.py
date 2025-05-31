@@ -417,10 +417,10 @@ def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch) -> None:
         "--gas-lines-path", str(gas_lines_path),
         "--report-files", str(report_file),
         "--buffer-distance", "50",
-        "--no-mongodb"
+        "--no-mongodb",
+        "--overwrite-output"
     ]
     monkeypatch.setattr("sys.argv", testargs)
-    monkeypatch.setattr("gis_tool.config.ALLOW_OVERWRITE_OUTPUT", True)
 
     main()
 
