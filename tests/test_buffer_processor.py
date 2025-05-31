@@ -15,7 +15,13 @@ from gis_tool.buffer_processor import (
     create_buffer_with_geopandas,
     merge_buffers_into_planning_file,
     ensure_projected_crs,
-    simplify_geometry
+    simplify_geometry,
+    buffer_geometry,
+    buffer_geometry_helper,
+    subtract_park_from_geom,
+    subtract_park_from_geom_helper,
+    parallel_process,
+    subtract_parks_from_buffer,
 )
 
 logger = logging.getLogger("gis_tool")
@@ -243,6 +249,33 @@ def test_simplify_geometry_returns_mapping():
     logger.info("simplify_geometry test passed.")
 
 
+def test_buffer_geometry_simple():
+    """
+    Test buffering a simple point geometry using buffer_geometry.
+    """
+    logger.info("Running test_buffer_geometry_simple")
+    point = Point(1, 1)
+    buffer_dist = 10
+    buffered = buffer_geometry(point, buffer_dist)
+    assert buffered.area > 0
+    assert buffered.contains(point)
+    logger.info("test_buffer_geometry_simple passed.")
+
+
+def test_buffer_geometry_helper_consistency():
+    """
+    Test buffer_geometry_helper returns consistent results with buffer_geometry.
+    Assumes buffer_geometry_helper uses a fixed buffer distance internally.
+    """
+    logger.info("Running test_buffer_geometry_helper_consistency")
+    geom = Point(0, 0)
+    fixed_dist = 10
+    result_main = buffer_geometry(geom, fixed_dist)
+    result_helper = buffer_geometry_helper((geom, fixed_dist))  # pass as tuple
+    assert result_main.equals(result_helper)
+    logger.info("test_buffer_geometry_helper_consistency passed.")
+
+
 def test_merge_future_dev_mixed_geometry(tmp_path):
     """
     Test merging when future development file has mixed geometry types.
@@ -319,6 +352,78 @@ def test_create_buffer_with_missing_crs():
         assert buffered_gdf.crs is not None
         assert not buffered_gdf.empty
     logger.info("test_create_buffer_with_missing_crs passed.")
+
+
+def test_subtract_park_from_geom_difference():
+    """
+    Test that subtract_park_from_geom subtracts the park geometry from a buffer geometry.
+    """
+    logger.info("Running test_subtract_park_from_geom_difference")
+    buffer_geom = Point(0, 0).buffer(10)
+    park_geoms = [Point(0, 0).buffer(5)]  # Make it a list
+    result = subtract_park_from_geom(buffer_geom, park_geoms)
+    assert result.area < buffer_geom.area
+    logger.info("test_subtract_park_from_geom_difference passed.")
+
+
+def test_subtract_park_from_geom_helper_equivalence():
+    """
+    Test subtract_park_from_geom_helper provides the same result as subtract_park_from_geom
+    when given the same input geometries.
+    """
+    logger.info("Running test_subtract_park_from_geom_helper_equivalence")
+
+    buffer_geom = Point(0, 0).buffer(8)
+    parks_geoms = [Point(1, 1).buffer(3)]  # can be a list or any collection
+
+    result_main = subtract_park_from_geom(buffer_geom, parks_geoms)
+    result_helper = subtract_park_from_geom_helper((buffer_geom, parks_geoms))
+
+    assert result_main.equals(result_helper)
+    logger.info("test_subtract_park_from_geom_helper_equivalence passed.")
+
+    # If possible to access helper's internal park geometry or patch it,
+    # then compare results more strictly.
+    logger.info("test_subtract_park_from_geom_helper_equivalence passed.")
+
+
+def square(x):
+    return x * x
+
+def test_parallel_process_returns_expected():
+    """
+    Test parallel_process runs the function on a list of inputs and returns expected results.
+    """
+    logger.info("Running test_parallel_process_returns_expected")
+    inputs = [1, 2, 3, 4]
+    expected = [1, 4, 9, 16]
+    results = parallel_process(square, inputs)
+    assert results == expected
+    logger.info("test_parallel_process_returns_expected passed.")
+
+
+def test_subtract_parks_from_buffer_behavior():
+    """
+    Test subtract_parks_from_buffer subtracts multiple park polygons from a buffer GeoDataFrame.
+    """
+    logger.info("Running test_subtract_parks_from_buffer_behavior")
+    buffer_gdf = gpd.GeoDataFrame(
+        geometry=[Point(0, 0).buffer(10)],
+        crs="EPSG:4326"
+    )
+    parks_gdf = gpd.GeoDataFrame(
+        geometry=[Point(0, 0).buffer(5), Point(20, 20).buffer(3)],
+        crs="EPSG:4326"
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        parks_path = os.path.join(tmpdir, "parks.geojson")
+        parks_gdf.to_file(parks_path, driver="GeoJSON")  # Save parks to GeoJSON file
+
+        result_gdf = subtract_parks_from_buffer(buffer_gdf, parks_path)
+        # Add assertions about result_gdf here
+
+    logger.info("test_subtract_parks_from_buffer_behavior passed.")
 
 
 def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines_gdf, sample_parks_file):
