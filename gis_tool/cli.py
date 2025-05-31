@@ -69,7 +69,7 @@ def parse_args():
     parser.add_argument('--config-file', type=str, default=None,
                         help='Path to a configuration file with pipeline settings.')
     parser.add_argument('--overwrite-output', action='store_true',
-                        help='Overwrite existing output files if they exist.')
+                        help='Allow overwriting existing output files.')
 
     # Mutually exclusive group for MongoDB integration
     group = parser.add_mutually_exclusive_group()

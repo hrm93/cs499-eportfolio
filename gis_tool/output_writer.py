@@ -49,7 +49,7 @@ def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
     logger.info(f"GEOJSON file written to {path}")
 
 
-def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = config.OUTPUT_FORMAT) -> None:
+def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = config.OUTPUT_FORMAT, overwrite: bool = False) -> None:
     """
     Write a GeoDataFrame to a file in the specified format.
 
@@ -57,13 +57,17 @@ def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str
         gdf (gpd.GeoDataFrame): GeoDataFrame containing spatial features.
         output_path (str): Path to the output file (.shp or .geojson).
         output_format (str): Output format: 'shp' or 'geojson'.
+        :param output_format:
+        :param output_path:
+        :param gdf:
+        :param overwrite:
     """
     if gdf.empty:
         logger.warning(f"GeoDataFrame is empty. No file written to {output_path}.")
         return
     try:
         path = Path(output_path)
-        if path.exists() and not config.ALLOW_OVERWRITE_OUTPUT:
+        if path.exists() and not overwrite:
             raise FileExistsError(f"{output_path} exists and overwriting is disabled.")
         if config.DRY_RUN_MODE:
             logger.info(f"Dry run enabled: Skipping write of {output_path}")

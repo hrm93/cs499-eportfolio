@@ -4,16 +4,16 @@
     {
       "type": "Feature",
       "properties": {
-        "report_id": "test001",
-        "status": "planned",
-        "PSI": 0,
+        "id": 1,
+        "name": "Test Feature 1",
         "Date": "2025-05-30",
-        "Name": "Sample Report",
-        "Material": "Concrete"
+        "Material": "Steel",
+        "Name": "Pipeline A",
+        "PSI": 1500
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [-122.4194, 37.7749]
+        "coordinates": [102.0, 0.5]
       }
     }
   ]

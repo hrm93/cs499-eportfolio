@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 2,
+        "name": "Test Feature 2",
+        "Date": "2025-05-31",
+        "Material": "PVC",
+        "Name": "Pipeline B",
+        "PSI": 1200
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.0, 1.0]
+      }
+    }
+  ]
+}

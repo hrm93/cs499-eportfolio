@@ -188,7 +188,12 @@ def main() -> None:
         logger.warning("Generated buffer GeoDataFrame is empty. Skipping output write and merge.")
     else:
         # Write GIS output in specified format
-        write_gis_output(gdf_buffer, output_path, output_format=args.output_format)
+        write_gis_output(
+            gdf_buffer,
+            output_path,
+            output_format=args.output_format,
+            overwrite=args.overwrite_output,
+        )
 
         # Merge buffer results into future development planning shapefile
         merge_buffers_into_planning_file(output_path, future_development_shp)
