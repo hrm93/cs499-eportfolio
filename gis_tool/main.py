@@ -22,7 +22,7 @@ from pymongo.errors import PyMongoError
 
 from gis_tool.buffer_processor import (
     create_buffer_with_geopandas,
-    merge_buffers_into_planning_file,
+    merge_buffers_into_planning_file, fix_geometry,
 )
 from gis_tool.cli import parse_args
 from gis_tool.config import DEFAULT_CRS
@@ -168,6 +168,16 @@ def main() -> None:
 
         gas_lines_gdf = gpd.read_file(gas_lines_shp)
 
+        # Fix geometries before further processing
+        fixed_geometries = []
+        for geom in gas_lines_gdf.geometry:
+            if geom is not None:
+                fixed = fix_geometry(geom)
+                fixed_geometries.append(fixed)
+            else:
+                fixed_geometries.append(None)  # Keep None if original was None
+        gas_lines_gdf.geometry = fixed_geometries
+
         create_pipeline_features(
             geojson_reports=geojson_reports,
             txt_reports=txt_reports,
@@ -187,16 +197,19 @@ def main() -> None:
     if gdf_buffer.empty:
         logger.warning("Generated buffer GeoDataFrame is empty. Skipping output write and merge.")
     else:
-        # Write GIS output in specified format
-        write_gis_output(
-            gdf_buffer,
-            output_path,
-            output_format=args.output_format,
-            overwrite=args.overwrite_output,
-        )
+        if not args.dry_run:
+            # Write GIS output in specified format
+            write_gis_output(
+                gdf_buffer,
+                output_path,
+                output_format=args.output_format,
+                overwrite=args.overwrite_output,
+            )
 
-        # Merge buffer results into future development planning shapefile
-        merge_buffers_into_planning_file(output_path, future_development_shp)
+            # Merge buffer results into future development planning shapefile
+            merge_buffers_into_planning_file(output_path, future_development_shp)
+        else:
+            logger.info("Dry run enabled - skipping writing output files and merging.")
 
     logger.info("Pipeline processing completed.")
 

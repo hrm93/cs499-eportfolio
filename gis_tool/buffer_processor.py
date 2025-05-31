@@ -33,6 +33,9 @@ def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:
         It also catches generic exceptions as a fallback for unexpected errors.
     """
     logger.debug(f"fix_geometry called with geometry: {g}")
+    if g is None:
+        # Silent skip
+        return None
     if g.is_valid:
         logger.debug("Geometry is already valid.")
         return g
@@ -198,6 +201,10 @@ def subtract_parks_from_buffer(
     try:
         parks_gdf = gpd.read_file(parks_path)
         logger.debug("Parks layer loaded successfully.")
+        if parks_gdf.crs is None:
+            logger.warning("Parks layer has no CRS. Assigning buffer CRS.")
+            parks_gdf.set_crs(buffer_gdf.crs, inplace=True)
+
         if parks_gdf.crs != buffer_gdf.crs:
             logger.info("Reprojecting parks layer to match buffer CRS.")
             parks_gdf = parks_gdf.to_crs(buffer_gdf.crs)
