@@ -227,7 +227,7 @@ def create_pipeline_features(
             parsed_date = robust_date_parse(row["Date"])
             new_feature = make_feature(row["Name"], parsed_date, row["PSI"], row["Material"], point, spatial_reference)
 
-            if use_mongodb and gas_lines_collection:
+            if use_mongodb and gas_lines_collection is not None:
                 logger.debug(f"Inserting/updating feature in MongoDB: {row['Name']}")
                 upsert_mongodb_feature(
                     gas_lines_collection,
@@ -287,7 +287,7 @@ def create_pipeline_features(
                 parsed_date = robust_date_parse(date_completed)
                 new_feature = make_feature(line_name, parsed_date, psi, material, point, spatial_reference)
 
-                if use_mongodb and gas_lines_collection:
+                if use_mongodb and gas_lines_collection is not None:
                     logger.debug(f"Inserting/updating feature in MongoDB: {line_name}")
                     upsert_mongodb_feature(
                         gas_lines_collection, line_name, date_completed, psi, material, point
