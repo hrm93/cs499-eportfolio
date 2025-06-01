@@ -326,7 +326,7 @@ def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, cap
             use_mongodb=False,
         )
 
-    assert any("I/O error in multiprocessing report chunk" in record.getMessage() for record in caplog.records)
+    assert any("I/O error in chunk" in record.getMessage() for record in caplog.records)
     logger.info("Error logging test in process_report_chunk passed.")
 
 
