@@ -11,6 +11,22 @@ logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Capture all debug and above logs
 
 
+def test_default_log_level(monkeypatch):
+    testargs = [
+        "prog",
+        "--input-folder", "input",
+        "--output-path", "out.shp",
+        "--future-dev-path", "future.shp",
+        "--gas-lines-path", "gas.shp",
+        "--report-files", "report.txt",
+    ]
+    monkeypatch.setattr(sys, "argv", testargs)
+    monkeypatch.setattr(os.path, "isdir", mock_isdir)
+    monkeypatch.setattr(os.path, "isfile", mock_isfile)
+    args = parse_args()
+    assert args.log_level == "INFO"
+
+
 def mock_isdir(path: str) -> bool:
     """
     Mock function to simulate checking if a directory exists.
@@ -389,3 +405,20 @@ def test_invalid_max_workers(monkeypatch: "pytest.MonkeyPatch") -> None:
     with pytest.raises(SystemExit):
         logger.debug("Expecting SystemExit due to invalid max workers")
         parse_args()
+
+
+def test_default_output_format(monkeypatch):
+    testargs = [
+        "prog",
+        "--input-folder", "input",
+        "--output-path", "out.shp",
+        "--future-dev-path", "future.shp",
+        "--gas-lines-path", "gas.shp",
+        "--report-files", "report.txt",
+    ]
+    monkeypatch.setattr(sys, "argv", testargs)
+    monkeypatch.setattr(os.path, "isdir", mock_isdir)
+    monkeypatch.setattr(os.path, "isfile", mock_isfile)
+    args = parse_args()
+    assert args.output_format == "shp"
+
