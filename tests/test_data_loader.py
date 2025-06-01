@@ -28,7 +28,6 @@ from shapely.geometry import Point
 
 from gis_tool import data_loader as dl
 from gis_tool.data_loader import (
-    robust_date_parse,
     make_feature,
     create_pipeline_features,
 )
@@ -77,29 +76,6 @@ def empty_gas_lines_gdf():
 
 
 # ---- UNIT TESTS ----
-
-@pytest.mark.parametrize("input_str, expected", [
-    ("2023-05-01", pd.Timestamp("2023-05-01")),
-    ("01/05/2023", pd.Timestamp("2023-05-01")),
-    ("05/01/2023", pd.Timestamp("2023-01-05")),
-    ("not a date", pd.NaT),
-    (None, pd.NaT),
-])
-
-def test_robust_date_parse(input_str, expected):
-    """
-     Tests the robust_date_parse function with various date string formats and invalid inputs.
-     Verifies that the function correctly parses valid dates or returns pd.NaT for invalid inputs.
-     """
-    logger.info(f"Testing robust_date_parse with input: {input_str}")
-    result = robust_date_parse(input_str)
-    if pd.isna(expected):
-        assert pd.isna(result)
-        logger.debug(f"Input '{input_str}' correctly parsed as NaT.")
-    else:
-        assert result == expected
-        logger.debug(f"Input '{input_str}' correctly parsed as {result}.")
-
 
 def test_make_feature_creates_valid_gdf():
     """

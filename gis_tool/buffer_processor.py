@@ -7,9 +7,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import geopandas as gpd
 import pandas as pd
 import fiona.errors
-from shapely.geometry import Point, Polygon, mapping
+from shapely.geometry import Polygon
 from shapely.geometry.base import BaseGeometry
-from shapely.errors import TopologicalError
 
 from gis_tool import config
 from gis_tool.utils import convert_ft_to_m, clean_geodataframe, fix_geometry
