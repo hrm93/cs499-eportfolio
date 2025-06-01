@@ -51,6 +51,13 @@ def mock_isfile(path: str) -> bool:
     return True
 
 
+def test_help_output(monkeypatch):
+    testargs = ["prog", "--help"]
+    monkeypatch.setattr(sys, "argv", testargs)
+    with pytest.raises(SystemExit):  # argparse exits after showing help
+        parse_args()
+
+
 def test_parse_args_required(monkeypatch: "pytest.MonkeyPatch") -> None:
     """
     Test CLI argument parser with required arguments:
