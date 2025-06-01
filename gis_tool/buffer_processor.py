@@ -1,57 +1,20 @@
 # buffer_processor.py
 
 import logging
-from typing import Optional, Callable, Any, List, Sequence, Dict
+from typing import Optional, Callable, Any, List, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import geopandas as gpd
 import pandas as pd
 import fiona.errors
-from shapely.geometry import Point, mapping
+from shapely.geometry import Point, Polygon, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.errors import TopologicalError
 
 from gis_tool import config
+from gis_tool.utils import convert_ft_to_m, clean_geodataframe, fix_geometry
 
 logger = logging.getLogger("gis_tool")
-
-
-def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:
-    """
-    Fix invalid geometries by applying a zero-width buffer.
-
-    Args:
-        g (shapely.geometry.base.BaseGeometry): Geometry to check and fix.
-
-    Returns:
-        Geometry or None: Valid geometry or None if it cannot be fixed.
-
-    Notes:
-        Buffering with zero-width is a common fix for invalid geometries,
-        but may raise Shapely-specific exceptions such as TopologicalError.
-        This function catches these explicitly to prevent crashing and logs errors.
-        It also catches generic exceptions as a fallback for unexpected errors.
-    """
-    logger.debug(f"fix_geometry called with geometry: {g}")
-    if g is None:
-        # Silent skip
-        return None
-    if g.is_valid:
-        logger.debug("Geometry is already valid.")
-        return g
-    try:
-        fixed = g.buffer(0)
-        if fixed.is_empty or not fixed.is_valid:
-            logger.warning("Geometry could not be fixed (empty or invalid after buffering).")
-            return None
-        logger.debug("Geometry fixed using zero-width buffer.")
-        return fixed
-    except TopologicalError as exc:
-        logger.error(f"Topological error fixing geometry: {exc}")
-        return None
-    except Exception as exc:
-        logger.error(f"Unexpected error fixing geometry: {exc}")
-        return None
 
 
 def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -78,12 +41,12 @@ def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return gdf
 
 
-def buffer_geometry(geom, buffer_distance_m):
+def buffer_geometry(geom: BaseGeometry, buffer_distance_m: float) -> BaseGeometry | None:
     """
     Creates a buffer around a given geometry by the specified distance.
 
     Parameters:
-    - geom: a geometry object (e.g., from Shapely) to buffer
+    - geom: a geometry object (BaseGeometry) to buffer
     - buffer_distance_m: buffer distance in meters (float or int)
 
     Returns:
@@ -98,13 +61,14 @@ def buffer_geometry(geom, buffer_distance_m):
         logger.error(f"Buffering error: {e}")
         return None
 
-def buffer_geometry_helper(geom_and_distance):
+
+def buffer_geometry_helper(geom_and_distance: tuple[BaseGeometry, float]) -> BaseGeometry | None:
     """
     Helper function to unpack arguments and call buffer_geometry.
 
     Parameters:
     - geom_and_distance: tuple containing
-        - geom: a geometry object to buffer
+        - geom: a geometry object (BaseGeometry) to buffer
         - distance: buffer distance in meters
 
     Returns:
@@ -117,20 +81,41 @@ def buffer_geometry_helper(geom_and_distance):
 
 def subtract_park_from_geom(buffer_geom, parks_geoms):
     """
-    Subtract all park geometries from a single buffer geometry.
+     Subtract all park geometries from a single buffer geometry.
+
+    Parameters:
+    - buffer_geom: geometry to subtract from
+    - parks_geoms: iterable of park geometries to subtract
+
+    Returns:
+    - Geometry after subtraction, or empty Polygon if input invalid or error occurs.
     """
     logger.debug("subtract_park_from_geom called.")
+    # Fix initial geometry
+    buffer_geom = fix_geometry(buffer_geom)
+    if buffer_geom is None or buffer_geom.is_empty:
+        logger.warning("Input buffer geometry is invalid or empty; returning empty Polygon.")
+        return Polygon()
+
     try:
         for park_geom in parks_geoms:
+            park_geom = fix_geometry(park_geom)
+            if park_geom is None or park_geom.is_empty:
+                logger.debug("Skipping invalid or empty park geometry during subtraction.")
+                continue
             if buffer_geom.is_empty:
-                logger.warning("Buffer geometry is empty during park subtraction; skipping.")
+                logger.warning("Buffer geometry became empty during park subtraction; stopping.")
                 break
             buffer_geom = buffer_geom.difference(park_geom)
+            buffer_geom = fix_geometry(buffer_geom)
+            if buffer_geom is None or buffer_geom.is_empty:
+                logger.warning("Buffer geometry invalid or empty after subtraction; returning empty Polygon.")
+                return Polygon()
         logger.debug("Park geometries subtracted from buffer.")
         return buffer_geom
     except Exception as e:
         logger.error(f"Error subtracting park geometry: {e}")
-        return buffer_geom  # Return original if error
+        return Polygon()
 
 
 def subtract_park_from_geom_helper(geom_and_parks):
@@ -164,7 +149,7 @@ def parallel_process(
         max_workers: Max number of worker processes; defaults to number of processors.
 
     Returns:
-        List of results in the order they complete (not guaranteed original order).
+        List of results in the original order of input items.
     """
     logger.info(f"parallel_process called with {len(items)} items.")
     results = [None] * len(items)
@@ -201,6 +186,7 @@ def subtract_parks_from_buffer(
     try:
         parks_gdf = gpd.read_file(parks_path)
         logger.debug("Parks layer loaded successfully.")
+
         if parks_gdf.crs is None:
             logger.warning("Parks layer has no CRS. Assigning buffer CRS.")
             parks_gdf.set_crs(buffer_gdf.crs, inplace=True)
@@ -209,9 +195,11 @@ def subtract_parks_from_buffer(
             logger.info("Reprojecting parks layer to match buffer CRS.")
             parks_gdf = parks_gdf.to_crs(buffer_gdf.crs)
 
+        # Fix geometries to ensure validity
         parks_gdf['geometry'] = parks_gdf.geometry.apply(fix_geometry)
         buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
 
+        # Initial geometry validation to clean up inputs
         parks_gdf = parks_gdf[parks_gdf.geometry.notnull() & parks_gdf.geometry.is_valid]
         buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid]
 
@@ -226,9 +214,11 @@ def subtract_parks_from_buffer(
             logger.info("Subtracting parks sequentially.")
             buffer_gdf['geometry'] = buffer_gdf.geometry.apply(lambda geom: subtract_park_from_geom(geom, parks_geoms))
 
+        # Fix geometries after subtraction
         buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
-        buffer_gdf = buffer_gdf[
-            buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty]
+
+        # FINAL consistent geometry validation before returning
+        buffer_gdf = buffer_gdf[buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty]
 
         logger.info(f"Subtraction complete. Remaining features: {len(buffer_gdf)}")
         return buffer_gdf
@@ -236,27 +226,6 @@ def subtract_parks_from_buffer(
         logger.exception(f"Error in subtract_parks_from_buffer: {e}")
         raise
 
-
-def simplify_geometry(geom: Point, tolerance: float = 0.00001) -> Dict:
-    """
-    Simplify a Point geometry to reduce floating point precision issues.
-
-    Uses Shapely's simplify method with topology preservation to reduce
-    the complexity of the geometry while maintaining its shape.
-
-    Args:
-        geom (Point): The input Shapely Point geometry to simplify.
-        tolerance (float, optional): The tolerance threshold for simplification.
-            Defaults to 0.00001.
-
-    Returns:
-        dict: A GeoJSON-like mapping dictionary of the simplified geometry.
-    """
-    # Simplify geometry to avoid floating point precision issues
-    logger.debug(f"simplify_geometry called with tolerance: {tolerance}")
-    simplified = geom.simplify(tolerance, preserve_topology=True)
-    logger.debug("Geometry simplified.")
-    return mapping(simplified)
 
 def create_buffer_with_geopandas(
     input_gas_lines_path: str,
@@ -271,23 +240,27 @@ def create_buffer_with_geopandas(
         input_gas_lines_path (str): File path to input gas lines layer (shapefile, GeoPackage, etc.).
         buffer_distance_ft (float, optional): Buffer distance in feet.
         parks_path (str, optional): File path to park polygons to subtract from buffer.
+        use_multiprocessing (bool, optional): Whether to use parallel processing to speed up buffering and subtraction.
 
     Returns:
         gpd.GeoDataFrame: A GeoDataFrame containing the buffered geometries (with parks subtracted if applicable).
-        :param input_gas_lines_path:
-        :param parks_path:
-        :param buffer_distance_ft:
-        :param use_multiprocessing:
+
+    Notes:
+        - Parallel processing is recommended for large datasets or complex geometries to improve performance.
+        - Using multiprocessing with GeoPandas/Shapely may introduce serialization overhead or issues with very large or complex geometries.
+        - For small datasets or simple features, serial processing may be faster and more stable.
+        - Alternative parallel backends like Dask or GeoPandas' experimental parallel features may offer improved scalability in the future.
     """
     logger.info(f"create_buffer_with_geopandas called with input: {input_gas_lines_path}")
     if buffer_distance_ft is None:
         buffer_distance_ft = config.DEFAULT_BUFFER_DISTANCE_FT
-    buffer_distance_m = buffer_distance_ft * 0.3048
+    buffer_distance_m = convert_ft_to_m(buffer_distance_ft)
     logger.debug(f"Buffer distance in meters: {buffer_distance_m}")
 
     try:
         gas_lines_gdf = gpd.read_file(input_gas_lines_path)
         logger.debug("Gas lines layer loaded.")
+
         if gas_lines_gdf.crs is None:
             logger.warning("Input gas lines layer has no CRS; assigning default.")
             gas_lines_gdf = gas_lines_gdf.set_crs(config.DEFAULT_CRS)
@@ -306,7 +279,16 @@ def create_buffer_with_geopandas(
             gas_lines_gdf = subtract_parks_from_buffer(gas_lines_gdf, parks_path)
 
         logger.debug("Buffering complete.")
+
+        # Clean the GeoDataFrame before final validation
+        gas_lines_gdf = clean_geodataframe(gas_lines_gdf)
+
+        # FINAL geometry validation before returning
+        gas_lines_gdf = gas_lines_gdf[gas_lines_gdf.geometry.is_valid & ~gas_lines_gdf.geometry.is_empty]
+
+        logger.info(f"Final GeoDataFrame contains {len(gas_lines_gdf)} valid, non-empty geometries.")
         return gas_lines_gdf
+
     except Exception as e:
         logger.exception(f"Error in create_buffer_with_geopandas: {e}")
         raise

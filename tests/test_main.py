@@ -16,7 +16,6 @@ import geopandas as gpd
 from shapely.geometry import LineString, Point
 from pymongo.errors import ConnectionFailure
 
-import gis_tool.db_utils
 from gis_tool.db_utils import connect_to_mongodb
 import gis_tool.main
 from gis_tool.main import main, process_report_chunk

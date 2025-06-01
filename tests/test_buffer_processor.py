@@ -11,11 +11,9 @@ from shapely.geometry.base import BaseGeometry
 
 from gis_tool import buffer_processor, config
 from gis_tool.buffer_processor import (
-    fix_geometry,
     create_buffer_with_geopandas,
     merge_buffers_into_planning_file,
     ensure_projected_crs,
-    simplify_geometry,
     buffer_geometry,
     buffer_geometry_helper,
     subtract_park_from_geom,
@@ -189,64 +187,42 @@ def assert_geodataframes_equal(gdf1, gdf2, tol=1e-6):
     logger.info("GeoDataFrames are equal.")
 
 
-def test_fix_geometry_valid():
+def test_geometry_simplification_accuracy():
     """
-    Test that a valid geometry is returned unchanged by fix_geometry.
+    Test that simplifying buffered geometries preserves topology and does not lose data integrity.
     """
-    logger.info("Running test_fix_geometry_valid")
-    pt = Point(0, 0)
-    assert fix_geometry(pt) == pt
-    logger.info("test_fix_geometry_valid passed.")
+    poly = Point(0, 0).buffer(10)  # Big buffer
+    gdf = gpd.GeoDataFrame(geometry=[poly], crs="EPSG:4326")
+    simplified = gdf.geometry.simplify(1.0)  # Simplify with tolerance
+
+    # Check that simplified geometry still overlaps original
+    assert simplified[0].intersects(poly), "Simplification should preserve spatial overlap"
 
 
-def test_fix_geometry_invalid():
+def test_final_geometry_validation_removes_invalid_and_empty(tmp_path, sample_gas_lines_gdf):
     """
-    Test that fix_geometry attempts to fix an invalid self-intersecting polygon.
-    The fixed geometry should be valid and not None.
+    Test that create_buffer_with_geopandas removes invalid and empty geometries in the final output.
     """
-    logger.info("Running test_fix_geometry_invalid")
-    invalid_poly = Polygon([(0, 0), (1, 1), (1, 0), (0, 1), (0, 0)])
-    logger.debug(f"Invalid polygon is_valid: {invalid_poly.is_valid}")
-    assert not invalid_poly.is_valid
+    # Create an invalid geometry intentionally
+    invalid_geom = Polygon([(0, 0), (1, 1), (1, 0), (0, 0)])  # self-intersecting polygon
+    empty_geom = Polygon()  # Empty geometry
 
-    fixed = fix_geometry(invalid_poly)
-    logger.debug(f"Fixed polygon validity: {fixed.is_valid if fixed else 'None'}")
-    assert fixed is not None
-    assert fixed.is_valid
-    logger.info("test_fix_geometry_invalid passed.")
+    sample_gas_lines_gdf.loc[len(sample_gas_lines_gdf)] = [invalid_geom]
+    sample_gas_lines_gdf.loc[len(sample_gas_lines_gdf)] = [empty_geom]
 
+    gas_lines_path = tmp_path / "gas_lines.geojson"
+    sample_gas_lines_gdf.to_file(str(gas_lines_path), driver='GeoJSON')
 
-def test_fix_geometry_unfixable():
-    """
-    Test that fix_geometry returns None if buffering to fix geometry
-    raises an exception (simulates unfixable geometry).
-    """
-    logger.info("Running test_fix_geometry_unfixable")
-    mock_geom = Mock(spec=BaseGeometry)
-    mock_geom.is_valid = False
-    mock_geom.buffer.side_effect = Exception("Cannot buffer")
+    result = buffer_processor.create_buffer_with_geopandas(
+        input_gas_lines_path=str(gas_lines_path),
+        buffer_distance_ft=328.084,
+        parks_path=None,
+        use_multiprocessing=False,
+    )
 
-    result = fix_geometry(mock_geom)
-    logger.debug(f"Result from fix_geometry: {result}")
-    assert result is None
-    logger.info("test_fix_geometry_unfixable passed.")
-
-
-def test_simplify_geometry_returns_mapping():
-    """
-    Tests simplify_geometry returns a GeoJSON-like dict with geometry simplified
-    according to the specified tolerance.
-    """
-    logger.info("Testing simplify_geometry function.")
-    point = Point(10.123456789, 20.987654321)
-    simplified = simplify_geometry(point, tolerance=0.01)
-    logger.debug(f"Simplified geometry output: {simplified}")
-    assert isinstance(simplified, dict)
-    assert 'type' in simplified and simplified['type'] == 'Point'
-    coords = simplified.get('coordinates', [])
-    assert abs(coords[0] - 10.123456789) < 0.01
-    assert abs(coords[1] - 20.987654321) < 0.01
-    logger.info("simplify_geometry test passed.")
+    # Assert no invalid or empty geometries remain
+    assert all(result.geometry.is_valid), "Final output still contains invalid geometries"
+    assert not any(result.geometry.is_empty), "Final output still contains empty geometries"
 
 
 def test_buffer_geometry_simple():
@@ -460,6 +436,9 @@ def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines
     )
     logger.debug("Buffering (serial) completed.")
 
+    assert all(result_serial.geometry.is_valid), "Serial output contains invalid geometries"
+    assert not any(result_serial.geometry.is_empty), "Serial output contains empty geometries"
+
     # Test with multiprocessing
     logger.info("Calling create_buffer_with_geopandas with multiprocessing.")
     result_parallel = buffer_processor.create_buffer_with_geopandas(
@@ -470,9 +449,15 @@ def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines
     )
     logger.debug("Buffering (parallel) completed.")
 
+    assert all(result_parallel.geometry.is_valid), "Parallel output contains invalid geometries"
+    assert not any(result_parallel.geometry.is_empty), "Parallel output contains empty geometries"
+
     # Use helper assertion
     logger.info("Asserting equality of serial and parallel GeoDataFrame results.")
+
+    # Assert both outputs equal
     assert_geodataframes_equal(result_serial, result_parallel)
+
     logger.info("Test passed: Serial and parallel outputs match.")
 
 
