@@ -210,7 +210,8 @@ def test_create_pipeline_features_txt(mock_upsert):
     updates gas lines GeoDataFrame, adds features, and calls MongoDB upsert correctly.
     """
     logger.info("Testing create_pipeline_features with TXT input.")
-    line = "1 Line2 10.0 20.0 2023-03-01 200 copper"
+    line = "Line2,2023-03-01,copper,200,10.0,20.0"
+    
     txt_reports = [("report.txt", [line])]
     gas_lines = gpd.GeoDataFrame(columns=["Name", "Date", "PSI", "Material", "geometry"], crs=CRS)
     mock_collection = MagicMock()

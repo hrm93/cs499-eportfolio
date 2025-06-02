@@ -224,8 +224,13 @@ def create_pipeline_features(
             if "Id Name" in line:
                 continue
 
-            data = line.strip().split()
-            if len(data) < 7:
+            # Split logic
+            if ',' in line:
+                data = line.strip().split(',')
+            else:
+                data = line.strip().split()
+
+            if len(data) < 6:
                 logger.warning(
                     f"Skipping malformed line {line_number} in {report_name} "
                     f"(expected at least 7 fields): {line.strip()}"
@@ -233,12 +238,12 @@ def create_pipeline_features(
                 continue
 
             try:
-                line_name = data[1]
-                x_coord = float(data[2])
-                y_coord = float(data[3])
-                date_completed = data[4]
-                psi = float(data[5])
-                material = data[6].lower()
+                line_name = data[0]
+                date_completed = data[1]
+                material = data[2].lower()
+                psi = float(data[3])
+                x_coord = float(data[4])
+                y_coord = float(data[5])
             except (ValueError, IndexError) as e:
                 logger.warning(
                     f"Skipping line {line_number} in {report_name} due to parse error: "
