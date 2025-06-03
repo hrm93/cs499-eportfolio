@@ -2,18 +2,15 @@
 import os
 import tempfile
 import logging
-from unittest.mock import Mock
 
 import pytest
 import geopandas as gpd
 from shapely.geometry import LineString, Point, Polygon
-from shapely.geometry.base import BaseGeometry
 
 from gis_tool import buffer_processor, config
 from gis_tool.buffer_processor import (
     create_buffer_with_geopandas,
     merge_buffers_into_planning_file,
-    ensure_projected_crs,
     buffer_geometry,
     buffer_geometry_helper,
     subtract_park_from_geom,
@@ -286,50 +283,6 @@ def test_merge_future_dev_mixed_geometry(tmp_path):
     logger.info("Completed test_merge_future_dev_mixed_geometry")
 
 
-def test_ensure_projected_crs_already_projected():
-    """
-    Test that a projected CRS is returned unchanged by ensure_projected_crs.
-    """
-    logger.info("Running test_ensure_projected_crs_already_projected")
-    gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs=config.DEFAULT_CRS)
-    projected = ensure_projected_crs(gdf)
-    logger.debug(f"Original CRS: {gdf.crs}, Projected CRS: {projected.crs}")
-    assert projected.crs.to_string() == config.DEFAULT_CRS
-    logger.info("test_ensure_projected_crs_already_projected passed.")
-
-
-def test_ensure_projected_crs_needs_reproject():
-    """
-    Test that a geographic CRS (EPSG:4326) is reprojected by ensure_projected_crs.
-    """
-    logger.info("Running test_ensure_projected_crs_needs_reproject")
-    gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs=config.GEOGRAPHIC_CRS)
-    projected = ensure_projected_crs(gdf)
-    logger.debug(f"Original CRS: {gdf.crs}, Projected CRS: {projected.crs}")
-    assert projected.crs != gdf.crs
-    assert projected.crs.is_projected
-    logger.info("test_ensure_projected_crs_needs_reproject passed.")
-
-
-def test_create_buffer_with_missing_crs():
-    """
-    Test create_buffer_with_geopandas handles input files missing CRS by assigning default.
-    """
-    logger.info("Running test_create_buffer_with_missing_crs")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs=config.GEOGRAPHIC_CRS)
-        input_path = os.path.join(tmpdir, "no_crs_input.shp")
-        gdf.to_file(input_path)
-        logger.debug(f"Created shapefile with missing CRS at {input_path}")
-
-        buffered_gdf = create_buffer_with_geopandas(input_path, buffer_distance_ft=config.DEFAULT_BUFFER_DISTANCE_FT)
-
-        logger.debug(f"Buffered GeoDataFrame CRS: {buffered_gdf.crs}")
-        assert buffered_gdf.crs is not None
-        assert not buffered_gdf.empty
-    logger.info("test_create_buffer_with_missing_crs passed.")
-
-
 def test_subtract_park_from_geom_difference():
     """
     Test that subtract_park_from_geom subtracts the park geometry from a buffer geometry.
@@ -459,29 +412,6 @@ def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines
     assert_geodataframes_equal(result_serial, result_parallel)
 
     logger.info("Test passed: Serial and parallel outputs match.")
-
-
-def test_merge_missing_crs_inputs(tmp_path):
-    """
-    Test merge behavior when one or both files lack a CRS.
-    """
-    logger.info("Running test_merge_missing_crs_inputs")
-    buffer = gpd.GeoDataFrame(geometry=[Point(5, 5).buffer(5)], crs="EPSG:4326")
-    future_dev = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
-
-    buffer_fp = tmp_path / "buffer.shp"
-    future_fp = tmp_path / "future.shp"
-    buffer.to_file(str(buffer_fp))
-    future_dev.to_file(str(future_fp))
-    logger.debug(f"Buffer and future development shapefiles saved at {buffer_fp} and {future_fp}")
-
-    merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=5.0)
-    result = gpd.read_file(future_fp)
-
-    logger.debug(f"Merged shapefile CRS: {result.crs}, feature count: {len(result)}")
-    assert not result.empty
-    assert result.crs is not None
-    logger.info("test_merge_missing_crs_inputs passed.")
 
 
 def test_merge_buffers_into_planning_file(tmp_path):

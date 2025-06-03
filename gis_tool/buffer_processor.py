@@ -11,36 +11,12 @@ import fiona.errors
 from shapely.geometry import Polygon
 from shapely.geometry.base import BaseGeometry
 
+from .spatial_utils import validate_and_reproject_crs, ensure_projected_crs
+from . import spatial_utils
 from gis_tool import config
 from gis_tool.utils import convert_ft_to_m, clean_geodataframe, fix_geometry
 
 logger = logging.getLogger("gis_tool")
-
-
-def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """
-    Ensure the GeoDataFrame has a projected CRS. If not, reproject to DEFAULT_CRS.
-
-    Args:
-        gdf (GeoDataFrame): Input GeoDataFrame to check/reproject.
-
-    Returns:
-        GeoDataFrame: Projected GeoDataFrame in DEFAULT_CRS.
-
-    Raises:
-        ValueError: If input GeoDataFrame has no CRS defined.
-    """
-    logger.debug(f"ensure_projected_crs called with CRS: {gdf.crs}")
-    if gdf.crs is None:
-        warnings.warn("Input GeoDataFrame has no CRS defined. Cannot proceed without CRS.", UserWarning)
-        raise ValueError("Input GeoDataFrame has no CRS defined.")
-    if not gdf.crs.is_projected:
-        warnings.warn(f"Input CRS {gdf.crs} is not projected. Reprojecting to {config.DEFAULT_CRS}.", UserWarning)
-        logger.info(f"Reprojecting from {gdf.crs} to {config.DEFAULT_CRS}")
-        gdf = gdf.to_crs(config.DEFAULT_CRS)
-    else:
-        logger.debug("GeoDataFrame already has projected CRS.")
-    return gdf
 
 
 def buffer_geometry(geom: BaseGeometry, buffer_distance_m: float) -> BaseGeometry | None:
@@ -278,7 +254,7 @@ def create_buffer_with_geopandas(
             warnings.warn("Input gas lines layer has no CRS. Assigning default CRS.", UserWarning)
             logger.warning("Input gas lines layer has no CRS; assigning default.")
             gas_lines_gdf = gas_lines_gdf.set_crs(config.DEFAULT_CRS)
-        gas_lines_gdf = ensure_projected_crs(gas_lines_gdf)
+        gas_lines_gdf = spatial_utils.ensure_projected_crs(gas_lines_gdf)
 
         if use_multiprocessing:
             logger.info("Buffering geometries with multiprocessing.")
@@ -352,6 +328,7 @@ def merge_buffers_into_planning_file(
                           UserWarning)
             logger.warning("Future Development GeoDataFrame is empty; result will contain only buffer polygons.")
 
+        # Assign CRS if missing, with warnings
         if not future_dev_gdf.crs or future_dev_gdf.crs.to_string() == '':
             warnings.warn("Future Development layer missing CRS; assigning default geographic CRS EPSG:4326.",
                           UserWarning)
@@ -362,6 +339,15 @@ def merge_buffers_into_planning_file(
             warnings.warn("Buffer layer missing CRS; assigning default projected CRS EPSG:32610.", UserWarning)
             logger.warning("Buffer layer missing CRS; defaulting to EPSG:32610.")
             buffer_gdf = buffer_gdf.set_crs(config.BUFFER_LAYER_CRS, allow_override=True)
+
+        # Validate and reproject buffer_gdf to match future_dev_gdf CRS
+        buffer_gdf = validate_and_reproject_crs(buffer_gdf, future_dev_gdf.crs, "Buffer layer")
+
+        # Ensure projected CRS for buffer before geometry operations
+        buffer_gdf = ensure_projected_crs(buffer_gdf)
+
+        # Also ensure future_dev_gdf is projected (optional, depending on downstream needs)
+        future_dev_gdf = ensure_projected_crs(future_dev_gdf)
 
         if buffer_gdf.crs != future_dev_gdf.crs:
             warnings.warn("Buffer layer CRS differs from Future Development CRS; reprojecting buffer layer.",

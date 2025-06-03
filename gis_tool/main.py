@@ -22,7 +22,8 @@ from pymongo.errors import PyMongoError
 
 from gis_tool.buffer_processor import (
     create_buffer_with_geopandas,
-    merge_buffers_into_planning_file, fix_geometry,
+    merge_buffers_into_planning_file,
+    fix_geometry,
 )
 from gis_tool.cli import parse_args
 from gis_tool.config import DEFAULT_CRS

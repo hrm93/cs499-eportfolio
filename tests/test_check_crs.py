@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 # Import the functions under test
-from gis_tool.buffer_processor import ensure_projected_crs
+from gis_tool.spatial_utils import ensure_projected_crs
 shapefile_path = Path(__file__).parent.parent / "data" / "gas_lines.shp"
 gas_lines_gdf = gpd.read_file(shapefile_path)
 
