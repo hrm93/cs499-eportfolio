@@ -9,18 +9,12 @@ from gis_tool.logger import setup_logging
 
 @pytest.fixture(scope="session", autouse=True)
 def init_logger():
-    """
-    Session-scoped fixture to initialize logging configuration once per test session.
-    """
+    """Initialize logging once per test session."""
     setup_logging()
 
 
 def reset_logging():
-    """
-    Reset the 'gis_tool' logger by removing all attached handlers.
-
-    This avoids calling logging.shutdown() to prevent side effects in other tests.
-    """
+    """Remove all handlers from 'gis_tool' logger to reset its state."""
     logger = logging.getLogger('gis_tool')
     if logger.hasHandlers():
         for handler in logger.handlers[:]:
@@ -30,29 +24,41 @@ def reset_logging():
 
 def test_setup_logging_creates_log_file(tmp_path, capsys):
     """
-    Test that setup_logging:
-    - Creates a rotating log file named 'pipeline_processing.log' in the current working directory.
-    - Configures logging with RotatingFileHandler and StreamHandler on 'gis_tool' logger.
-    - Outputs log messages to both the log file and the console.
+    Verify that setup_logging:
+    - Creates the log file in the specified directory.
+    - Attaches both RotatingFileHandler and StreamHandler.
+    - Logs output to both file and console.
     """
     os.chdir(tmp_path)
     reset_logging()
-    setup_logging()  # <- doesn't return anything, sets up logging globally
+
+    # Explicitly specify log file inside tmp_path for test isolation
+    log_file_path = tmp_path / "pipeline_processing.log"
+    setup_logging(log_file=str(log_file_path))
 
     logger = logging.getLogger("gis_tool")
-    logger.info("Test log message")
+    test_msg = "Test log message"
+    logger.info(test_msg)
 
-    log_file = tmp_path / "pipeline_processing.log"
-    assert log_file.exists(), "Log file was not created"
+    # Flush handlers to ensure logs are written
+    for handler in logger.handlers:
+        handler.flush()
 
-    # Capture console output and verify the message appears
+    assert log_file_path.exists(), "Log file was not created"
+
+    # Read the log file content to confirm message was logged
+    with open(log_file_path, encoding='utf-8') as f:
+        log_content = f.read()
+    assert test_msg in log_content
+
+    # Capture console output and verify message presence
     captured = capsys.readouterr()
-    assert "Test log message" in captured.out or "Test log message" in captured.err
+    assert test_msg in captured.out or test_msg in captured.err
 
-    # Confirm both handler types are present
+    # Check for correct handler types attached to logger
     handler_types = {type(h) for h in logger.handlers}
-    assert RotatingFileHandler in handler_types, "RotatingFileHandler not attached to logger"
-    assert logging.StreamHandler in handler_types, "StreamHandler not attached to logger"
+    assert RotatingFileHandler in handler_types, "RotatingFileHandler not attached"
+    assert logging.StreamHandler in handler_types, "StreamHandler not attached"
 
     # Logger level should default to INFO or more verbose
     assert logger.level <= logging.INFO
@@ -60,8 +66,7 @@ def test_setup_logging_creates_log_file(tmp_path, capsys):
 
 def test_setup_logging_respects_log_level_env(monkeypatch, capsys):
     """
-    Test that setup_logging respects the LOG_LEVEL environment variable
-    and sets the logger's level accordingly.
+    Verify that setup_logging respects the LOG_LEVEL env variable and sets logger level.
     """
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     reset_logging()
@@ -70,6 +75,8 @@ def test_setup_logging_respects_log_level_env(monkeypatch, capsys):
     logger = logging.getLogger("gis_tool")
     assert logger.level == logging.DEBUG
 
-    logger.debug("Debug message for test")
+    debug_msg = "Debug message for test"
+    logger.debug(debug_msg)
+
     captured = capsys.readouterr()
-    assert "Debug message for test" in captured.out or "Debug message for test" in captured.err
+    assert debug_msg in captured.out or debug_msg in captured.err

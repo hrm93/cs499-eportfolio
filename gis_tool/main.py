@@ -12,7 +12,7 @@ This script orchestrates the entire pipeline workflow including:
 Designed for robust, scalable, and parallel execution with clear logging.
 """
 import logging
-import os
+
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -26,7 +26,15 @@ from gis_tool.buffer_processor import (
     fix_geometry,
 )
 from gis_tool.cli import parse_args
-from gis_tool.config import DEFAULT_CRS
+from gis_tool.config import (
+    DEFAULT_CRS,
+    DEFAULT_BUFFER_DISTANCE_FT,
+    PARALLEL,
+    OUTPUT_FORMAT,
+    ALLOW_OVERWRITE_OUTPUT,
+    DRY_RUN_MODE,
+    MAX_WORKERS,
+)
 from gis_tool.data_loader import create_pipeline_features
 from gis_tool.db_utils import connect_to_mongodb
 from gis_tool.logger import setup_logging
@@ -62,30 +70,20 @@ def process_report_chunk(
         use_mongodb (bool): Flag to enable MongoDB insert/update operations (ignored in workers).
     """
     try:
-        # Note MongoDB insert status
         if gas_lines_collection is None:
             print("⚠️  MongoDB insert disabled for parallel workers.")
             logger.info("MongoDB insert disabled for this process (parallel worker).")
 
-        # Log the chunk being processed
         logger.debug(f"Starting to process report chunk: {report_chunk}")
-
-        # Convert to Path object
         reports_folder_path = Path(reports_folder)
         logger.debug(f"Reports folder path resolved: {reports_folder_path}")
 
-        # Read GeoJSON and TXT reports for this chunk
-        logger.debug("Reading report data (GeoJSON and TXT files)...")
         geojson_reports, txt_reports = read_reports(report_chunk, reports_folder_path)
         logger.info(f"Read {len(geojson_reports)} GeoJSON and {len(txt_reports)} TXT reports.")
 
-        # Load gas lines shapefile
-        logger.debug(f"Loading gas lines shapefile: {gas_lines_shp}")
         gas_lines_gdf = gpd.read_file(gas_lines_shp)
         logger.info(f"Loaded gas lines shapefile with {len(gas_lines_gdf)} features.")
 
-        # Core processing of data
-        logger.debug("Creating pipeline features from loaded data...")
         create_pipeline_features(
             geojson_reports=geojson_reports,
             txt_reports=txt_reports,
@@ -121,29 +119,33 @@ def main() -> None:
     args = parse_args()
     logger.info("Pipeline processing started.")
 
-    use_mongodb = args.use_mongodb
+    # Use config values as fallback defaults for CLI args
+    use_mongodb = args.use_mongodb if args.use_mongodb is not None else False
+    buffer_distance = args.buffer_distance or DEFAULT_BUFFER_DISTANCE_FT
+    spatial_reference = args.crs or DEFAULT_CRS
+    use_parallel = args.parallel if args.parallel is not None else PARALLEL
+    output_format = args.output_format or OUTPUT_FORMAT
+    overwrite_output = args.overwrite_output if args.overwrite_output is not None else ALLOW_OVERWRITE_OUTPUT
+    dry_run = args.dry_run if args.dry_run is not None else DRY_RUN_MODE
+
+    max_workers = MAX_WORKERS
+
     gas_lines_collection = None
 
     if use_mongodb:
         try:
-            # Attempt to connect to MongoDB and access the 'gas_lines' collection
             db = connect_to_mongodb()
             gas_lines_collection = db["gas_lines"]
             logger.info("Connected to MongoDB.")
         except PyMongoError as e:
-            # If connection fails, log the warning and disable MongoDB usage
             print(f"⚠️  Warning: Could not connect to MongoDB - {e}")
             logger.warning(f"MongoDB connection failed: {e}")
             use_mongodb = False  # Disable MongoDB if connection fails
 
-    # Prepare key input arguments
     input_folder = args.input_folder
-    buffer_distance = args.buffer_distance
     output_path = args.output_path
     future_development_shp = args.future_dev_path
     gas_lines_shp = args.gas_lines_path
-    spatial_reference = args.crs or DEFAULT_CRS
-    use_parallel = args.parallel
 
     # Ensure output path is inside 'output' directory if no parent specified
     output_path_obj = Path(output_path)
@@ -161,17 +163,16 @@ def main() -> None:
         logger.info("No new reports to process. Exiting.")
         return
 
-    reports_folder_path = Path(args.input_folder)
+    reports_folder_path = Path(input_folder)
 
     if use_parallel:
-        print("ℹ️  Starting parallel processing of reports...")
-        logger.info(f"Starting parallel processing of {len(report_files)} report files.")
-        cpu_count = os.cpu_count() or 1
-        chunk_size = max(1, len(report_files) // cpu_count)
+        print(f"ℹ️  Starting parallel processing of {len(report_files)} reports using up to {max_workers} workers...")
+        logger.info(f"Starting parallel processing of {len(report_files)} report files with max_workers={max_workers}.")
+        chunk_size = max(1, len(report_files) // max_workers)
         chunks = [report_files[i: i + chunk_size] for i in range(0, len(report_files), chunk_size)]
-        logger.debug(f"Parallel processing with {cpu_count} CPU cores and chunk size {chunk_size}.")
+        logger.debug(f"Parallel processing with chunk size {chunk_size}.")
 
-        with ProcessPoolExecutor() as executor:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(
                     process_report_chunk,
@@ -186,7 +187,6 @@ def main() -> None:
             ]
             for future in futures:
                 try:
-                    # Block until each parallel task completes
                     future.result()
                 except Exception as e:
                     print(f"❌ Error in parallel processing: {e}")
@@ -197,22 +197,19 @@ def main() -> None:
         geojson_reports, txt_reports = read_reports(report_files, reports_folder_path)
         logger.debug(f"Read {len(geojson_reports)} GeoJSON reports and {len(txt_reports)} TXT reports.")
 
-        # Load gas lines shapefile into GeoDataFrame
         logger.info(f"Loading gas lines shapefile: {gas_lines_shp}")
         gas_lines_gdf = gpd.read_file(gas_lines_shp)
 
-        # Fix geometries to ensure valid shapes
         fixed_geometries = []
         for geom in gas_lines_gdf.geometry:
             if geom is not None:
                 fixed = fix_geometry(geom)
                 fixed_geometries.append(fixed)
             else:
-                fixed_geometries.append(None)  # Preserve None geometries
+                fixed_geometries.append(None)
         gas_lines_gdf.geometry = fixed_geometries
         logger.debug("Geometries fixed.")
 
-        # Run the core pipeline for the reports and gas lines data
         create_pipeline_features(
             geojson_reports=geojson_reports,
             txt_reports=txt_reports,
@@ -222,36 +219,35 @@ def main() -> None:
             use_mongodb=use_mongodb,
         )
 
-        # Create buffer polygons around gas lines
         logger.info("Generating buffer polygons around gas lines.")
         gdf_buffer = create_buffer_with_geopandas(
             gas_lines_shp,
             buffer_distance_ft=buffer_distance,
             parks_path=args.parks_path,
         )
+
         if gdf_buffer.empty:
             print("⚠️  Warning: Buffer output is empty. No output files will be written.")
             logger.warning("Generated buffer GeoDataFrame is empty. Skipping output write and merge.")
-
         else:
-            if not args.dry_run:
-                # Write output buffer polygons in specified format
+            if not dry_run:
                 print("ℹ️  Writing GIS output and merging into future development file.")
                 logger.info("Writing GIS output files.")
                 write_gis_output(
                     gdf_buffer,
                     output_path,
-                    output_format=args.output_format,
-                    overwrite=args.overwrite_output,
+                    output_format=output_format,
+                    overwrite=overwrite_output,
                 )
-                # Merge buffer results into future development planning file
                 logger.info("Merging buffer polygons into future development planning file.")
                 merge_buffers_into_planning_file(output_path, future_development_shp)
             else:
                 print("ℹ️  Dry run enabled - skipping writing output files and merging.")
                 logger.info("Dry run enabled - skipping writing output files and merging.")
-                logger.info("Pipeline processing completed.")
-        print("✅ Pipeline processing completed successfully.")
+
+    logger.info("Pipeline processing completed.")
+    print("✅ Pipeline processing completed successfully.")
+
 
 if __name__ == "__main__":
     main()

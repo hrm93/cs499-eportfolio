@@ -3,6 +3,9 @@
 import argparse
 import os
 
+import gis_tool.config as config
+
+
 def parse_args():
     """
     Parse command-line arguments for the GIS pipeline tool.
@@ -46,29 +49,35 @@ def parse_args():
                         help="List of report files (.txt or .geojson) to process.")
 
     # Optional arguments
-    parser.add_argument('--buffer-distance', type=float, default=25.0,
-                        help="Buffer distance around gas lines in feet (default: 25 feet).")
+    parser.add_argument('--buffer-distance', type=float, default=config.DEFAULT_BUFFER_DISTANCE_FT,
+                        help=f"Buffer distance around gas lines in feet (default: {config.DEFAULT_BUFFER_DISTANCE_FT}).")
     parser.add_argument("--parks-path", default=None,
                         help="Optional path to park polygons to subtract.")
-    parser.add_argument('--crs', type=str, default='EPSG:32633',
-                        help="CRS for spatial data (default: EPSG:32633).")
+    parser.add_argument('--crs', type=str, default=config.DEFAULT_CRS,
+                        help=f"CRS for spatial data (default: {config.DEFAULT_CRS}).")
     parser.add_argument('--parallel', action='store_true',
+                        default=config.PARALLEL,
                         help="Enable multiprocessing for report processing.")
-    parser.add_argument('--max-workers', type=int, default=None,
-                        help='Maximum number of worker processes for parallel processing (default: number of CPUs).')
-    parser.add_argument('--log-level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
-                        help="Set the logging level (default: INFO).")
+    parser.add_argument('--max-workers', type=int, default=config.MAX_WORKERS,
+                        help=f"Maximum number of worker processes for parallel processing (default: {config.MAX_WORKERS}).")
+    parser.add_argument('--log-level', type=str,
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+                        default=config.LOG_LEVEL,
+                        help=f"Set the logging level (default: {config.LOG_LEVEL}).")
     parser.add_argument('--verbose', action='store_true',
                         help='Set logging level to DEBUG (overrides --log-level).')
-    parser.add_argument('--log-file', type=str, default=None,
-                        help='Path to the log file. Defaults to config value.')
-    parser.add_argument('--output-format', type=str, choices=['shp', 'geojson'], default='shp',
-                        help="Output format for buffer file: 'shp' or 'geojson' (default: shp).")
+    parser.add_argument('--log-file', type=str, default=config.LOG_FILENAME,
+                        help=f"Path to the log file (default: {config.LOG_FILENAME}).")
+    parser.add_argument('--output-format', type=str, choices=['shp', 'geojson'],
+                        default=config.OUTPUT_FORMAT,
+                        help=f"Output format for buffer file: 'shp' or 'geojson' (default: {config.OUTPUT_FORMAT}).")
     parser.add_argument('--dry-run', action='store_true',
+                        default=config.DRY_RUN_MODE,
                         help='Run the pipeline without writing outputs or modifying databases (for testing).')
     parser.add_argument('--config-file', type=str, default=None,
                         help='Path to a configuration file with pipeline settings.')
     parser.add_argument('--overwrite-output', action='store_true',
+                        default=config.ALLOW_OVERWRITE_OUTPUT,
                         help='Allow overwriting existing output files.')
 
     # Mutually exclusive group for MongoDB integration

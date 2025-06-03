@@ -40,6 +40,7 @@ import pandas as pd
 from pymongo.collection import Collection
 from shapely.geometry import Point
 
+from gis_tool.spatial_utils import validate_and_reproject_crs
 from gis_tool.utils import robust_date_parse
 from gis_tool.db_utils import upsert_mongodb_feature
 
@@ -157,20 +158,21 @@ def create_pipeline_features(
     processed_pipelines = set()
     features_added = False
 
-    # Normalize gas_lines_gdf CRS
-    if gas_lines_gdf.crs and gas_lines_gdf.crs.to_string() != spatial_reference:
-        logger.info(
-            f"Reprojecting gas_lines_gdf from {gas_lines_gdf.crs.to_string()} to {spatial_reference}."
-        )
-        gas_lines_gdf = gas_lines_gdf.to_crs(spatial_reference)
+    # Validate and reproject gas_lines_gdf CRS
+    if gas_lines_gdf.crs is None:
+        logger.error("gas_lines_gdf is missing CRS. Please define CRS before processing.")
+        raise ValueError("gas_lines_gdf must have a CRS defined.")
+    if gas_lines_gdf.crs.to_string() != spatial_reference:
+        gas_lines_gdf = validate_and_reproject_crs(gas_lines_gdf, spatial_reference, "gas_lines_gdf")
 
     # Normalize GeoJSON report CRS
     for i, (report_name, gdf) in enumerate(geojson_reports):
-        if gdf.crs and gdf.crs.to_string() != spatial_reference:
-            logger.info(
-                f"Reprojecting GeoJSON report '{report_name}' from {gdf.crs.to_string()} to {spatial_reference}."
-            )
-            gdf = gdf.to_crs(spatial_reference)
+        if gdf.crs is None:
+            logger.error(f"GeoJSON report '{report_name}' has no CRS defined.")
+            raise ValueError(f"GeoJSON report '{report_name}' must have a CRS defined.")
+
+        if gdf.crs.to_string() != spatial_reference:
+            gdf = validate_and_reproject_crs(gdf, spatial_reference, report_name)
             geojson_reports[i] = (report_name, gdf)
 
     def align_feature_dtypes(new_feat: gpd.GeoDataFrame, base_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
