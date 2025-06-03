@@ -1,6 +1,7 @@
 # report_reader.py
 
 import logging
+import warnings
 import os
 from pathlib import Path
 from typing import List, Tuple, Union
@@ -25,12 +26,14 @@ def find_new_reports(input_folder: str) -> List[str]:
     try:
         all_files = [entry.name for entry in os.scandir(input_folder) if entry.is_file()]
     except FileNotFoundError:
+        warnings.warn(f"Input folder does not exist: {input_folder}", UserWarning)
         logger.error(f"Input folder does not exist: {input_folder}")
         return []
 
     new_reports = [f for f in all_files if f.lower().endswith(('.txt', '.geojson'))]
 
     if not new_reports:
+        warnings.warn("No new report files found in input folder.", UserWarning)
         logger.info("No new reports found in the input folder.")
     else:
         logger.info(f"Found {len(new_reports)} new report(s): {new_reports}")
@@ -43,8 +46,15 @@ def load_geojson_report(file_path: Union[Path, str], crs: str) -> gpd.GeoDataFra
     Load a GeoJSON report from file and convert CRS to the target spatial_reference.
     """
     file_path = str(file_path)  # Convert to string for compatibility
-    gdf = gpd.read_file(file_path)
+    try:
+        gdf = gpd.read_file(file_path)
+    except Exception as e:
+        warnings.warn(f"Failed to load GeoJSON report: {file_path}. Error: {e}", UserWarning)
+        logger.error(f"Failed to load GeoJSON report {file_path}: {e}")
+        raise
     if gdf.crs is None or gdf.crs.to_string() != crs:
+        warnings.warn(f"CRS mismatch or missing in {file_path}. Reprojecting to {crs}.", UserWarning)
+        logger.warning(f"CRS mismatch or missing in {file_path}. Reprojecting to {crs}.")
         gdf = gdf.to_crs(crs)
     return gdf
 
@@ -61,11 +71,17 @@ def load_txt_report_lines(filepath: str) -> List[str]:
     """
     try:
         with open(filepath, 'r') as f:
-            return [line for line in f.read().splitlines() if line.strip()]
+            lines = [line for line in f.read().splitlines() if line.strip()]
+        if not lines:
+            warnings.warn(f"TXT report {filepath} is empty.", UserWarning)
+            logger.warning(f"TXT report {filepath} is empty.")
+        return lines
     except FileNotFoundError:
+        warnings.warn(f"TXT report file not found: {filepath}", UserWarning)
         logger.error(f"TXT report file not found: {filepath}")
         return []
     except IOError as e:
+        warnings.warn(f"Error reading TXT report file {filepath}: {e}", UserWarning)
         logger.error(f"Error reading TXT report file {filepath}: {e}")
         return []
 
@@ -97,12 +113,21 @@ def read_reports(report_names: List[str], reports_folder_path: Path) -> Tuple[Li
             try:
                 gdf = gpd.read_file(report_path)
                 assert isinstance(gdf, gpd.GeoDataFrame), f"Loaded data is not a GeoDataFrame for {report_name}"
-                assert not gdf.empty, f"GeoDataFrame is empty for {report_name}"
+
+                if gdf.empty:
+                    warnings.warn(f"GeoJSON report {report_name} is empty. Skipping.", UserWarning)
+                    logger.warning(f"GeoJSON report {report_name} is empty.")
+                    continue
+
                 geojson_reports.append((report_name, gdf))
                 logger.info(f"Successfully read GeoJSON report: {report_name}")
+
             except AssertionError as e:
+                warnings.warn(f"Assertion error in GeoJSON report {report_name}: {e}", UserWarning)
                 logger.error(f"Assertion error in GeoJSON report {report_name}: {e}")
+
             except (FileNotFoundError, OSError, fiona.errors.DriverError) as e:
+                warnings.warn(f"Failed to read GeoJSON report {report_name}: {e}", UserWarning)
                 logger.error(f"Failed to read GeoJSON report {report_name}: {e}")
 
         elif report_name.lower().endswith(".txt"):
@@ -111,14 +136,25 @@ def read_reports(report_names: List[str], reports_folder_path: Path) -> Tuple[Li
                     lines = [line.strip() for line in f if line.strip()]
                 assert isinstance(lines, list), f"Loaded lines is not a list for {report_name}"
                 assert all(isinstance(line, str) for line in lines), f"Not all lines are strings in {report_name}"
+
+                if not lines:
+                    warnings.warn(f"TXT report {report_name} is empty.", UserWarning)
+                    logger.warning(f"TXT report {report_name} is empty.")
+                    continue
+
                 txt_reports.append((report_name, lines))
                 logger.info(f"Successfully read TXT report: {report_name} with {len(lines)} lines")
+
             except AssertionError as e:
+                warnings.warn(f"Assertion error in TXT report {report_name}: {e}", UserWarning)
                 logger.error(f"Assertion error in TXT report {report_name}: {e}")
+
             except (FileNotFoundError, OSError) as e:
+                warnings.warn(f"Failed to read TXT report {report_name}: {e}", UserWarning)
                 logger.error(f"Failed to read TXT report {report_name}: {e}")
 
         else:
+            warnings.warn(f"Unsupported report type skipped: {report_name}", UserWarning)
             logger.warning(f"Unsupported report type: {report_name}")
 
     logger.info(f"Finished reading reports. GeoJSON: {len(geojson_reports)}, TXT: {len(txt_reports)}")

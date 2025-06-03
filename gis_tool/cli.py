@@ -85,7 +85,7 @@ def parse_args():
 
     # Input folder must exist
     if not os.path.isdir(args.input_folder):
-        parser.error(f"Input folder does not exist or is not a directory: {args.input_folder}")
+        parser.error(f"❌ Input folder does not exist or is not a directory: {args.input_folder}")
 
     # Validate report file extensions and existence
     def is_valid_report_file(file: str) -> bool:
@@ -102,26 +102,26 @@ def parse_args():
             missing_files.append(f)
 
     if invalid_files:
-        parser.error(f"Unsupported report file extensions: {', '.join(invalid_files)}")
+        parser.error(f"❌ Unsupported report file extensions: {', '.join(invalid_files)}")
     if missing_files:
-        parser.error(f"Report files not found in input folder: {', '.join(missing_files)}")
+        parser.error(f"❌ Report files not found in input folder: {', '.join(missing_files)}")
 
     # Output path’s parent directory must exist
     output_dir = os.path.dirname(args.output_path)
     if output_dir and not os.path.isdir(output_dir):
-        parser.error(f"Output path directory does not exist: {output_dir}")
+        parser.error(f"❌ Output path directory does not exist: {output_dir}")
 
     # CRS basic format check
     if not args.crs.upper().startswith('EPSG:'):
-        parser.error(f"Invalid CRS format. Expected format like 'EPSG:32633', got: {args.crs}")
+        parser.error(f"❌ Invalid CRS format. Expected format like 'EPSG:32633', got: {args.crs}")
 
     # Buffer distance must be positive
     if args.buffer_distance <= 0:
-        parser.error("Buffer distance must be a positive number.")
+        parser.error("❌ Buffer distance must be a positive number.")
 
     # Validate max workers if specified
     if args.max_workers is not None and args.max_workers < 1:
-        parser.error("Max workers must be at least 1.")
+        parser.error("❌ Max workers must be at least 1.")
 
     # Warn if using MongoDB but no config file specified
     if args.use_mongodb and not args.config_file:
@@ -130,6 +130,26 @@ def parse_args():
     # Handle verbose flag override
     if args.verbose:
         args.log_level = 'DEBUG'
+
+    # === USER-FACING WARNINGS ===
+
+    # Warn if using MongoDB but no config file specified
+    if args.use_mongodb and not args.config_file:
+        print(
+            "⚠️ Warning: MongoDB integration is enabled, but no --config-file provided. Using default MongoDB settings.")
+
+        # Warn if dry-run is set
+    if args.dry_run:
+        print("⚠️ Warning: Dry-run mode enabled. No outputs will be written or databases modified.")
+
+        # Warn if overwriting outputs
+    if args.overwrite_output:
+        print("⚠️ Warning: Existing output files will be overwritten if they exist.")
+
+        # Inform about verbose flag override
+    if args.verbose:
+        args.log_level = 'DEBUG'
+        print("⚠️ Verbose mode activated: Logging level set to DEBUG.")
 
     # === VALIDATION END ===
 

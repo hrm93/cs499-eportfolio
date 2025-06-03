@@ -62,6 +62,30 @@ pip install -r requirements.txt
 
 ---
 
+## ⚠️ Known Issues
+### Windows pytest PermissionError during cleanup
+When running tests with pytest on Windows, you might occasionally see a warning like:
+
+```
+Exception ignored in atexit callback: <function cleanup_numbered_dir at 0x...>
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\user\\AppData\\Local\\Temp\\pytest-of-user\\pytest-current'
+```
+This occurs because Windows sometimes restricts permission to delete temporary test directories during cleanup.
+It does not indicate a failure in your tests or the tool itself.
+
+### How to mitigate:
+- Close editors, terminals, or other programs that may be locking files.
+- Run pytest with Administrator privileges.
+- Manually delete the pytest temp folders under your Windows temp directory:  
+`C:\Users\<your-username>\AppData\Local\Temp\pytest-of-<username>\`
+- Temporarily disable antivirus or Windows Defender which may lock files.
+- Use the pytest option to specify a different base temp folder, e.g.:
+  `pytest --basetemp=./.pytest_tmp`
+
+### You can safely ignore this warning if it does not affect your tests passing.
+
+---
+
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![GeoPandas](https://img.shields.io/badge/GeoPandas-0.14.4-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)

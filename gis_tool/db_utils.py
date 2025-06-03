@@ -1,14 +1,14 @@
 # db_utils.py
 
 import logging
-
+import warnings
 import pandas as pd
 from typing import Union
 
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
-from pymongo.errors import ConnectionFailure
+from pymongo.errors import ConnectionFailure, PyMongoError
 
 from shapely.geometry import Point
 
@@ -38,7 +38,14 @@ def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Databa
         logger.info("Connected to MongoDB successfully.")
         return client[db_name]
     except ConnectionFailure as e:
-        logger.error(f"Could not connect to MongoDB: {e}")
+        warning_msg = f"Could not connect to MongoDB at {uri}: {e}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise
+    except Exception as e:
+        warning_msg = f"Unexpected error connecting to MongoDB at {uri}: {e}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
         raise
 
 
@@ -60,15 +67,39 @@ def upsert_mongodb_feature(
         psi (float): Pressure specification.
         material (str): Material type.
         geometry (Point): Shapely Point geometry object.
+
+    Raises:
+        PyMongoError: On errors interacting with MongoDB.
+        ValueError: If input parameters are invalid.
     """
+    if not isinstance(name, str) or not name.strip():
+        warning_msg = "Invalid 'name' parameter: must be a non-empty string."
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise ValueError(warning_msg)
+
+    if not isinstance(geometry, Point):
+        warning_msg = f"Invalid geometry type: expected shapely.geometry.Point, got {type(geometry)}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise ValueError(warning_msg)
+
     feature_doc = {
         'name': name,
         'date': date,
         'psi': psi,
         'material': material,
-        'geometry': simplify_geometry(geometry)  # Use simplified geom
+        'geometry': simplify_geometry(geometry)  # Use simplified geometry
     }
-    existing = collection.find_one({'name': name, 'geometry': feature_doc['geometry']})
+
+    try:
+        existing = collection.find_one({'name': name, 'geometry': feature_doc['geometry']})
+    except PyMongoError as e:
+        warning_msg = f"Failed to query MongoDB for existing feature '{name}': {e}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise
+
     if existing:
         # Check if any fields changed before updating
         changes = {}
@@ -80,10 +111,22 @@ def upsert_mongodb_feature(
             changes['material'] = material
 
         if changes:
-            collection.update_one({'_id': existing['_id']}, {'$set': changes})
-            logger.info(f"Updated MongoDB record for {name} with changes: {changes}")
+            try:
+                collection.update_one({'_id': existing['_id']}, {'$set': changes})
+                logger.info(f"Updated MongoDB record for '{name}' with changes: {changes}")
+            except PyMongoError as e:
+                warning_msg = f"Failed to update MongoDB record for '{name}': {e}"
+                warnings.warn(warning_msg, UserWarning)
+                logger.error(warning_msg)
+                raise
         else:
-            logger.info(f"No changes detected for MongoDB record {name}, skipping update.")
+            logger.info(f"No changes detected for MongoDB record '{name}', skipping update.")
     else:
-        collection.insert_one(feature_doc)
-        logger.info(f"Inserted new MongoDB record for {name}.")
+        try:
+            collection.insert_one(feature_doc)
+            logger.info(f"Inserted new MongoDB record for '{name}'.")
+        except PyMongoError as e:
+            warning_msg = f"Failed to insert new MongoDB record for '{name}': {e}"
+            warnings.warn(warning_msg, UserWarning)
+            logger.error(warning_msg)
+            raise

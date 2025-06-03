@@ -1,6 +1,7 @@
 # buffer_processor.py
 
 import logging
+import warnings
 from typing import Optional, Callable, Any, List, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -31,8 +32,10 @@ def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     logger.debug(f"ensure_projected_crs called with CRS: {gdf.crs}")
     if gdf.crs is None:
+        warnings.warn("Input GeoDataFrame has no CRS defined. Cannot proceed without CRS.", UserWarning)
         raise ValueError("Input GeoDataFrame has no CRS defined.")
     if not gdf.crs.is_projected:
+        warnings.warn(f"Input CRS {gdf.crs} is not projected. Reprojecting to {config.DEFAULT_CRS}.", UserWarning)
         logger.info(f"Reprojecting from {gdf.crs} to {config.DEFAULT_CRS}")
         gdf = gdf.to_crs(config.DEFAULT_CRS)
     else:
@@ -94,6 +97,7 @@ def subtract_park_from_geom(buffer_geom, parks_geoms):
     buffer_geom = fix_geometry(buffer_geom)
     if buffer_geom is None or buffer_geom.is_empty:
         logger.warning("Input buffer geometry is invalid or empty; returning empty Polygon.")
+        warnings.warn("Input buffer geometry is invalid or empty. Buffer will be empty.", UserWarning)
         return Polygon()
 
     try:
@@ -104,16 +108,19 @@ def subtract_park_from_geom(buffer_geom, parks_geoms):
                 continue
             if buffer_geom.is_empty:
                 logger.warning("Buffer geometry became empty during park subtraction; stopping.")
+                warnings.warn("Buffer geometry became empty during park subtraction.", UserWarning)
                 break
             buffer_geom = buffer_geom.difference(park_geom)
             buffer_geom = fix_geometry(buffer_geom)
             if buffer_geom is None or buffer_geom.is_empty:
                 logger.warning("Buffer geometry invalid or empty after subtraction; returning empty Polygon.")
+                warnings.warn("Buffer geometry invalid or empty after park subtraction.", UserWarning)
                 return Polygon()
         logger.debug("Park geometries subtracted from buffer.")
         return buffer_geom
     except Exception as e:
         logger.error(f"Error subtracting park geometry: {e}")
+        warnings.warn(f"Error subtracting park geometry: {e}", UserWarning)
         return Polygon()
 
 
@@ -187,10 +194,12 @@ def subtract_parks_from_buffer(
         logger.debug("Parks layer loaded successfully.")
 
         if parks_gdf.crs is None:
+            warnings.warn("Parks layer has no CRS. Assigning buffer CRS.", UserWarning)
             logger.warning("Parks layer has no CRS. Assigning buffer CRS.")
             parks_gdf.set_crs(buffer_gdf.crs, inplace=True)
 
         if parks_gdf.crs != buffer_gdf.crs:
+            warnings.warn(f"Parks CRS {parks_gdf.crs} differs from buffer CRS {buffer_gdf.crs}. Reprojecting.", UserWarning)
             logger.info("Reprojecting parks layer to match buffer CRS.")
             parks_gdf = parks_gdf.to_crs(buffer_gdf.crs)
 
@@ -201,6 +210,10 @@ def subtract_parks_from_buffer(
         # Initial geometry validation to clean up inputs
         parks_gdf = parks_gdf[parks_gdf.geometry.notnull() & parks_gdf.geometry.is_valid]
         buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid]
+
+        if parks_gdf.empty:
+            warnings.warn("No valid park geometries found for subtraction.", UserWarning)
+            logger.warning("No valid park geometries found for subtraction.")
 
         parks_geoms = list(parks_gdf.geometry)
         logger.debug(f"Number of valid park geometries: {len(parks_geoms)}")
@@ -223,6 +236,7 @@ def subtract_parks_from_buffer(
         return buffer_gdf
     except Exception as e:
         logger.exception(f"Error in subtract_parks_from_buffer: {e}")
+        warnings.warn(f"Error subtracting parks: {e}", UserWarning)
         raise
 
 
@@ -261,6 +275,7 @@ def create_buffer_with_geopandas(
         logger.debug("Gas lines layer loaded.")
 
         if gas_lines_gdf.crs is None:
+            warnings.warn("Input gas lines layer has no CRS. Assigning default CRS.", UserWarning)
             logger.warning("Input gas lines layer has no CRS; assigning default.")
             gas_lines_gdf = gas_lines_gdf.set_crs(config.DEFAULT_CRS)
         gas_lines_gdf = ensure_projected_crs(gas_lines_gdf)
@@ -274,6 +289,7 @@ def create_buffer_with_geopandas(
             gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
 
         if parks_path:
+            warnings.warn("Subtracting parks from buffers. Ensure parks data is clean and valid.", UserWarning)
             logger.info(f"Subtracting parks from buffers using parks layer at {parks_path}")
             gas_lines_gdf = subtract_parks_from_buffer(gas_lines_gdf, parks_path)
 
@@ -290,6 +306,7 @@ def create_buffer_with_geopandas(
 
     except Exception as e:
         logger.exception(f"Error in create_buffer_with_geopandas: {e}")
+        warnings.warn(f"Error creating buffer: {e}", UserWarning)
         raise
 
 
@@ -299,24 +316,31 @@ def merge_buffers_into_planning_file(
     point_buffer_distance: float = 10.0,
 ) -> gpd.GeoDataFrame:
     """
-    Merge buffer polygons into a Future Development planning layer by appending features.
+       Merge buffer polygons into a Future Development planning layer by appending features.
 
-    ⚠️ WARNING: This function overwrites the input Future Development shapefile.
+       ⚠️ USER-FACING WARNINGS:
+       - This function overwrites the input Future Development shapefile.
+       - No buffer geometries found; no update applied to Future Development layer.
+       - Future Development layer is empty; merged output will contain only buffer polygons.
+       - Future Development layer missing CRS; assigning default geographic CRS EPSG:4326.
+       - Buffer layer missing CRS; assigning default projected CRS EPSG:32610.
+       - Buffer layer CRS differs from Future Development CRS; reprojecting buffer layer.
 
-    Args:
-        unique_output_buffer (str): File path to the buffer polygons shapefile.
-        future_development_feature_class (str): File path to the Future Development shapefile.
-        point_buffer_distance (float): Buffer distance in meters to convert non-polygon features to polygons.
+       Args:
+           unique_output_buffer (str): File path to the buffer polygons shapefile.
+           future_development_feature_class (str): File path to the Future Development shapefile.
+           point_buffer_distance (float): Buffer distance in meters to convert non-polygon features to polygons.
 
-    Returns:
-        gpd.GeoDataFrame: The merged GeoDataFrame.
-    """
+       Returns:
+           gpd.GeoDataFrame: The merged GeoDataFrame.
+       """
     logger.info(f"merge_buffers_into_planning_file called with buffer: {unique_output_buffer}")
     try:
         buffer_gdf = gpd.read_file(unique_output_buffer)
         future_dev_gdf = gpd.read_file(future_development_feature_class)
 
         if buffer_gdf.empty:
+            warnings.warn("No buffer geometries found; no update applied to Future Development layer.", UserWarning)
             logger.warning("Buffer GeoDataFrame is empty; no geometries to merge.")
             logger.info(
                 f"No update performed on '{future_development_feature_class}'; existing data remains unchanged.")
@@ -324,16 +348,24 @@ def merge_buffers_into_planning_file(
             return future_dev_gdf
 
         if future_dev_gdf.empty:
+            warnings.warn("Future Development layer is empty; merged output will contain only buffer polygons.",
+                          UserWarning)
             logger.warning("Future Development GeoDataFrame is empty; result will contain only buffer polygons.")
 
         if not future_dev_gdf.crs or future_dev_gdf.crs.to_string() == '':
+            warnings.warn("Future Development layer missing CRS; assigning default geographic CRS EPSG:4326.",
+                          UserWarning)
             logger.warning("Future Development layer missing CRS; defaulting to EPSG:4326.")
             future_dev_gdf = future_dev_gdf.set_crs(config.GEOGRAPHIC_CRS, allow_override=True)
+
         if not buffer_gdf.crs or buffer_gdf.to_string() == '':
+            warnings.warn("Buffer layer missing CRS; assigning default projected CRS EPSG:32610.", UserWarning)
             logger.warning("Buffer layer missing CRS; defaulting to EPSG:32610.")
             buffer_gdf = buffer_gdf.set_crs(config.BUFFER_LAYER_CRS, allow_override=True)
 
         if buffer_gdf.crs != future_dev_gdf.crs:
+            warnings.warn("Buffer layer CRS differs from Future Development CRS; reprojecting buffer layer.",
+                          UserWarning)
             logger.info(f"Reprojecting buffer from {buffer_gdf.crs} to {future_dev_gdf.crs}")
             buffer_gdf = buffer_gdf.to_crs(future_dev_gdf.crs)
 

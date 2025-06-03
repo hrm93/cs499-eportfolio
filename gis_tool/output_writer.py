@@ -9,6 +9,7 @@ Currently, supports:
 - Writing plain text reports
 """
 import logging
+import warnings
 from pathlib import Path
 
 import geopandas as gpd
@@ -29,9 +30,18 @@ def write_csv(df: pd.DataFrame, output_path: str) -> None:
     """
     path = Path(output_path)
     if not path.parent.exists():
-        raise FileNotFoundError(f"Directory does not exist: {path.parent}")
-    df.to_csv(path, index=False)
-    logger.info(f"CSV file written to {path}")
+        warning_msg = f"Output directory does not exist: {path.parent}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise FileNotFoundError(warning_msg)
+    try:
+        df.to_csv(path, index=False)
+        logger.info(f"CSV file written to {path}")
+    except Exception as e:
+        warning_msg = f"Failed to write CSV file to {path}: {e}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise
 
 
 def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
@@ -44,9 +54,18 @@ def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
     """
     path = Path(output_path)
     if not path.parent.exists():
-        raise FileNotFoundError(f"Directory does not exist: {path.parent}")
-    gdf.to_file(str(path), driver="GeoJSON")
-    logger.info(f"GEOJSON file written to {path}")
+        warning_msg = f"Output directory does not exist: {path.parent}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise FileNotFoundError(warning_msg)
+    try:
+        gdf.to_file(str(path), driver="GeoJSON")
+        logger.info(f"GEOJSON file written to {path}")
+    except Exception as e:
+        warning_msg = f"Failed to write GeoJSON file to {path}: {e}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise
 
 
 def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = config.OUTPUT_FORMAT, overwrite: bool = False) -> None:
@@ -57,30 +76,44 @@ def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str
         gdf (gpd.GeoDataFrame): GeoDataFrame containing spatial features.
         output_path (str): Path to the output file (.shp or .geojson).
         output_format (str): Output format: 'shp' or 'geojson'.
-        :param output_format:
-        :param output_path:
-        :param gdf:
-        :param overwrite:
+        overwrite (bool): Whether to overwrite existing files.
     """
     if gdf.empty:
-        logger.warning(f"GeoDataFrame is empty. No file written to {output_path}.")
+        warning_msg = f"GeoDataFrame is empty; no file written to {output_path}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.warning(warning_msg)
+        return
+    path = Path(output_path)
+    if path.exists() and not overwrite:
+        warning_msg = f"{output_path} exists and overwriting is disabled; file not written."
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise FileExistsError(warning_msg)
+    if not path.parent.exists():
+        warning_msg = f"Output directory does not exist: {path.parent}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise FileNotFoundError(warning_msg)
+    if config.DRY_RUN_MODE:
+        warning_msg = f"Dry run enabled: skipping write of {output_path}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.info(warning_msg)
         return
     try:
-        path = Path(output_path)
-        if path.exists() and not overwrite:
-            raise FileExistsError(f"{output_path} exists and overwriting is disabled.")
-        if config.DRY_RUN_MODE:
-            logger.info(f"Dry run enabled: Skipping write of {output_path}")
-            return
         if output_format == "geojson":
             gdf.to_file(output_path, driver="GeoJSON")
         elif output_format == "shp":
             gdf.to_file(output_path, driver="ESRI Shapefile")
         else:
-            raise ValueError(f"Unsupported output format: {output_format}")
+            warning_msg = f"Unsupported output format: {output_format}"
+            warnings.warn(warning_msg, UserWarning)
+            logger.error(warning_msg)
+            raise ValueError(warning_msg)
         logger.info(f"{output_format.upper()} file written to {output_path}")
     except Exception as e:
-        logger.error(f"Failed to write {output_format} file: {e}")
+        warning_msg = f"Failed to write {output_format} file to {output_path}: {e}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
         raise
 
 
@@ -94,7 +127,16 @@ def write_report(text: str, output_path: str) -> None:
     """
     path = Path(output_path)
     if not path.parent.exists():
-        raise FileNotFoundError(f"Directory does not exist: {path.parent}")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(text)
-    logger.info(f"Report file written to {path}")
+        warning_msg = f"Report output directory does not exist: {path.parent}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise FileNotFoundError(warning_msg)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        logger.info(f"Report file written to {path}")
+    except Exception as e:
+        warning_msg = f"Failed to write report file to {path}: {e}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise

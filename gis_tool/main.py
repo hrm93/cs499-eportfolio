@@ -63,6 +63,7 @@ def process_report_chunk(
     try:
         # Note MongoDB insert status
         if gas_lines_collection is None:
+            print("⚠️  MongoDB insert disabled for parallel workers.")
             logger.info("MongoDB insert disabled for this process (parallel worker).")
 
         # Log the chunk being processed
@@ -95,9 +96,11 @@ def process_report_chunk(
         logger.info(f"Finished processing chunk: {report_chunk}")
 
     except (FileNotFoundError, OSError, fiona.errors.DriverError) as e:
+        print(f"❌ I/O error while processing chunk {report_chunk}: {e}")
         logger.error(f"I/O error in chunk {report_chunk}: {e}")
 
     except Exception as e:
+        print(f"❌ Unexpected error in chunk {report_chunk}: {e}")
         logger.exception(f"Unexpected error in chunk {report_chunk}: {e}")
 
 
@@ -128,6 +131,7 @@ def main() -> None:
             logger.info("Connected to MongoDB.")
         except PyMongoError as e:
             # If connection fails, log the warning and disable MongoDB usage
+            print(f"⚠️  Warning: Could not connect to MongoDB - {e}")
             logger.warning(f"MongoDB connection failed: {e}")
             use_mongodb = False  # Disable MongoDB if connection fails
 
@@ -152,12 +156,14 @@ def main() -> None:
     # Find new report files to process
     report_files = find_new_reports(input_folder)
     if not report_files:
+        print("ℹ️  No new reports to process. Exiting.")
         logger.info("No new reports to process. Exiting.")
         return
 
     reports_folder_path = Path(args.input_folder)
 
     if use_parallel:
+        print("ℹ️  Starting parallel processing of reports...")
         logger.info(f"Starting parallel processing of {len(report_files)} report files.")
         cpu_count = os.cpu_count() or 1
         chunk_size = max(1, len(report_files) // cpu_count)
@@ -182,8 +188,10 @@ def main() -> None:
                     # Block until each parallel task completes
                     future.result()
                 except Exception as e:
+                    print(f"❌ Error in parallel processing: {e}")
                     logger.error(f"Error in parallel processing: {e}")
     else:
+        print("ℹ️  Starting sequential processing of reports...")
         logger.info("Sequential processing of report files.")
         geojson_reports, txt_reports = read_reports(report_files, reports_folder_path)
         logger.debug(f"Read {len(geojson_reports)} GeoJSON reports and {len(txt_reports)} TXT reports.")
@@ -221,11 +229,13 @@ def main() -> None:
             parks_path=args.parks_path,
         )
         if gdf_buffer.empty:
+            print("⚠️  Warning: Buffer output is empty. No output files will be written.")
             logger.warning("Generated buffer GeoDataFrame is empty. Skipping output write and merge.")
 
         else:
             if not args.dry_run:
                 # Write output buffer polygons in specified format
+                print("ℹ️  Writing GIS output and merging into future development file.")
                 logger.info("Writing GIS output files.")
                 write_gis_output(
                     gdf_buffer,
@@ -237,8 +247,10 @@ def main() -> None:
                 logger.info("Merging buffer polygons into future development planning file.")
                 merge_buffers_into_planning_file(output_path, future_development_shp)
             else:
+                print("ℹ️  Dry run enabled - skipping writing output files and merging.")
                 logger.info("Dry run enabled - skipping writing output files and merging.")
                 logger.info("Pipeline processing completed.")
+        print("✅ Pipeline processing completed successfully.")
 
 if __name__ == "__main__":
     main()

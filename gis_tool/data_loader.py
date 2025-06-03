@@ -138,6 +138,19 @@ def create_pipeline_features(
         - Material field normalized to lowercase for consistency.
     """
     logger.info("Starting pipeline feature creation...")
+
+    # User-facing warning for empty GeoJSON reports
+    if not geojson_reports:
+        logger.warning("No GeoJSON reports were found. Please check your input directory and file patterns.")
+
+    # User-facing warning for empty TXT reports
+    if not txt_reports:
+        logger.warning("No TXT reports were found. Please check your input directory and file patterns.")
+
+    # User-facing warning for missing or empty gas_lines_gdf
+    if gas_lines_gdf.empty:
+        logger.warning("The existing gas_lines_gdf is empty. New features will create a new dataset.")
+
     if processed_reports is None:
         processed_reports = set()
 
