@@ -154,30 +154,24 @@ def subtract_parks_from_buffer(
     use_multiprocessing: bool = False,
 ) -> gpd.GeoDataFrame:
     """
-    Subtract park polygons from buffer polygons.
+      Subtract park polygons from buffer polygons.
 
-    Args:
-        buffer_gdf: GeoDataFrame of buffered gas lines (polygons).
-        parks_path: File path to park polygons layer.
-        use_multiprocessing: If True, subtract parks using multiprocessing.
+      Args:
+          buffer_gdf: GeoDataFrame of buffered gas lines (polygons).
+          parks_path: File path to park polygons layer.
+          use_multiprocessing: If True, subtract parks using multiprocessing.
 
-    Returns:
-        GeoDataFrame with parks subtracted from buffer polygons.
-    """
+      Returns:
+          GeoDataFrame with parks subtracted from buffer polygons.
+      """
     logger.info(f"subtract_parks_from_buffer called with parks_path: {parks_path}")
     try:
+        # Load parks layer
         parks_gdf = gpd.read_file(parks_path)
         logger.debug("Parks layer loaded successfully.")
 
-        if parks_gdf.crs is None:
-            warnings.warn("Parks layer has no CRS. Assigning buffer CRS.", UserWarning)
-            logger.warning("Parks layer has no CRS. Assigning buffer CRS.")
-            parks_gdf.set_crs(buffer_gdf.crs, inplace=True)
-
-        if parks_gdf.crs != buffer_gdf.crs:
-            warnings.warn(f"Parks CRS {parks_gdf.crs} differs from buffer CRS {buffer_gdf.crs}. Reprojecting.", UserWarning)
-            logger.info("Reprojecting parks layer to match buffer CRS.")
-            parks_gdf = parks_gdf.to_crs(buffer_gdf.crs)
+        # Validate and reproject CRS of parks_gdf using centralized helper
+        parks_gdf = validate_and_reproject_crs(parks_gdf, buffer_gdf.crs, "parks")
 
         # Fix geometries to ensure validity
         parks_gdf['geometry'] = parks_gdf.geometry.apply(fix_geometry)
@@ -194,18 +188,19 @@ def subtract_parks_from_buffer(
         parks_geoms = list(parks_gdf.geometry)
         logger.debug(f"Number of valid park geometries: {len(parks_geoms)}")
 
+        # Subtract parks from buffers
         if use_multiprocessing:
             logger.info("Subtracting parks using multiprocessing.")
             args = [(geom, parks_geoms) for geom in buffer_gdf.geometry]
             buffer_gdf['geometry'] = parallel_process(subtract_park_from_geom_helper, args)
         else:
             logger.info("Subtracting parks sequentially.")
-            buffer_gdf['geometry'] = buffer_gdf.geometry.apply(lambda geom: subtract_park_from_geom(geom, parks_geoms))
+            buffer_gdf['geometry'] = buffer_gdf.geometry.apply(
+                lambda geom: subtract_park_from_geom(geom, parks_geoms)
+            )
 
-        # Fix geometries after subtraction
+        # Final geometry fixes and cleanup
         buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
-
-        # FINAL consistent geometry validation before returning
         buffer_gdf = buffer_gdf[buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty]
 
         logger.info(f"Subtraction complete. Remaining features: {len(buffer_gdf)}")

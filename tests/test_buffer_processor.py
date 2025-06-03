@@ -7,9 +7,9 @@ import pytest
 import geopandas as gpd
 from shapely.geometry import LineString, Point, Polygon
 
-from gis_tool import buffer_processor, config
+from gis_tool.spatial_utils import assert_geodataframes_equal
+from gis_tool import buffer_processor
 from gis_tool.buffer_processor import (
-    create_buffer_with_geopandas,
     merge_buffers_into_planning_file,
     buffer_geometry,
     buffer_geometry_helper,
@@ -147,41 +147,6 @@ def sample_parks_file(tmp_path, sample_parks_gdf):
     sample_parks_gdf.to_file(str(file_path), driver='GeoJSON')
     logger.debug(f"Sample parks GeoJSON written: {file_path}")
     return str(file_path)
-
-
-def assert_geodataframes_equal(gdf1, gdf2, tol=1e-6):
-    """
-      Assert that two GeoDataFrames are equal in terms of CRS, length, and geometry,
-      with geometries compared using an exact match within a given tolerance.
-
-      Parameters
-      ----------
-      gdf1 : geopandas.GeoDataFrame
-          The first GeoDataFrame to compare.
-      gdf2 : geopandas.GeoDataFrame
-          The second GeoDataFrame to compare.
-      tol : float, optional
-          Tolerance for geometry equality comparison (default is 1e-6).
-
-      Raises
-      ------
-      AssertionError
-          If any of the checks (type, CRS, length, geometry equality) fail.
-      """
-    logger.info("Comparing two GeoDataFrames for equality.")
-    assert isinstance(gdf1, gpd.GeoDataFrame), "First input is not a GeoDataFrame"
-    assert isinstance(gdf2, gpd.GeoDataFrame), "Second input is not a GeoDataFrame"
-    logger.debug(f"CRS check: {gdf1.crs} == {gdf2.crs}")
-    assert gdf1.crs == gdf2.crs, "CRS mismatch"
-    logger.debug(f"Length check: {len(gdf1)} == {len(gdf2)}")
-    assert len(gdf1) == len(gdf2), "GeoDataFrames have different lengths"
-
-    for i, (geom1, geom2) in enumerate(zip(gdf1.geometry, gdf2.geometry)):
-        equal = geom1.equals_exact(geom2, tolerance=tol)
-        logger.debug(f"Geometry check at index {i}: {'equal' if equal else 'not equal'}")
-        assert equal, f"Geometries at index {i} differ"
-
-    logger.info("GeoDataFrames are equal.")
 
 
 def test_geometry_simplification_accuracy():
