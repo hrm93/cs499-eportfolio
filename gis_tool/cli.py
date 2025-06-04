@@ -2,14 +2,27 @@
 
 import argparse
 import os
+import json
 import yaml
 
 import gis_tool.config as config
 
 
 def load_config_file(path):
+    """
+    Load configuration settings from a YAML or JSON file.
+
+    Args:
+        path (str): Path to the configuration file.
+
+    Returns:
+        dict: Loaded configuration settings.
+    """
     with open(path, 'r') as f:
-        return yaml.safe_load(f)
+        if path.endswith('.json'):
+            return json.load(f)
+        else:
+            return yaml.safe_load(f)
 
 
 def parse_args():
@@ -103,11 +116,16 @@ def parse_args():
 
         config_values = load_config_file(args.config_file)
 
+        print(f"🔧 Loaded settings from {args.config_file}")  # Inform the user!
+
         for key, value in config_values.items():
+
             if hasattr(args, key):
+
                 # Get the parser's default value for this key
                 default_val = parser.get_default(key)
                 current_val = getattr(args, key)
+
                 # Override only if current arg value equals the parser's default
                 if current_val == default_val:
                     setattr(args, key, value)
@@ -159,15 +177,11 @@ def parse_args():
     if args.max_workers is not None and args.max_workers < 1:
         parser.error("❌ Max workers must be at least 1.")
 
-    # Warn if using MongoDB but no config file specified
-    if args.use_mongodb and not args.config_file:
-        print("Warning: MongoDB enabled but no --config-file provided. Using defaults.")
-
     # Handle verbose flag override
     if args.verbose:
         args.log_level = 'DEBUG'
 
-    # === USER-FACING WARNINGS ===
+    # === POST-VALIDATION NOTICES ===
 
     # Warn if using MongoDB but no config file specified
     if args.use_mongodb and not args.config_file:
