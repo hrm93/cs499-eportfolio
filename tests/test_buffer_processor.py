@@ -2,6 +2,7 @@
 import os
 import tempfile
 import logging
+from unittest.mock import patch
 
 import pytest
 import geopandas as gpd
@@ -40,6 +41,65 @@ def test_subtract_parks_from_buffer_behavior():
         # Add assertions about result_gdf here
 
     logger.info("test_subtract_parks_from_buffer_behavior passed.")
+
+
+def test_create_buffer_with_geopandas_basic(sample_gas_lines_gdf):
+    # Patch gpd.read_file to return our fixture GeoDataFrame
+    with patch('gis_tool.buffer_processor.gpd.read_file', return_value=sample_gas_lines_gdf):
+        result_gdf = buffer_processor.create_buffer_with_geopandas(
+            input_gas_lines_path="fake_path.shp",
+            buffer_distance_ft=10,
+            parks_path=None,
+            use_multiprocessing=False
+        )
+
+        # Assert result is GeoDataFrame
+        assert isinstance(result_gdf, gpd.GeoDataFrame)
+
+        # Buffer distance in meters ~ 3.048m (10 ft)
+        # The buffered geometries should still intersect original lines
+        # So result_gdf should not be empty and all geometries valid
+        assert not result_gdf.empty
+        assert result_gdf.geometry.is_valid.all()
+        assert (~result_gdf.geometry.is_empty).all()
+
+
+def test_create_buffer_with_geopandas_with_parks(sample_gas_lines_gdf):
+    # Create parks GeoDataFrame with one polygon overlapping buffer area
+    parks_gdf = gpd.GeoDataFrame({
+        'geometry': [
+            Polygon([(3, -2), (3, 8), (8, 8), (8, -2), (3, -2)])
+        ]
+    }, crs="EPSG:4326")
+
+    # Patch both gas lines and parks reading
+    with patch('gis_tool.buffer_processor.gpd.read_file') as mock_read_file:
+        # The first call returns gas_lines, second returns parks
+        mock_read_file.side_effect = [sample_gas_lines_gdf, parks_gdf]
+
+        result_gdf = buffer_processor.create_buffer_with_geopandas(
+            input_gas_lines_path="fake_gas.shp",
+            buffer_distance_ft=10,
+            parks_path="fake_parks.shp",
+            use_multiprocessing=False
+        )
+
+    # The parks area should be subtracted from the buffer
+    # Result geometries should be valid and not empty
+    assert not result_gdf.empty
+    assert result_gdf.geometry.is_valid.all()
+    assert (~result_gdf.geometry.is_empty).all()
+
+
+def test_create_buffer_with_geopandas_invalid_input():
+    with patch('gis_tool.buffer_processor.gpd.read_file', side_effect=Exception("File not found")):
+        with pytest.raises(Exception):
+            buffer_processor.create_buffer_with_geopandas(
+                input_gas_lines_path="invalid_path.shp",
+                buffer_distance_ft=10,
+                parks_path=None,
+                use_multiprocessing=False
+            )
 
 
 def test_create_buffer_with_geopandas_multiprocessing(tmp_path, sample_gas_lines_gdf, sample_parks_file):

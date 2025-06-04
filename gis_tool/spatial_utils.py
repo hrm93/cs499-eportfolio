@@ -119,3 +119,42 @@ def assert_geodataframes_equal(gdf1, gdf2, tol=1e-6):
         assert equal, f"Geometries at index {i} differ"
 
     logger.info("GeoDataFrames are equal.")
+
+
+def buffer_intersects_gas_lines(buffer_geom: BaseGeometry, gas_lines_gdf: gpd.GeoDataFrame) -> bool:
+    """
+    Check if the buffer geometry intersects with any gas line geometries.
+
+    Parameters:
+        buffer_geom (BaseGeometry): The buffer geometry to test.
+        gas_lines_gdf (GeoDataFrame): GeoDataFrame containing gas line geometries.
+
+    Returns:
+        bool: True if there is at least one intersection, False otherwise.
+    """
+    if buffer_geom is None or buffer_geom.is_empty:
+        logger.warning("Empty or None buffer geometry received for intersection check.")
+        return False
+
+    # Assumes gas_lines_gdf and buffer_geom share the same CRS
+
+    try:
+        # Use spatial index to quickly find candidate gas lines intersecting bounding box
+        possible_matches_index = list(gas_lines_gdf.sindex.intersection(buffer_geom.bounds))
+        possible_matches = gas_lines_gdf.iloc[possible_matches_index]
+
+        # Vectorized precise intersection check on candidates
+        intersects = possible_matches.geometry.intersects(buffer_geom).any()
+
+        logger.debug(f"Buffer intersects gas lines: {intersects}")
+        return intersects
+    except Exception as e:
+        logger.error(f"Error checking intersection between buffer and gas lines: {e}")
+
+        # Fallback: check all geometries (brute force)
+        for gas_line_geom in gas_lines_gdf.geometry:
+            if gas_line_geom.intersects(buffer_geom):
+                logger.debug("Buffer intersects gas line found in fallback loop.")
+                return True
+
+        return False

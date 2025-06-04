@@ -8,7 +8,7 @@ import geopandas as gpd
 import pandas as pd
 import fiona.errors
 
-from .spatial_utils import validate_and_reproject_crs, ensure_projected_crs
+from .spatial_utils import validate_and_reproject_crs, ensure_projected_crs, buffer_intersects_gas_lines
 from . import spatial_utils
 from gis_tool import config
 from gis_tool.utils import convert_ft_to_m, clean_geodataframe
@@ -76,6 +76,12 @@ def create_buffer_with_geopandas(
             gas_lines_gdf = subtract_parks_from_buffer(gas_lines_gdf, parks_path)
 
         logger.debug("Buffering complete.")
+
+        # Filter to keep only buffered polygons that intersect original gas lines
+        # Apply row-wise: for each buffered geometry, check if it intersects with any gas line
+        gas_lines_gdf = gas_lines_gdf[
+            gas_lines_gdf.geometry.apply(lambda buf_geom: buffer_intersects_gas_lines(buf_geom, gas_lines_gdf))
+        ]
 
         # Clean the GeoDataFrame before final validation
         gas_lines_gdf = clean_geodataframe(gas_lines_gdf)

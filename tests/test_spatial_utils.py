@@ -5,8 +5,8 @@ import logging
 import warnings
 
 import geopandas as gpd
-from shapely.geometry import Point, Polygon
-from gis_tool.spatial_utils import ensure_projected_crs
+from shapely.geometry import LineString, Point, Polygon
+from gis_tool.spatial_utils import ensure_projected_crs, buffer_intersects_gas_lines
 from gis_tool import config
 from gis_tool.buffer_processor import (
     create_buffer_with_geopandas,
@@ -195,3 +195,62 @@ def _save_test_shapefiles(buffer_gdf, future_dev_gdf, tmp_path):
     logger.debug(f"Saved buffer shapefile at {buffer_fp}")
     logger.debug(f"Saved future development shapefile at {future_fp}")
     return buffer_fp, future_fp
+
+
+def test_buffer_intersects_gas_lines_intersection():
+    # Create a gas lines GeoDataFrame with two line geometries
+    gas_lines = gpd.GeoDataFrame({
+        'geometry': [
+            LineString([(0, 0), (10, 0)]),
+            LineString([(20, 20), (30, 20)])
+        ]
+    }, crs="EPSG:4326")
+
+    # Create a buffer polygon that intersects first line
+    buffer_geom = Polygon([(1, -1), (1, 1), (9, 1), (9, -1), (1, -1)])
+
+    result = buffer_intersects_gas_lines(buffer_geom, gas_lines)
+    assert result    # expect True
+
+
+def test_buffer_intersects_gas_lines_no_intersection():
+    gas_lines = gpd.GeoDataFrame({
+        'geometry': [
+            LineString([(0, 0), (10, 0)]),
+            LineString([(20, 20), (30, 20)])
+        ]
+    }, crs="EPSG:4326")
+
+    # Buffer polygon far away from any gas line
+    buffer_geom = Polygon([(100, 100), (100, 110), (110, 110), (110, 100), (100, 100)])
+
+    result = buffer_intersects_gas_lines(buffer_geom, gas_lines)
+    assert not result  # expect False
+
+
+def test_buffer_intersects_gas_lines_empty_geometry():
+    gas_lines = gpd.GeoDataFrame({
+        'geometry': [
+            LineString([(0, 0), (10, 0)])
+        ]
+    }, crs="EPSG:4326")
+
+    # Empty geometry as buffer
+    buffer_geom = Polygon()
+
+    result = buffer_intersects_gas_lines(buffer_geom, gas_lines)
+    assert not result   # expect False
+
+
+def test_buffer_intersects_gas_lines_with_empty_geom_in_gdf():
+    gas_lines = gpd.GeoDataFrame({
+        'geometry': [
+            LineString([(0, 0), (10, 0)]),
+            None
+        ]
+    }, crs="EPSG:4326")
+
+    buffer_geom = Polygon([(1, -1), (1, 1), (9, 1), (9, -1), (1, -1)])
+
+    result = buffer_intersects_gas_lines(buffer_geom, gas_lines)
+    assert result    # expect True
