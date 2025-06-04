@@ -8,6 +8,9 @@ from typing import List, Tuple, Union
 
 import fiona
 import geopandas as gpd
+from shapely.geometry import Point
+
+from gis_tool.utils import robust_date_parse
 
 logger = logging.getLogger("gis_tool")
 
@@ -59,6 +62,21 @@ def load_geojson_report(file_path: Union[Path, str], crs: str) -> gpd.GeoDataFra
     return gdf
 
 
+def parse_geojson_report(gdf: gpd.GeoDataFrame) -> List[dict]:
+    features = []
+    for idx, row in gdf.iterrows():
+        props = row.drop('geometry').to_dict()
+        props["Date"] = robust_date_parse(props.get("Date"))
+        geometry = row.geometry
+        if geometry is None or geometry.is_empty:
+            logger.warning(f"Skipping feature at index {idx} with empty geometry")
+            continue
+        props["geometry"] = geometry
+        props["Material"] = props.get("Material", "").lower() if props.get("Material") else ""
+        features.append(props)
+    return features
+
+
 def load_txt_report_lines(filepath: str) -> List[str]:
     """
     Load a TXT report from file and return its non-empty lines without trailing newline characters.
@@ -84,6 +102,35 @@ def load_txt_report_lines(filepath: str) -> List[str]:
         warnings.warn(f"Error reading TXT report file {filepath}: {e}", UserWarning)
         logger.error(f"Error reading TXT report file {filepath}: {e}")
         return []
+
+
+def parse_txt_report(lines: List[str]) -> List[dict]:
+    features = []
+    for line in lines:
+        parts = [p.strip() for p in line.split(',')]
+        if len(parts) < 6:
+            logger.warning(f"Skipping malformed line: {line}")
+            continue
+        name, date_str, psi_str, material, lat_str, lon_str = parts[:6]
+
+        date = robust_date_parse(date_str)
+
+        try:
+            psi = float(psi_str)
+            lat = float(lat_str)
+            lon = float(lon_str)
+        except ValueError:
+            logger.warning(f"Skipping line with invalid numeric values: {line}")
+            continue
+
+        features.append({
+            "Name": name,
+            "Date": date,
+            "PSI": psi,
+            "Material": material.lower(),  # normalize to lowercase
+            "geometry": Point(lon, lat),
+        })
+    return features
 
 
 def read_reports(report_names: List[str], reports_folder_path: Path) -> Tuple[List[Tuple[str, gpd.GeoDataFrame]], List[Tuple[str, List[str]]]]:

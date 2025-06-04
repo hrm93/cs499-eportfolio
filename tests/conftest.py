@@ -13,6 +13,7 @@ from typing import Dict
 
 from gis_tool.logger import setup_logging
 from gis_tool import data_loader as dl
+from gis_tool import data_utils
 
 logger = logging.getLogger("gis_tool")
 
@@ -150,7 +151,7 @@ def empty_gas_lines_gdf():
     suitable for testing functions that expect an empty gas lines dataset.
     """
     logger.debug("Created empty_gas_lines_gdf fixture.")
-    return GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
+    return GeoDataFrame(columns=data_utils.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
 
 
 @pytest.fixture
