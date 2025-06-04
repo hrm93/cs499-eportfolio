@@ -17,10 +17,19 @@ Environment Variables (override config.ini):
 """
 import os
 import configparser
+from typing import cast
+
+import yaml
 
 # Load config.ini if it exists
 config = configparser.ConfigParser()
 config.read('config.ini')
+
+# Load config.yaml if it exists
+config_yaml = {}
+if os.path.exists('config.yaml'):
+    with open('config.yaml', 'r') as f:
+        config_yaml = yaml.safe_load(f) or {}
 
 
 def getenv_or_config(section, key, default):
@@ -29,62 +38,141 @@ def getenv_or_config(section, key, default):
 
     Priority: ENV > config.ini > default
     """
-    return os.getenv(key.upper(), config.get(section, key, fallback=default))
+    env_val = os.getenv(key.upper())
+    if env_val is not None:
+        return env_val
+    if config.has_option(section, key):
+        return config.get(section, key)
+    # fallback to YAML
+    return config_yaml.get(section, {}).get(key, default)
 
 
 def getenv_float(var_name: str, default: float, section='DEFAULT') -> float:
     """
-       Get an environment variable as a float.
+    Get an environment variable as a float.
 
-       Args:
-           var_name (str): The name of the environment variable.
-           default (float): The default value to use if the variable is not set or invalid.
+    Args:
+        var_name (str): The name of the environment variable.
+        default (float): The default value to use if the variable is not set or invalid.
+        section (str, optional): The config file section to read the variable from if not found in environment. Defaults to 'DEFAULT'.
 
-       Returns:
-           float: The float value of the environment variable or the default.
-       """
-    try:
-        return float(os.getenv(var_name, config.get(section, var_name.lower(), fallback=default)))
-    except (TypeError, ValueError):
-        return default
+    Returns:
+        float: The float value of the environment variable or the default.
+    """
+    val = os.getenv(var_name)
+    if val is not None:
+        try:
+            return float(val)
+        except ValueError:
+            return default
+
+    if config.has_option(section, var_name.lower()):
+        try:
+            return config.getfloat(section, var_name.lower())
+        except ValueError:
+            return default
+
+    if section in config_yaml and isinstance(config_yaml[section], dict):
+        val_yaml = config_yaml[section].get(var_name.lower(), None)
+        if val_yaml is not None:
+            try:
+                return float(val_yaml)
+            except (ValueError, TypeError):
+                return default
+
+    val_yaml = config_yaml.get(var_name, None)
+    if val_yaml is not None:
+        try:
+            return float(cast(str, val_yaml))
+        except (ValueError, TypeError):
+            return default
+
+    return default
 
 
 def getenv_int(var_name: str, default: int, section='DEFAULT') -> int:
     """
-       Get an environment variable as an integer.
+    Get an environment variable as an integer.
 
-       Args:
-           var_name (str): The name of the environment variable.
-           default (int): The default value to use if the variable is not set or invalid.
+    Args:
+        var_name (str): The name of the environment variable.
+        default (int): The default value to use if the variable is not set or invalid.
+        section (str, optional): The config file section to read the variable from if not found in environment. Defaults to 'DEFAULT'.
 
-       Returns:
-           int: The integer value of the environment variable or the default.
-       """
-    try:
-        return int(os.getenv(var_name, config.get(section, var_name.lower(), fallback=default)))
-    except (TypeError, ValueError):
-        return default
+    Returns:
+        int: The integer value of the environment variable or the default.
+    """
+    val = os.getenv(var_name)
+    if val is not None:
+        try:
+            return int(val)
+        except ValueError:
+            return default
+
+    if config.has_option(section, var_name.lower()):
+        try:
+            return config.getint(section, var_name.lower())
+        except ValueError:
+            return default
+
+    if section in config_yaml and isinstance(config_yaml[section], dict):
+        val_yaml = config_yaml[section].get(var_name.lower(), None)
+        if val_yaml is not None:
+            try:
+                return int(val_yaml)
+            except (ValueError, TypeError):
+                return default
+
+    val_yaml = config_yaml.get(var_name, None)
+    if val_yaml is not None:
+        try:
+            return int(cast(str, val_yaml))
+        except (ValueError, TypeError):
+            return default
+
+    return default
 
 
 def getenv_bool(var_name: str, default: bool, section='DEFAULT') -> bool:
     """
-       Get an environment variable as a boolean.
+    Get an environment variable as a boolean.
 
-       Accepts common truthy values like '1', 'true', 'yes', 'on' (case-insensitive).
+    Accepts common truthy values like '1', 'true', 'yes', 'on' (case-insensitive).
 
-       Args:
-           var_name (str): The name of the environment variable.
-           default (bool): The default value to use if the variable is not set or invalid.
+    Args:
+        var_name (str): The name of the environment variable.
+        default (bool): The default value to use if the variable is not set or invalid.
+        section (str, optional): The config file section to read the variable from if not found in environment. Defaults to 'DEFAULT'.
 
-       Returns:
-           bool: The boolean value of the environment variable or the default.
-       """
+    Returns:
+        bool: The boolean value of the environment variable or the default.
+    """
     val = os.getenv(var_name)
     if val is not None:
         return val.strip().lower() in ['1', 'true', 'yes', 'on']
-    # Check config.ini
-    val = config.get(section, var_name.lower(), fallback=str(default))
-    return val.strip().lower() in ['1', 'true', 'yes', 'on']
+
+    if config.has_option(section, var_name.lower()):
+        val = config.get(section, var_name.lower())
+        return val.strip().lower() in ['1', 'true', 'yes', 'on']
+
+    # Try to get from config_yaml under the section if it exists
+    if section in config_yaml and isinstance(config_yaml[section], dict):
+        val_yaml = config_yaml[section].get(var_name.lower(), None)
+        if val_yaml is not None:
+            if isinstance(val_yaml, bool):
+                return val_yaml
+            if isinstance(val_yaml, str):
+                return val_yaml.strip().lower() in ['1', 'true', 'yes', 'on']
+
+    # Fall back to top-level YAML key (for root-level keys like PARALLEL)
+    val_yaml = config_yaml.get(var_name, None)
+    if val_yaml is not None:
+        if isinstance(val_yaml, bool):
+            return val_yaml
+        if isinstance(val_yaml, str):
+            return val_yaml.strip().lower() in ['1', 'true', 'yes', 'on']
+
+    return default
 
 
 def get_driver_from_extension(path: str) -> str:

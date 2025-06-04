@@ -8,7 +8,6 @@ Verifies:
 - Parallel processing behavior
 - Logging and error handling
 """
-import os
 import logging
 from pathlib import Path
 from typing import List, Dict
