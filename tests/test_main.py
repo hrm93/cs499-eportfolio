@@ -16,7 +16,7 @@ from unittest import mock
 import pandas as pd
 import pytest
 import geopandas as gpd
-from shapely.geometry import LineString, Point
+from shapely.geometry import Point
 from pymongo.errors import ConnectionFailure
 
 from gis_tool.db_utils import connect_to_mongodb
@@ -41,38 +41,6 @@ def build_testargs(inputs: Dict[str, str]) -> List[str]:
         "--buffer-distance", "50",
         "--no-mongodb"
     ]
-
-
-@pytest.fixture
-def dummy_inputs(tmp_path: Path) -> Dict[str, str]:
-    """Creates dummy input shapefiles and report file for pipeline tests."""
-    input_folder = tmp_path / "reports"
-    input_folder.mkdir()
-    (input_folder / "dummy_report.txt").write_text("123\t456\t789\t12.34\t56.78\t90\t0\t1\n")
-
-    def create_shapefile(path, coords):
-        gdf = gpd.GeoDataFrame({"id": [1], "geometry": [LineString(coords)]}, crs="EPSG:26918")
-        gdf.to_file(path)
-
-    gas_lines_path = tmp_path / "gas_lines.shp"
-    future_dev_path = tmp_path / "future_dev.shp"
-    create_shapefile(gas_lines_path, [(0, 0), (1, 1)])
-    create_shapefile(future_dev_path, [(2, 2), (3, 3)])
-
-    return {
-        "input_folder": str(input_folder),
-        "gas_lines_path": str(gas_lines_path),
-        "future_dev_path": str(future_dev_path),
-        "output_path": str(tmp_path / "output.shp")
-    }
-
-
-@pytest.fixture
-def dummy_geojson_output(tmp_path: Path, dummy_inputs: Dict[str, str]) -> Dict[str, str]:
-    """Same as dummy_inputs but with .geojson output."""
-    inputs = dummy_inputs.copy()
-    inputs["output_path"] = str(tmp_path / "output.geojson")
-    return inputs
 
 
 # ===== MongoDB Integration Tests =====

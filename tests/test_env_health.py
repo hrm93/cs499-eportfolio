@@ -1,10 +1,12 @@
 # Test for checking environment
-import os
+
 import logging
+from pathlib import Path
 
 import fiona
 import geopandas as gpd
 import pyproj
+import pytest
 from shapely.geometry import Point
 
 logger = logging.getLogger("gis_tool")
@@ -53,7 +55,13 @@ def test_geopandas_local():
     Test that GeoPandas can read a local shapefile and it is not empty.
     """
     logger.info("Starting test: GeoPandas reading shapefile.")
-    path = os.path.join("data", "ne_110m_populated_places.shp")
+    base_dir = Path(__file__).parent.parent.resolve()
+    path = base_dir / "data" / "ne_110m_populated_places.shp"
+    logger.info(f"Testing GeoPandas file read from: {path}")
+
+    if not path.exists():
+        pytest.skip(f"Shapefile not found at {path}")
+
     gdf = gpd.read_file(path)
     logger.debug(f"GeoDataFrame shape: {gdf.shape}")
     assert not gdf.empty

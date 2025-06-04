@@ -15,69 +15,6 @@ import importlib
 import pytest
 
 import gis_tool.config as config
-from gis_tool import logger
-
-
-@pytest.fixture(scope="session", autouse=True)
-def configure_logging():
-    """
-    Pytest fixture to set up logging for the test session.
-
-    This fixture automatically initializes the logging configuration
-    defined in the gis_tool.logger module before any tests run.
-    """
-    logger.setup_logging()
-
-
-@pytest.fixture(autouse=True)
-def clear_env(monkeypatch, tmp_path):
-    """
-    Clears environment variables and provides a temporary config.ini for each test.
-    """
-    keys = [
-        "MONGODB_URI",
-        "DB_NAME",
-        "DEFAULT_CRS",
-        "DEFAULT_BUFFER_DISTANCE_FT",
-        "LOG_FILENAME",
-        "LOG_LEVEL",
-        "MAX_WORKERS",
-        "OUTPUT_FORMAT",
-        "ALLOW_OVERWRITE_OUTPUT",
-        "DRY_RUN_MODE",
-    ]
-    for key in keys:
-        monkeypatch.delenv(key, raising=False)
-
-    # Write a temporary config.ini file
-    config_file = tmp_path / "config.ini"
-    config_file.write_text("""
-[DEFAULT]
-output_format = shp
-allow_overwrite_output = false
-dry_run_mode = false
-max_workers = 2
-
-[DATABASE]
-mongodb_uri = mongodb://localhost:27017/
-db_name = test_db_ini
-
-[SPATIAL]
-default_crs = EPSG:32633
-geographic_crs = EPSG:4326
-buffer_layer_crs = EPSG:32633
-default_buffer_distance_ft = 50.0
-
-[LOGGING]
-log_filename = test.log
-log_level = debug
-
-[OUTPUT]
-output_format = geojson
-""")
-
-    monkeypatch.chdir(tmp_path)  # Switch to the tmp_path with config.ini
-    yield
 
 
 def reload_config():

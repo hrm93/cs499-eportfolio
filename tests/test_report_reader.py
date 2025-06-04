@@ -3,54 +3,11 @@ import logging
 from unittest.mock import patch
 
 import geopandas as gpd
-import pytest
 from shapely.geometry import Point
 
 from gis_tool import report_reader as rr
 
 logger = logging.getLogger("gis_tool")
-
-
-@pytest.fixture
-def tmp_reports_dir(tmp_path):
-    """
-    Fixture to create a temporary directory with sample report files:
-    - A valid GeoJSON file
-    - A valid TXT file
-    - An unsupported file type for testing filtering
-
-    Returns:
-        pathlib.Path: Path to the temporary directory with sample files.
-    """
-    logger.info("Setting up temporary reports directory with sample files.")
-
-    geojson_path = tmp_path / "test.geojson"
-    txt_path = tmp_path / "test.txt"
-    bad_file = tmp_path / "bad.xyz"
-
-    geojson_content = {
-        "type": "FeatureCollection",
-        "features": [{
-            "type": "Feature",
-            "properties": {},
-            "geometry": {
-                "type": "Point",
-                "coordinates": [0.0, 0.0]
-            }
-        }]
-    }
-    import json
-    geojson_path.write_text(json.dumps(geojson_content))
-    logger.debug(f"Wrote GeoJSON file at {geojson_path}")
-
-    txt_path.write_text("Line 1\nLine 2\n\nLine 3\n")
-    logger.debug(f"Wrote TXT file at {txt_path}")
-
-    bad_file.write_text("Unsupported file content")
-    logger.debug(f"Wrote unsupported file at {bad_file}")
-
-    logger.info("Temporary reports directory setup complete.")
-    return tmp_path
 
 
 def test_find_new_reports(tmp_reports_dir):

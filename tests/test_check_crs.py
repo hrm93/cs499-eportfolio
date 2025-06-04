@@ -1,5 +1,8 @@
 import pytest
 import geopandas as gpd
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import logging
 from pathlib import Path
@@ -31,18 +34,17 @@ def test_gas_lines_with_ensure_projected_crs(monkeypatch):
         pytest.skip(f"Real shapefile not found at {shp_path}")
 
     gas_lines = gpd.read_file(shp_path)
+    gas_lines_projected = None  # initialize before try
 
     # This should raise ValueError if no CRS; or reproject if geographic CRS
     try:
         gas_lines_projected = ensure_projected_crs(gas_lines)
+        logger.info(f"Gas lines CRS after ensure_projected_crs: {gas_lines_projected.crs}")
     except ValueError as e:
         pytest.fail(f"ensure_projected_crs raised ValueError unexpectedly: {e}")
 
-    logger.info(f"Gas lines CRS after ensure_projected_crs: {gas_lines_projected.crs}")
-
     # Patch plt.show() to avoid opening a window during tests
     monkeypatch.setattr(plt, "show", lambda: None)
-
     gas_lines_projected.plot()
     plt.title("Gas Lines after ensure_projected_crs")
     plt.show()

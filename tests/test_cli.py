@@ -1,34 +1,12 @@
 ### Tests for cli.py ###
 
 import sys
-import os
 import logging
 import pytest
 from gis_tool.cli import parse_args
 
 logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Capture all logs for test diagnostics
-
-
-@pytest.fixture(autouse=True)
-def patch_os_path(monkeypatch):
-    """Patch os.path.isdir and os.path.isfile globally for all tests."""
-    def mock_isdir(path: str) -> bool:
-        logger.debug(f"Mock isdir check: {path}")
-        if path in ['missing_input', 'missing_output_dir']:
-            logger.warning(f"Directory missing: {path}")
-            return False
-        return True
-
-    def mock_isfile(path: str) -> bool:
-        logger.debug(f"Mock isfile check: {path}")
-        if 'missing_report' in path:
-            logger.warning(f"File missing: {path}")
-            return False
-        return True
-
-    monkeypatch.setattr(os.path, "isdir", mock_isdir)
-    monkeypatch.setattr(os.path, "isfile", mock_isfile)
 
 
 def test_default_log_level(monkeypatch):

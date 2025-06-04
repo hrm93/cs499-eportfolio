@@ -19,7 +19,6 @@ logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
     ("not a date", pd.NaT),
     (None, pd.NaT),
 ])
-
 def test_robust_date_parse(input_str, expected):
     """
      Tests the robust_date_parse function with various date string formats and invalid inputs.

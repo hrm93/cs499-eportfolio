@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import geopandas as gpd
-import pytest
+
 from geopandas import GeoDataFrame
 from shapely.geometry import Point
 
@@ -43,36 +43,6 @@ CRS = "EPSG:4326"
 # Logger setup
 logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)
-
-
-# ---- FIXTURES ----
-
-@pytest.fixture
-def sample_geojson_report():
-    """
-     Provides a sample GeoJSON report as a tuple of filename and GeoDataFrame.
-     The GeoDataFrame contains a single feature with predefined attributes and geometry.
-     """
-    point = Point(1, 1)
-    gdf = GeoDataFrame({
-        'Name': ['line1'],
-        'Date': [pd.Timestamp('2023-01-01')],
-        'PSI': [50.0],
-        'Material': ['steel'],
-        'geometry': [point]
-    }, crs="EPSG:4326")
-    logger.debug("Created sample_geojson_report fixture with one feature.")
-    return "report1.geojson", gdf
-
-
-@pytest.fixture
-def empty_gas_lines_gdf():
-    """
-    Provides an empty GeoDataFrame with the schema defined in dl.SCHEMA_FIELDS,
-    suitable for testing functions that expect an empty gas lines dataset.
-    """
-    logger.debug("Created empty_gas_lines_gdf fixture.")
-    return GeoDataFrame(columns=dl.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
 
 
 # ---- UNIT TESTS ----

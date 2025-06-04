@@ -7,12 +7,6 @@ from logging.handlers import RotatingFileHandler
 from gis_tool.logger import setup_logging
 
 
-@pytest.fixture(scope="session", autouse=True)
-def init_logger():
-    """Initialize logging once per test session."""
-    setup_logging()
-
-
 def reset_logging():
     """Remove all handlers from 'gis_tool' logger to reset its state."""
     logger = logging.getLogger('gis_tool')
