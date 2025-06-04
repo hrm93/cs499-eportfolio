@@ -2,8 +2,14 @@
 
 import argparse
 import os
+import yaml
 
 import gis_tool.config as config
+
+
+def load_config_file(path):
+    with open(path, 'r') as f:
+        return yaml.safe_load(f)
 
 
 def parse_args():
@@ -90,7 +96,28 @@ def parse_args():
 
     args = parser.parse_args()
 
+    # Load and merge config file settings if provided
+    if args.config_file:
+        if not os.path.isfile(args.config_file):
+            parser.error(f"❌ Config file not found: {args.config_file}")
+
+        config_values = load_config_file(args.config_file)
+
+        for key, value in config_values.items():
+            if hasattr(args, key):
+                # Get the parser's default value for this key
+                default_val = parser.get_default(key)
+                current_val = getattr(args, key)
+                # Override only if current arg value equals the parser's default
+                if current_val == default_val:
+                    setattr(args, key, value)
+
+
     # === VALIDATION START ===
+
+    # Validate existence of --config-file if provided
+    if args.config_file and not os.path.isfile(args.config_file):
+        parser.error(f"❌ Config file does not exist: {args.config_file}")
 
     # Input folder must exist
     if not os.path.isdir(args.input_folder):

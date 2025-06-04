@@ -12,6 +12,7 @@ This script orchestrates the entire pipeline workflow including:
 Designed for robust, scalable, and parallel execution with clear logging.
 """
 import logging
+import yaml
 
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -27,13 +28,13 @@ from gis_tool.buffer_processor import (
 )
 from gis_tool.cli import parse_args
 from gis_tool.config import (
-    DEFAULT_CRS,
     DEFAULT_BUFFER_DISTANCE_FT,
-    PARALLEL,
+    DEFAULT_CRS,
+    MAX_WORKERS,
     OUTPUT_FORMAT,
     ALLOW_OVERWRITE_OUTPUT,
     DRY_RUN_MODE,
-    MAX_WORKERS,
+    PARALLEL,
 )
 from gis_tool.data_loader import create_pipeline_features
 from gis_tool.db_utils import connect_to_mongodb
@@ -117,16 +118,38 @@ def main() -> None:
     """
     setup_logging()
     args = parse_args()
-    logger.info("Pipeline processing started.")
+    config = {}
 
-    # Use config values as fallback defaults for CLI args
-    use_mongodb = args.use_mongodb if args.use_mongodb is not None else False
-    buffer_distance = args.buffer_distance or DEFAULT_BUFFER_DISTANCE_FT
-    spatial_reference = args.crs or DEFAULT_CRS
-    use_parallel = args.parallel if args.parallel is not None else PARALLEL
-    output_format = args.output_format or OUTPUT_FORMAT
-    overwrite_output = args.overwrite_output if args.overwrite_output is not None else ALLOW_OVERWRITE_OUTPUT
-    dry_run = args.dry_run if args.dry_run is not None else DRY_RUN_MODE
+    # If CLI provides a config file path, load it here
+    if args.config_file:
+        config_path = Path(args.config_file)
+        try:
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f) or {}
+            logger.info(f"Loaded configuration file: {config_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load config file {config_path}: {e}")
+            print(f"⚠️  Warning: Failed to load config file {config_path}: {e}")
+
+    # Helper function to get config value with CLI override priority
+    def get_config_value(key, default=None):
+        return getattr(args, key, None) or config.get(key, default)
+
+    # Then use get_config_value() to set your vars
+    use_mongodb = get_config_value("use_mongodb", False)
+    buffer_distance = get_config_value("buffer_distance", DEFAULT_BUFFER_DISTANCE_FT)
+    spatial_reference = get_config_value("crs", DEFAULT_CRS)
+    use_parallel = get_config_value("parallel", PARALLEL)
+    output_format = get_config_value("output_format", OUTPUT_FORMAT)
+    overwrite_output = get_config_value("overwrite_output", ALLOW_OVERWRITE_OUTPUT)
+    dry_run = get_config_value("dry_run", DRY_RUN_MODE)
+
+    # Also handle file paths similarly
+    input_folder = get_config_value("input_folder", None)
+    output_path = get_config_value("output_path", None)
+    future_development_shp = get_config_value("future_dev_path", None)
+    gas_lines_shp = get_config_value("gas_lines_path", None)
+    logger.info("Pipeline processing started.")
 
     max_workers = MAX_WORKERS
 
@@ -141,11 +164,6 @@ def main() -> None:
             print(f"⚠️  Warning: Could not connect to MongoDB - {e}")
             logger.warning(f"MongoDB connection failed: {e}")
             use_mongodb = False  # Disable MongoDB if connection fails
-
-    input_folder = args.input_folder
-    output_path = args.output_path
-    future_development_shp = args.future_dev_path
-    gas_lines_shp = args.gas_lines_path
 
     # Ensure output path is inside 'output' directory if no parent specified
     output_path_obj = Path(output_path)

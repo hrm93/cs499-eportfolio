@@ -127,9 +127,18 @@ def test_parse_args_dry_run_and_config(monkeypatch):
         "--config-file", "/path/to/config.yaml"
     ]
     monkeypatch.setattr(sys, "argv", testargs)
+
+    # MOCK load_config_file to avoid FileNotFoundError
+    monkeypatch.setattr("gis_tool.cli.load_config_file", lambda path: {
+        "buffer_distance": 50,  # example override
+        "crs": "EPSG:4326",
+        # add any other config keys your code expects
+    })
+
     args = parse_args()
     assert args.dry_run is True
     assert args.config_file == "/path/to/config.yaml"
+    assert args.buffer_distance == 50  # confirm config override worked
 
 
 def test_parse_args_no_mongodb(monkeypatch):
