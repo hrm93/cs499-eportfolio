@@ -1,5 +1,4 @@
 import logging
-import pytest
 
 logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs

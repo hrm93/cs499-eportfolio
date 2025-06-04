@@ -3,9 +3,7 @@ import json
 import tempfile
 from pathlib import Path
 import logging
-
 import geopandas as gpd
-from shapely.geometry import Point
 
 from gis_tool.report_reader import find_new_reports, read_reports
 

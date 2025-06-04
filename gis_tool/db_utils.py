@@ -12,7 +12,7 @@ from pymongo.errors import ConnectionFailure, PyMongoError
 
 from shapely.geometry import Point
 
-from gis_tool.utils import simplify_geometry
+from gis_tool.geometry_cleaning import simplify_geometry
 from gis_tool.config import MONGODB_URI, DB_NAME
 
 logger = logging.getLogger("gis_tool")
