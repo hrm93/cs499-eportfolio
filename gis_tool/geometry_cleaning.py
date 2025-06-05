@@ -1,11 +1,21 @@
 import logging
 from typing import Dict, Optional
-
+from geopandas import gpd
+from pyproj import CRS
 from shapely.geometry import mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.errors import TopologicalError
 
 logger = logging.getLogger("gis_tool")
+
+
+def get_utm_crs_for_gdf(gdf: gpd.GeoDataFrame) -> CRS:
+    """Auto-detect appropriate UTM CRS based on centroid of gdf."""
+    centroid = gdf.unary_union.centroid
+    utm_zone = int((centroid.x + 180) / 6) + 1
+    is_northern = centroid.y >= 0
+    crs_code = 32600 + utm_zone if is_northern else 32700 + utm_zone
+    return CRS.from_epsg(crs_code)
 
 
 def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:

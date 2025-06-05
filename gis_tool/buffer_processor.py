@@ -2,7 +2,8 @@
 
 import logging
 import warnings
-from typing import Optional
+from typing import Optional, Union
+from pyproj import CRS
 
 import geopandas as gpd
 import pandas as pd
@@ -18,6 +19,7 @@ from gis_tool.buffer_utils import (
     buffer_geometry_helper,
     subtract_park_from_geom_helper,
     subtract_park_from_geom,
+    log_and_filter_invalid_geometries,
 )
 logger = logging.getLogger("gis_tool")
 
@@ -60,8 +62,27 @@ def create_buffer_with_geopandas(
             warnings.warn("Input gas lines layer has no CRS. Assigning default CRS.", UserWarning)
             logger.warning("Input gas lines layer has no CRS; assigning default.")
             gas_lines_gdf = gas_lines_gdf.set_crs(config.DEFAULT_CRS)
+
         gas_lines_gdf = spatial_utils.ensure_projected_crs(gas_lines_gdf)
 
+        # === VALIDATION CHECKS BEFORE BUFFERING ===
+        allowed_geom_types = ['Point', 'LineString', 'MultiLineString', 'MultiPoint']
+        invalid_geom_types = gas_lines_gdf.geom_type[~gas_lines_gdf.geom_type.isin(allowed_geom_types)]
+        if not invalid_geom_types.empty:
+            logger.warning(
+                f"Unsupported geometry types found in gas lines for buffering: {invalid_geom_types.unique()}. "
+                "These features will be excluded from buffering."
+            )
+            gas_lines_gdf = gas_lines_gdf[gas_lines_gdf.geom_type.isin(allowed_geom_types)]
+
+        gas_lines_gdf = log_and_filter_invalid_geometries(gas_lines_gdf, "Gas Lines")
+
+        if gas_lines_gdf.empty:
+            warnings.warn("No valid gas line geometries found for buffering after validation.", UserWarning)
+            logger.warning("Gas lines GeoDataFrame is empty after filtering invalid geometries.")
+            return gas_lines_gdf  # Return empty GeoDataFrame early
+
+        # === BUFFERING ===
         if use_multiprocessing:
             logger.info("Buffering geometries with multiprocessing.")
             args = [(geom, buffer_distance_m) for geom in gas_lines_gdf.geometry]
@@ -70,6 +91,18 @@ def create_buffer_with_geopandas(
             logger.info("Buffering geometries sequentially.")
             gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.buffer(buffer_distance_m)
 
+        # Fix geometries after buffering
+        gas_lines_gdf['geometry'] = gas_lines_gdf.geometry.apply(fix_geometry)
+
+        # Log and filter invalid geometries after buffering
+        gas_lines_gdf = log_and_filter_invalid_geometries(gas_lines_gdf, "Buffered Gas Lines")
+
+        if gas_lines_gdf.empty:
+            warnings.warn("No valid buffer geometries remain after buffering.", UserWarning)
+            logger.warning("Buffered gas lines GeoDataFrame is empty after filtering invalid geometries.")
+            return gas_lines_gdf  # Return early if empty
+
+        # Subtract parks if provided
         if parks_path:
             warnings.warn("Subtracting parks from buffers. Ensure parks data is clean and valid.", UserWarning)
             logger.info(f"Subtracting parks from buffers using parks layer at {parks_path}")
@@ -78,7 +111,6 @@ def create_buffer_with_geopandas(
         logger.debug("Buffering complete.")
 
         # Filter to keep only buffered polygons that intersect original gas lines
-        # Apply row-wise: for each buffered geometry, check if it intersects with any gas line
         gas_lines_gdf = gas_lines_gdf[
             gas_lines_gdf.geometry.apply(lambda buf_geom: buffer_intersects_gas_lines(buf_geom, gas_lines_gdf))
         ]
@@ -100,7 +132,7 @@ def create_buffer_with_geopandas(
 
 def subtract_parks_from_buffer(
     buffer_gdf: gpd.GeoDataFrame,
-    parks_path: str,
+    parks_path: Optional[str] = None,
     use_multiprocessing: bool = False,
 ) -> gpd.GeoDataFrame:
     """
@@ -116,6 +148,10 @@ def subtract_parks_from_buffer(
       """
     logger.info(f"subtract_parks_from_buffer called with parks_path: {parks_path}")
     try:
+        if parks_path is None:
+            logger.info("No parks path provided, returning buffer unchanged.")
+            return buffer_gdf.copy()
+
         # Load parks layer
         parks_gdf = gpd.read_file(parks_path)
         logger.debug("Parks layer loaded successfully.")
@@ -123,13 +159,23 @@ def subtract_parks_from_buffer(
         # Validate and reproject CRS of parks_gdf using centralized helper
         parks_gdf = validate_and_reproject_crs(parks_gdf, buffer_gdf.crs, "parks")
 
-        # Fix geometries to ensure validity
-        parks_gdf['geometry'] = parks_gdf.geometry.apply(fix_geometry)
-        buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
+        # === VALIDATION CHECKS FOR PARKS ===
+        allowed_park_types = ['Polygon', 'MultiPolygon']
+        invalid_park_types = parks_gdf.geom_type[~parks_gdf.geom_type.isin(allowed_park_types)]
+        if not invalid_park_types.empty:
+            logger.warning(
+                f"Unsupported geometry types in parks layer: {invalid_park_types.unique()}. These will be excluded."
+            )
+            parks_gdf = parks_gdf[parks_gdf.geom_type.isin(allowed_park_types)]
 
-        # Initial geometry validation to clean up inputs
-        parks_gdf = parks_gdf[parks_gdf.geometry.notnull() & parks_gdf.geometry.is_valid]
-        buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid]
+        # Fix geometries to ensure validity
+        parks_gdf = parks_gdf[parks_gdf.geometry.notnull()]
+        parks_gdf['geometry'] = parks_gdf.geometry.apply(fix_geometry)
+        parks_gdf = log_and_filter_invalid_geometries(parks_gdf, "Parks")
+
+        buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull()]
+        buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
+        buffer_gdf = log_and_filter_invalid_geometries(buffer_gdf, "Buffers")
 
         if parks_gdf.empty:
             warnings.warn("No valid park geometries found for subtraction.", UserWarning)
@@ -155,16 +201,19 @@ def subtract_parks_from_buffer(
 
         logger.info(f"Subtraction complete. Remaining features: {len(buffer_gdf)}")
         return buffer_gdf
+
     except Exception as e:
         logger.exception(f"Error in subtract_parks_from_buffer: {e}")
         warnings.warn(f"Error subtracting parks: {e}", UserWarning)
         raise
 
+CRSLike = Union[str, CRS]
 
 def merge_buffers_into_planning_file(
     unique_output_buffer: str,
     future_development_feature_class: str,
     point_buffer_distance: float = 10.0,
+    output_crs: Optional[CRSLike] = None,
 ) -> gpd.GeoDataFrame:
     """
        Merge buffer polygons into a Future Development planning layer by appending features.
@@ -181,6 +230,7 @@ def merge_buffers_into_planning_file(
            unique_output_buffer (str): File path to the buffer polygons shapefile.
            future_development_feature_class (str): File path to the Future Development shapefile.
            point_buffer_distance (float): Buffer distance in meters to convert non-polygon features to polygons.
+           output_crs (Optional[CRSLike]): CRS to which the merged GeoDataFrame will be projected before saving.
 
        Returns:
            gpd.GeoDataFrame: The merged GeoDataFrame.
@@ -191,27 +241,40 @@ def merge_buffers_into_planning_file(
         future_dev_gdf = gpd.read_file(future_development_feature_class)
 
         if buffer_gdf.empty:
-            warnings.warn("No buffer geometries found; no update applied to Future Development layer.", UserWarning)
+            warnings.warn(
+                "No buffer geometries found; no update applied to Future Development layer.",
+                UserWarning,
+            )
             logger.warning("Buffer GeoDataFrame is empty; no geometries to merge.")
             logger.info(
-                f"No update performed on '{future_development_feature_class}'; existing data remains unchanged.")
+                f"No update performed on '{future_development_feature_class}'; existing data remains unchanged."
+            )
             # Return the original future development GeoDataFrame unchanged
             return future_dev_gdf
 
         if future_dev_gdf.empty:
-            warnings.warn("Future Development layer is empty; merged output will contain only buffer polygons.",
-                          UserWarning)
-            logger.warning("Future Development GeoDataFrame is empty; result will contain only buffer polygons.")
+            warnings.warn(
+                "Future Development layer is empty; merged output will contain only buffer polygons.",
+                          UserWarning,
+            )
+            logger.warning(
+                "Future Development GeoDataFrame is empty; result will contain only buffer polygons."
+            )
 
         # Assign CRS if missing, with warnings
         if not future_dev_gdf.crs or future_dev_gdf.crs.to_string() == '':
-            warnings.warn("Future Development layer missing CRS; assigning default geographic CRS EPSG:4326.",
-                          UserWarning)
+            warnings.warn(
+                "Future Development layer missing CRS; assigning default geographic CRS EPSG:4326.",
+                          UserWarning,
+            )
             logger.warning("Future Development layer missing CRS; defaulting to EPSG:4326.")
             future_dev_gdf = future_dev_gdf.set_crs(config.GEOGRAPHIC_CRS, allow_override=True)
 
         if not buffer_gdf.crs or buffer_gdf.to_string() == '':
-            warnings.warn("Buffer layer missing CRS; assigning default projected CRS EPSG:32610.", UserWarning)
+            warnings.warn(
+                "Buffer layer missing CRS; assigning default projected CRS EPSG:32610.",
+                UserWarning,
+            )
             logger.warning("Buffer layer missing CRS; defaulting to EPSG:32610.")
             buffer_gdf = buffer_gdf.set_crs(config.BUFFER_LAYER_CRS, allow_override=True)
 
@@ -225,52 +288,83 @@ def merge_buffers_into_planning_file(
         future_dev_gdf = ensure_projected_crs(future_dev_gdf)
 
         if buffer_gdf.crs != future_dev_gdf.crs:
-            warnings.warn("Buffer layer CRS differs from Future Development CRS; reprojecting buffer layer.",
-                          UserWarning)
+            warnings.warn(
+                "Buffer layer CRS differs from Future Development CRS; reprojecting buffer layer.",
+                          UserWarning,
+            )
             logger.info(f"Reprojecting buffer from {buffer_gdf.crs} to {future_dev_gdf.crs}")
             buffer_gdf = buffer_gdf.to_crs(future_dev_gdf.crs)
 
         if not buffer_gdf.geom_type.isin(['Polygon', 'MultiPolygon']).all():
-            raise ValueError("Buffer shapefile must contain only polygon or multipolygon geometries.")
+            raise ValueError(
+                "Buffer shapefile must contain only polygon or multipolygon geometries."
+            )
 
-        unique_future_geom_types = future_dev_gdf.geom_type.unique()
-        if len(unique_future_geom_types) != 1:
-            raise ValueError(f"Future Development shapefile has mixed geometry types: {unique_future_geom_types}")
+        # Only check future_dev_gdf geometry types if it's not empty
+        if not future_dev_gdf.empty:
+            unique_future_geom_types = future_dev_gdf.geom_type.unique()
+            if len(unique_future_geom_types) != 1:
+                raise ValueError(
+                    f"Future Development shapefile has mixed geometry types: {unique_future_geom_types}"
+                )
 
-        future_geom_type = unique_future_geom_types[0]
+            future_geom_type = unique_future_geom_types[0]
 
-        if future_geom_type not in ['Polygon', 'MultiPolygon']:
-            logger.info(f"Converting Future Development geometries from {future_geom_type} to polygons by buffering with {point_buffer_distance} meters.")
-            if future_geom_type in ['Point', 'LineString']:
-                original_crs = future_dev_gdf.crs
-                projected = future_dev_gdf.to_crs(epsg=3857)
-                buffered = projected.geometry.buffer(point_buffer_distance).buffer(0)
-                future_dev_gdf['geometry'] = gpd.GeoSeries(buffered, crs=projected.crs).to_crs(original_crs)
-            else:
-                raise ValueError(f"Unsupported Future Development geometry type '{future_geom_type}' for conversion.")
+            if future_geom_type not in ['Polygon', 'MultiPolygon']:
+                logger.info(
+                    f"Converting Future Development geometries from {future_geom_type} to polygons by buffering with {point_buffer_distance} meters."
+                )
+                if future_geom_type in ['Point', 'LineString']:
+                    original_crs = future_dev_gdf.crs
+                    projected = future_dev_gdf.to_crs(epsg=3857)
+                    buffered = projected.geometry.buffer(point_buffer_distance).buffer(0)
+                    future_dev_gdf['geometry'] = (
+                        gpd.GeoSeries(buffered, crs=projected.crs).to_crs(original_crs)
+                    )
+                else:
+                    raise ValueError(
+                        f"Unsupported Future Development geometry type '{future_geom_type}' for conversion."
+                    )
 
         # Clean and fix geometries
         future_dev_gdf['geometry'] = future_dev_gdf.geometry.apply(fix_geometry)
         buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)
 
-        future_dev_gdf = future_dev_gdf[future_dev_gdf.geometry.notnull() & future_dev_gdf.geometry.is_valid & ~future_dev_gdf.geometry.is_empty]
-        buffer_gdf = buffer_gdf[buffer_gdf.geometry.notnull() & buffer_gdf.geometry.is_valid & ~buffer_gdf.geometry.is_empty]
+        # Filter invalid or empty geometries
+        future_dev_gdf = future_dev_gdf[
+            future_dev_gdf.geometry.notnull()
+            & future_dev_gdf.geometry.is_valid
+            & ~future_dev_gdf.geometry.is_empty
+        ]
+        buffer_gdf = buffer_gdf[
+            buffer_gdf.geometry.notnull()
+            & buffer_gdf.geometry.is_valid
+            & ~buffer_gdf.geometry.is_empty]
 
-        driver = config.get_driver_from_extension(future_development_feature_class)
-
+        # Merge GeoDataFrames
         frames = [df for df in [future_dev_gdf, buffer_gdf] if not df.empty]
         merged_gdf = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=future_dev_gdf.crs)
 
         logger.info(f"Merged GeoDataFrame has {len(merged_gdf)} features after merging and cleaning.")
 
+        # Reproject merged GeoDataFrame to output CRS (user-specified or original)
+        if output_crs is None:
+            output_crs = buffer_gdf.crs if not buffer_gdf.empty else future_dev_gdf.crs
+
+        merged_gdf = merged_gdf.to_crs(output_crs)
+
         if merged_gdf.empty:
-            logger.warning(f"Merged GeoDataFrame is empty; skipping writing to {future_development_feature_class}")
+            logger.warning(
+                f"Merged GeoDataFrame is empty; skipping writing to {future_development_feature_class}"
+            )
             # Return empty GeoDataFrame with correct CRS without writing file
             return gpd.GeoDataFrame(geometry=[], crs=future_dev_gdf.crs)
-        else:
-            merged_gdf.to_file(future_development_feature_class, driver=driver)
-            logger.info(f"Merged data saved to {future_development_feature_class}")
-            return merged_gdf
+
+        driver = config.get_driver_from_extension(future_development_feature_class)
+        merged_gdf.to_file(future_development_feature_class, driver=driver)
+        logger.info(f"Merged data saved to {future_development_feature_class}")
+
+        return merged_gdf
 
     except (OSError, IOError, ValueError, fiona.errors.FionaError) as e:
         logger.exception(f"Error in merge_buffers_into_planning_file: {e}")

@@ -1,6 +1,7 @@
 ### buffer_utils
 import logging
 import warnings
+import geopandas as gpd
 
 from shapely.geometry import Polygon
 from shapely.geometry.base import BaseGeometry
@@ -106,3 +107,18 @@ def subtract_park_from_geom_helper(geom_and_parks):
     geom, parks_geoms = geom_and_parks
     logger.debug("subtract_park_from_geom_helper called.")
     return subtract_park_from_geom(geom, parks_geoms)
+
+
+def log_and_filter_invalid_geometries(gdf: gpd.GeoDataFrame, layer_name: str) -> gpd.GeoDataFrame:
+    """Helper to log and filter out null, empty, and invalid geometries from a GeoDataFrame."""
+    null_or_empty = gdf.geometry.is_empty | gdf.geometry.isnull()
+    if null_or_empty.any():
+        logger.warning(f"{layer_name}: {null_or_empty.sum()} features with empty or null geometries excluded.")
+    gdf = gdf[~null_or_empty]
+
+    invalid = ~gdf.geometry.is_valid
+    if invalid.any():
+        logger.warning(f"{layer_name}: {invalid.sum()} invalid geometries excluded.")
+    gdf = gdf[gdf.geometry.is_valid]
+
+    return gdf
