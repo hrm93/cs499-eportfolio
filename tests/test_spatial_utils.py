@@ -14,6 +14,8 @@ from gis_tool.spatial_utils import (
     validate_geometry_column,
     ensure_projected_crs,
     buffer_intersects_gas_lines,
+    validate_geometry_crs,
+    reproject_geometry_to_crs
 )
 from gis_tool import config
 from gis_tool.buffer_processor import (
@@ -187,6 +189,73 @@ def test_create_pipeline_features_calls_geometry_validation(monkeypatch):
 
     assert called.get('called', False) is True
     logger.info("test_create_pipeline_features_calls_geometry_validation passed.")
+
+
+def test_validate_geometry_crs_with_empty_geometry():
+    """
+    Test that validate_geometry_crs returns True for empty geometries.
+    """
+    empty_geom = Point()
+    result = validate_geometry_crs(empty_geom, "EPSG:4326")
+    logger.info("Empty geometry CRS validation result: %s", result)
+    assert result is True
+
+
+def test_validate_geometry_crs_with_valid_geometry():
+    """
+    Test that validate_geometry_crs returns True for valid geometries.
+    """
+    point = Point(0, 0)
+    result = validate_geometry_crs(point, "EPSG:4326")
+    logger.info("Valid geometry CRS validation result: %s", result)
+    assert result is True
+
+
+def test_validate_geometry_crs_with_invalid_geometry():
+    """
+    Test that validate_geometry_crs returns False for invalid geometry input types.
+    """
+    class DummyGeometry:
+        pass
+
+    dummy_geom = DummyGeometry()
+    result = validate_geometry_crs(dummy_geom, "EPSG:4326") # type: ignore[arg-type]
+    logger.info("Dummy geometry CRS validation result: %s", result)
+    assert result is False
+
+
+def test_reproject_geometry_to_crs_same_crs():
+    """
+    Test that reproject_geometry_to_crs returns the same geometry when reprojecting to the same CRS.
+    """
+    line = LineString([(0, 0), (1, 1)])
+    reprojected = reproject_geometry_to_crs(line, "EPSG:4326", "EPSG:4326")
+    logger.info("Reprojected geometry: %s", reprojected)
+    assert isinstance(reprojected, LineString)
+    assert reprojected.equals(line)
+
+
+def test_reproject_geometry_to_crs_with_point():
+    """
+    Test that reproject_geometry_to_crs properly reprojects Point geometry.
+    """
+    point = Point(0, 0)
+    reprojected = reproject_geometry_to_crs(point, "EPSG:4326", "EPSG:3857")
+    logger.info("Reprojected Point geometry: %s", reprojected)
+    assert isinstance(reprojected, Point)
+    # Note: 0,0 in lat/lon is also 0,0 in EPSG:3857
+    assert reprojected.equals(Point(0, 0))
+
+
+def test_reproject_geometry_to_crs_with_linestring():
+    """
+    Test that reproject_geometry_to_crs properly reprojects LineString geometry.
+    """
+    line = LineString([(0, 0), (1, 1)])
+    reprojected = reproject_geometry_to_crs(line, "EPSG:4326", "EPSG:3857")
+    logger.info("Reprojected LineString geometry: %s", reprojected)
+    assert isinstance(reprojected, LineString)
+    assert not reprojected.equals(line)  # coordinates should change
 
 
 def test_ensure_projected_crs_already_projected():

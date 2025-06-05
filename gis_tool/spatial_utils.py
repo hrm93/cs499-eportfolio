@@ -80,6 +80,49 @@ def validate_geometry_column(
     return gdf
 
 
+def validate_geometry_crs(geometry: BaseGeometry, expected_crs: str) -> bool:
+    """
+    Validate if a shapely geometry matches the expected CRS.
+    Since shapely geometries have no CRS, we wrap them in a GeoSeries to check CRS.
+
+    Args:
+        geometry (BaseGeometry): Shapely geometry object.
+        expected_crs (str): Expected CRS string, e.g., 'EPSG:4326'.
+
+    Returns:
+        bool: True if CRS matches expected CRS or geometry is empty; False otherwise.
+    """
+    try:
+        if geometry.is_empty:
+            return True
+
+        # Wrap in GeoSeries, assign expected CRS
+        gs = gpd.GeoSeries([geometry], crs=expected_crs)
+        return gs.crs.to_string() == expected_crs
+    except (AttributeError, ValueError, TypeError) as e:
+        # Log the specific error for debugging
+        logging.getLogger("gis_tool").error(f"CRS validation error: {e}")
+        return False
+
+
+def reproject_geometry_to_crs(geom: BaseGeometry, source_crs: str, target_crs: str) -> BaseGeometry:
+    """
+    Reproject a single shapely geometry from source_crs to target_crs.
+
+    Args:
+        geom (BaseGeometry): The geometry to reproject.
+        source_crs (str): The current CRS of the geometry, e.g., 'EPSG:4326'.
+        target_crs (str): The target CRS, e.g., 'EPSG:3857'.
+
+    Returns:
+        BaseGeometry: The reprojected geometry.
+    """
+    # Wrap geometry into a GeoSeries to use geopandas reprojection
+    geo_series = gpd.GeoSeries([geom], crs=source_crs)
+    reprojected_series = geo_series.to_crs(target_crs)
+    return reprojected_series.iloc[0]
+
+
 def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     Ensure the GeoDataFrame has a projected CRS. If not, reproject to DEFAULT_CRS.

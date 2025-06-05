@@ -41,7 +41,11 @@ from pymongo.collection import Collection
 
 from gis_tool import report_reader
 from gis_tool.data_utils import create_and_upsert_feature
-from gis_tool.spatial_utils import validate_and_reproject_crs, validate_geometry_column
+from gis_tool.spatial_utils import (
+    validate_and_reproject_crs,
+    validate_geometry_column,
+    validate_geometry_crs
+)
 from gis_tool.db_utils import upsert_mongodb_feature
 
 logger = logging.getLogger("gis_tool")
@@ -91,11 +95,15 @@ def create_pipeline_features(
     if gas_lines_gdf.crs.to_string() != spatial_reference:
         gas_lines_gdf = validate_and_reproject_crs(gas_lines_gdf, spatial_reference, "gas_lines_gdf")
 
+    # Geometry column validation for gas_lines_gdf
+    gas_lines_gdf = validate_geometry_column(gas_lines_gdf, "gas_lines_gdf", allowed_geom_types=["LineString", "Point"])
+
     required_fields = ["Name", "Date", "PSI", "Material", "geometry"]
 
     def process_features(feature_list: List[dict]) -> None:
         nonlocal gas_lines_gdf, features_added
         for feat in feature_list:
+
             # Validate required keys presence per feature to avoid KeyError
             missing_keys = [key for key in required_fields if key not in feat]
             if missing_keys:
@@ -103,6 +111,33 @@ def create_pipeline_features(
                 continue
 
             if feat["Name"] in processed_pipelines:
+                continue
+
+            geom = feat["geometry"]
+
+            # Assign CRS if missing (assume spatial_reference)
+            if not hasattr(geom, "crs") or geom.crs is None:
+                # Wrap geometry into GeoSeries to assign CRS
+                geom = gpd.GeoSeries([geom], crs=spatial_reference).iloc[0]
+                feat["geometry"] = geom
+                logger.debug(f"Assigned CRS {spatial_reference} to feature '{feat['Name']}' geometry.")
+
+            # Reproject geometry if CRS differs
+            elif geom.crs.to_string() != spatial_reference:
+                from gis_tool.spatial_utils import reproject_geometry_to_crs
+                geom = reproject_geometry_to_crs(geom, spatial_reference)
+                feat["geometry"] = geom
+                logger.debug(f"Reprojected feature '{feat['Name']}' geometry to CRS {spatial_reference}.")
+
+            # Validate geometry type
+            geom_type = feat["geometry"].geom_type if feat.get("geometry") else None
+            if geom_type not in ["Point", "LineString"]:
+                logger.error(f"Unsupported geometry type '{geom_type}' in feature '{feat['Name']}'. Skipping.")
+                continue
+
+            # Now the geometry CRS should match spatial_reference, but validate anyway
+            if not validate_geometry_crs(feat["geometry"], spatial_reference):
+                logger.error(f"Geometry CRS mismatch or undefined in feature '{feat['Name']}'. Skipping.")
                 continue
 
             before_len = len(gas_lines_gdf)
@@ -121,7 +156,7 @@ def create_pipeline_features(
                 processed_pipelines.add(feat["Name"])
                 features_added = True
 
-            # MongoDB upsert directly for feature (in addition to create_and_upsert_feature logic)
+            # MongoDB upsert directly for feature
             if use_mongodb and gas_lines_collection is not None:
                 try:
                     upsert_mongodb_feature(
@@ -130,7 +165,7 @@ def create_pipeline_features(
                         date=feat["Date"],
                         psi=feat["PSI"],
                         material=feat["Material"],
-                        geometry=feat["geometry"]
+                        geometry=geom
                     )
                     logger.debug(f"Upserted feature '{feat['Name']}' into MongoDB.")
                 except Exception as e:
