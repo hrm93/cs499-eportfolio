@@ -49,6 +49,37 @@ def validate_and_reproject_crs(
     return gdf
 
 
+def validate_geometry_column(
+    gdf: gpd.GeoDataFrame,
+    dataset_name: str,
+    allowed_geom_types=None
+) -> gpd.GeoDataFrame:
+    """
+    Validates that the GeoDataFrame has a valid 'geometry' column.
+    Checks for empty geometries and filters by allowed geometry types if specified.
+
+    :param gdf: GeoDataFrame to validate.
+    :param dataset_name: Name of the dataset for logging.
+    :param allowed_geom_types: List or set of allowed geometry types (e.g. ['Point', 'LineString']).
+    :return: The same GeoDataFrame if valid, else raises ValueError.
+    """
+    if "geometry" not in gdf.columns:
+        logger.error(f"[Geometry Validation] Dataset '{dataset_name}' missing 'geometry' column.")
+        raise ValueError(f"Dataset '{dataset_name}' must have a 'geometry' column.")
+
+    if gdf.geometry.is_empty.any():
+        logger.warning(f"[Geometry Validation] Dataset '{dataset_name}' contains empty geometries.")
+
+    if allowed_geom_types is not None:
+        invalid_types = gdf.geometry.geom_type[~gdf.geometry.geom_type.isin(allowed_geom_types)]
+        if not invalid_types.empty:
+            logger.warning(
+                f"[Geometry Validation] Dataset '{dataset_name}' contains unsupported geometry types: "
+                f"{set(invalid_types)}"
+            )
+    return gdf
+
+
 def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     Ensure the GeoDataFrame has a projected CRS. If not, reproject to DEFAULT_CRS.

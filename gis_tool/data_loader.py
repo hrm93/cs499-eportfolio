@@ -41,7 +41,7 @@ from pymongo.collection import Collection
 
 from gis_tool import report_reader
 from gis_tool.data_utils import create_and_upsert_feature
-from gis_tool.spatial_utils import validate_and_reproject_crs
+from gis_tool.spatial_utils import validate_and_reproject_crs, validate_geometry_column
 from gis_tool.db_utils import upsert_mongodb_feature
 
 logger = logging.getLogger("gis_tool")
@@ -151,8 +151,12 @@ def create_pipeline_features(
             processed_reports.add(report_name)
             continue
 
+        # Validate and reproject CRS
         if gdf.crs is None or gdf.crs.to_string() != spatial_reference:
             gdf = validate_and_reproject_crs(gdf, spatial_reference, report_name)
+
+        # Validate geometry column and types (assuming LineString or Point)
+        gdf = validate_geometry_column(gdf, report_name, allowed_geom_types=["LineString", "Point"])
 
         features = report_reader.parse_geojson_report(gdf)
         process_features(features)

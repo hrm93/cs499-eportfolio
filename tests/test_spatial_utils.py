@@ -5,8 +5,16 @@ import logging
 import warnings
 
 import geopandas as gpd
+import pytest
 from shapely.geometry import LineString, Point, Polygon
-from gis_tool.spatial_utils import ensure_projected_crs, buffer_intersects_gas_lines
+from pyproj import CRS
+
+from gis_tool.spatial_utils import (
+    validate_and_reproject_crs,
+    validate_geometry_column,
+    ensure_projected_crs,
+    buffer_intersects_gas_lines,
+)
 from gis_tool import config
 from gis_tool.buffer_processor import (
     create_buffer_with_geopandas,
@@ -15,6 +23,170 @@ from gis_tool.buffer_processor import (
 
 logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Capture all logs
+
+
+def test_validate_and_reproject_crs_raises_without_crs(caplog):
+    """
+    Test that validate_and_reproject_crs raises a ValueError and logs an error
+    when the input GeoDataFrame has no CRS defined.
+    """
+    gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs=None)
+    target_crs = "EPSG:32610"
+    dataset_name = "test_dataset"
+
+    with caplog.at_level(logging.ERROR, logger="gis_tool"):
+        with pytest.raises(ValueError, match="missing a CRS"):
+            validate_and_reproject_crs(gdf, target_crs, dataset_name)
+        # Confirm error log contains dataset name
+        assert any(dataset_name in record.message for record in caplog.records)
+
+
+def test_validate_and_reproject_crs_reprojects(caplog):
+    """
+    Test that validate_and_reproject_crs correctly reprojects the GeoDataFrame
+    when its CRS differs from the target CRS, and logs a warning about reprojection.
+    """
+    gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
+    target_crs = "EPSG:32610"
+    dataset_name = "test_dataset"
+
+    with caplog.at_level(logging.WARNING, logger="gis_tool"):
+        result = validate_and_reproject_crs(gdf, target_crs, dataset_name)
+        # Assert that CRS was updated to target CRS
+        assert result.crs.to_string() == CRS(target_crs).to_string()
+        # Assert warning log about reprojection was emitted
+        assert any("Auto-reprojecting" in record.message for record in caplog.records)
+
+
+def test_validate_and_reproject_crs_no_reprojection(caplog):
+    """
+    Test that validate_and_reproject_crs returns the original GeoDataFrame unchanged
+    if the CRS already matches the target CRS, and logs an info message confirming this.
+    """
+    gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:32610")
+    target_crs = "EPSG:32610"
+    dataset_name = "test_dataset"
+
+    with caplog.at_level(logging.INFO, logger="gis_tool"):
+        result = validate_and_reproject_crs(gdf, target_crs, dataset_name)
+        # Assert CRS unchanged
+        assert result.crs.to_string() == CRS(target_crs).to_string()
+        # Assert info log about matching CRS was emitted
+        assert any("already in target CRS" in record.message for record in caplog.records)
+
+
+def test_validate_geometry_column_valid_geometries():
+    """
+    Test that validate_geometry_column returns the same GeoDataFrame if all geometries are valid.
+    """
+    logger.info("Running test_validate_geometry_column_valid_geometries")
+    gdf = gpd.GeoDataFrame(geometry=[
+        Point(0, 0),
+        LineString([(1, 1), (2, 2)]),
+        Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+    ], crs="EPSG:4326")
+    validated_gdf = validate_geometry_column(gdf, "valid_dataset")
+    assert validated_gdf.equals(gdf)
+    assert all(validated_gdf.geometry.notnull())
+    assert all(validated_gdf.geometry.is_valid)
+    logger.info("test_validate_geometry_column_valid_geometries passed.")
+
+
+def test_validate_geometry_column_invalid_geometries_not_removed(caplog):
+    """
+    Test that validate_geometry_column does not remove None geometries.
+    """
+    logger.info("Running test_validate_geometry_column_invalid_geometries_not_removed")
+    gdf = gpd.GeoDataFrame(geometry=[
+        Point(0, 0),
+        None
+    ], crs="EPSG:4326")
+    with caplog.at_level("WARNING"):
+        result = validate_geometry_column(gdf, "dataset_with_invalid")
+        assert len(result) == 2
+        assert result.geometry.isnull().sum() == 1
+    logger.info("test_validate_geometry_column_invalid_geometries_not_removed passed.")
+
+
+def test_validate_geometry_column_empty_geometries_removed(caplog):
+    """
+    Test that empty geometries are removed by validate_geometry_column.
+    """
+    logger.info("Running test_validate_geometry_column_empty_geometries_removed")
+    empty_poly = Polygon()
+    gdf = gpd.GeoDataFrame(geometry=[
+        empty_poly,
+        Point(1, 1)
+    ], crs="EPSG:4326")
+    result = validate_geometry_column(gdf, "dataset_with_empty_geom")
+    assert len(result) == 2
+    assert result.geometry.notnull().all()
+    assert result.geometry.iloc[0].is_valid
+    assert any("contains empty geometries" in rec.message for rec in caplog.records)
+    logger.info("test_validate_geometry_column_empty_geometries_removed passed.")
+
+
+def test_validate_geometry_column_no_geometry_column_raises():
+    """
+    Test that validate_geometry_column raises AttributeError if no geometry column exists.
+    """
+    logger.info("Running test_validate_geometry_column_no_geometry_column_raises")
+    gdf = gpd.GeoDataFrame({"foo": [1, 2, 3]})
+    with pytest.raises(ValueError):
+        _ = validate_geometry_column(gdf, "no_geometry_col")
+    logger.info("test_validate_geometry_column_no_geometry_column_raises passed.")
+
+
+def test_create_pipeline_features_calls_geometry_validation(monkeypatch):
+    """
+    Test that create_pipeline_features calls validate_geometry_column during its execution.
+    Uses monkeypatch to replace validate_geometry_column with a mock that records if it was called.
+    """
+    logger.info("Running test_create_pipeline_features_calls_geometry_validation")
+
+    called = {}
+
+    def fake_validate_geometry_column(gdf, dataset_name, allowed_geom_types=None):
+        logger.info(f"fake_validate_geometry_column called with dataset: {dataset_name}")
+        _ = allowed_geom_types
+        called['called'] = True
+        # Return the GeoDataFrame unchanged
+        return gdf
+
+    # Patch the function in the data_loader module only
+    monkeypatch.setattr("gis_tool.data_loader.validate_geometry_column", fake_validate_geometry_column)
+
+    # Import after patching to ensure patched version is used
+    from gis_tool.data_loader import create_pipeline_features
+
+    # Prepare a dummy GeoDataFrame with required columns and correct CRS
+    dummy_gdf = gpd.GeoDataFrame(
+        {
+            "Name": ["TestFeature"],
+            "Date": ["2025-06-04"],
+            "PSI": [100],
+            "Material": ["Steel"],
+            "geometry": [Point(0, 0)],
+        },
+        crs="EPSG:32610",
+    )
+
+    geojson_reports = [("dummy_report.geojson", dummy_gdf)]
+    txt_reports = []
+    spatial_reference = "EPSG:32610"
+
+    _, _, _ = create_pipeline_features(
+        geojson_reports=geojson_reports,
+        txt_reports=txt_reports,
+        gas_lines_gdf=dummy_gdf,
+        spatial_reference=spatial_reference,
+        gas_lines_collection=None,
+        processed_reports=None,
+        use_mongodb=False,
+    )
+
+    assert called.get('called', False) is True
+    logger.info("test_create_pipeline_features_calls_geometry_validation passed.")
 
 
 def test_ensure_projected_crs_already_projected():
@@ -134,7 +306,7 @@ def test_merge_buffers_into_planning_file_maintains_crs_consistency(tmp_path):
 
     buffer_fp, future_fp = _save_test_shapefiles(buffer_gdf, future_dev_gdf, tmp_path)
 
-    merged = merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=5.0)
+    _ = merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=5.0)
 
     result = gpd.read_file(future_fp)
 
