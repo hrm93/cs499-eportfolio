@@ -7,9 +7,131 @@ import pytest
 from pymongo.errors import ConnectionFailure
 from shapely.geometry import Point
 
-from gis_tool.db_utils import connect_to_mongodb, upsert_mongodb_feature
+from gis_tool.db_utils import (
+    ensure_spatial_index,
+    connect_to_mongodb,
+    upsert_mongodb_feature,
+    ensure_collection_schema,
+    spatial_feature_schema,
+)
 
 logger = logging.getLogger("gis_tool")
+
+
+# ------------------------
+# Tests for ensure_spatial_index
+# ------------------------
+
+def test_ensure_spatial_index_creates_index(monkeypatch, caplog):
+    """
+    Test that ensure_spatial_index creates the 2dsphere index when missing.
+    """
+    logger.info("Testing ensure_spatial_index: creates index if missing.")
+
+    mock_collection = MagicMock()
+    mock_collection.index_information.return_value = {}
+
+    ensure_spatial_index(mock_collection)
+
+    mock_collection.create_index.assert_called_once_with([("geometry", "2dsphere")])
+
+    assert "Created 2dsphere index" in caplog.text
+    logger.info("ensure_spatial_index creates index test passed.")
+
+
+def test_ensure_spatial_index_skips_existing_index(monkeypatch, caplog):
+    """
+    Test that ensure_spatial_index does not recreate an index if it already exists.
+    """
+    logger.info("Testing ensure_spatial_index: skips creation if index exists.")
+
+    mock_collection = MagicMock()
+    mock_collection.index_information.return_value = {"geometry_2dsphere": {}}
+
+    ensure_spatial_index(mock_collection)
+
+    mock_collection.create_index.assert_not_called()
+
+    assert "2dsphere index already exists" in caplog.text
+    logger.info("ensure_spatial_index skips existing index test passed.")
+
+# ------------------------
+# Tests for ensure_collection_schema
+# ------------------------
+
+def test_ensure_collection_schema_creates_new_collection(monkeypatch, caplog):
+    """
+    Test that ensure_collection_schema creates a new collection with the JSON Schema
+    if the collection does not exist.
+    """
+    logger.info("Testing ensure_collection_schema: create new collection with schema.")
+
+    mock_db = MagicMock()
+    # Simulate create_collection not raising any exception (collection does not exist)
+    mock_db.create_collection.return_value = None
+
+    ensure_collection_schema(mock_db, "features", spatial_feature_schema)
+
+    mock_db.create_collection.assert_called_once_with(
+        "features",
+        validator={"$jsonSchema": spatial_feature_schema}
+    )
+    assert "Created new collection" in caplog.text or "Ensuring JSON Schema" in caplog.text
+
+    logger.info("ensure_collection_schema creation test passed.")
+
+
+def test_ensure_collection_schema_updates_existing_collection(monkeypatch, caplog):
+    """
+    Test that ensure_collection_schema updates the validator of an existing collection
+    using the 'collMod' command when the collection already exists.
+    """
+    logger.info("Testing ensure_collection_schema: update validator if collection exists.")
+
+    mock_db = MagicMock()
+
+    # Simulate create_collection raising an error indicating that collection exists
+    def create_collection_side_effect(*args, **kwargs):
+        raise Exception("Collection already exists")
+
+    mock_db.create_collection.side_effect = create_collection_side_effect
+
+    # Mock the db.command call for collMod
+    mock_db.command.return_value = {"ok": 1}
+
+    ensure_collection_schema(mock_db, "features", spatial_feature_schema)
+
+    mock_db.command.assert_called_once_with({
+        "collMod": "features",
+        "validator": {"$jsonSchema": spatial_feature_schema},
+        "validationLevel": "strict"
+    })
+
+    assert "Updated schema validator for collection" in caplog.text
+    logger.info("ensure_collection_schema update test passed.")
+
+
+def test_ensure_collection_schema_raises_unexpected_error(monkeypatch, caplog):
+    """
+    Test that ensure_collection_schema raises an exception if an unexpected error occurs
+    during collection creation or update.
+    """
+    logger.info("Testing ensure_collection_schema: handles unexpected error gracefully.")
+
+    mock_db = MagicMock()
+
+    # Simulate an unexpected error other than "already exists"
+    def create_collection_side_effect(*args, **kwargs):
+        raise Exception("Unexpected error")
+
+    mock_db.create_collection.side_effect = create_collection_side_effect
+
+    with caplog.at_level("ERROR", logger="gis_tool"):
+        with pytest.raises(Exception, match="Unexpected error"):
+            ensure_collection_schema(mock_db, "features", spatial_feature_schema)
+
+    assert "Failed to ensure schema" in caplog.text
+    logger.info("ensure_collection_schema error handling test passed.")
 
 
 # ------------------------

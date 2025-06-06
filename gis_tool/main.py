@@ -37,7 +37,12 @@ from gis_tool.config import (
     PARALLEL,
 )
 from gis_tool.data_loader import create_pipeline_features
-from gis_tool.db_utils import connect_to_mongodb
+from gis_tool.db_utils import (
+    connect_to_mongodb,
+    ensure_spatial_index,
+    ensure_collection_schema,
+    spatial_feature_schema,
+)
 from gis_tool.logger import setup_logging
 from gis_tool.output_writer import write_gis_output
 from gis_tool.report_reader import read_reports, find_new_reports
@@ -158,7 +163,9 @@ def main() -> None:
     if use_mongodb:
         try:
             db = connect_to_mongodb()
+            ensure_collection_schema(db, "features", spatial_feature_schema)
             gas_lines_collection = db["gas_lines"]
+            ensure_spatial_index(gas_lines_collection)
             logger.info("Connected to MongoDB.")
         except PyMongoError as e:
             print(f"⚠️  Warning: Could not connect to MongoDB - {e}")

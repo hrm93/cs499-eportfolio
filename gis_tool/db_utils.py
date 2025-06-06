@@ -18,6 +18,76 @@ from gis_tool.config import MONGODB_URI, DB_NAME
 logger = logging.getLogger("gis_tool")
 
 
+# Define the JSON Schema for the 'features' collection.
+# This schema enforces the structure of spatial features stored in MongoDB.
+# It requires fields: name, geometry, date, psi, and material.
+# The 'geometry' field is expected to contain a valid GeoJSON object.
+
+spatial_feature_schema = {
+    "bsonType": "object",
+    "required": ["name", "geometry", "date", "psi", "material"],
+    "properties": {
+        "name": {"bsonType": "string"},
+        "geometry": {
+            "bsonType": "object",
+            "description": "GeoJSON geometry"
+        },
+        "date": {"bsonType": "string"},
+        "psi": {"bsonType": "double"},
+        "material": {"bsonType": "string"}
+    }
+}
+def ensure_spatial_index(collection: Collection) -> None:
+    """
+    Ensure that a 2dsphere index exists on the 'geometry' field.
+    """
+    indexes = collection.index_information()
+    if 'geometry_2dsphere' not in indexes:
+        collection.create_index([('geometry', '2dsphere')])
+        logger.info("Created 2dsphere index on 'geometry' field.")
+    else:
+        logger.info("2dsphere index already exists on 'geometry' field.")
+
+
+def ensure_collection_schema(db, collection_name, schema):
+    """
+    Ensure that the MongoDB collection has a JSON Schema validator.
+
+    If the collection does not exist, it is created with the specified schema.
+    If the collection already exists, the schema validator is updated to match the provided schema.
+
+    Args:
+        db (Database): The MongoDB database object.
+        collection_name (str): The name of the collection to ensure the schema for.
+        schema (dict): The JSON Schema to apply as a validator.
+
+    Raises:
+        Exception: If an unexpected error occurs during creation or update.
+    """
+    logger.info(f"Ensuring JSON Schema for collection: {collection_name}")
+    try:
+        # Attempt to create the collection with the JSON Schema validator
+        db.create_collection(
+            collection_name,
+            validator={"$jsonSchema": schema}
+        )
+        logger.debug(f"Created new collection '{collection_name}' with schema: {schema}")
+    except Exception as e:
+        if "already exists" in str(e):
+            # If the collection already exists, update the validator using collMod
+            logger.debug(f"Collection '{collection_name}' already exists; updating schema validator.")
+            db.command({
+                "collMod": collection_name,
+                "validator": {"$jsonSchema": schema},
+                "validationLevel": "strict"
+            })
+            logger.info(f"Updated schema validator for collection '{collection_name}'.")
+        else:
+            # If another error occurs, log and re-raise
+            logger.error(f"Failed to ensure schema for collection '{collection_name}': {e}")
+            raise e
+
+
 def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Database:
     """
     Establish a connection to a MongoDB database.
