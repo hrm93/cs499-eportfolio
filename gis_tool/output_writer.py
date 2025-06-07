@@ -20,6 +20,76 @@ import gis_tool.config as config
 logger = logging.getLogger("gis_tool")
 
 
+def generate_html_report(
+    gdf_buffer: gpd.GeoDataFrame,
+    buffer_distance_m: float,
+    output_path: str,
+) -> None:
+    """
+    Generate a simple HTML summary report of the buffer operation.
+
+    Args:
+        gdf_buffer (gpd.GeoDataFrame): GeoDataFrame with buffered geometries.
+        buffer_distance_m (float): The buffer distance used, in meters.
+        output_path (str): Path where to save the HTML report (without extension).
+
+    Notes:
+        The report will be saved as an HTML file with the same base name as output_path.
+    """
+    path = Path(output_path).with_suffix(".html")
+    if not path.parent.exists():
+        warning_msg = f"Output directory does not exist: {path.parent}"
+        warnings.warn(warning_msg, UserWarning)
+        logger.error(warning_msg)
+        raise FileNotFoundError(warning_msg)
+
+    try:
+        num_features = len(gdf_buffer)
+        geom_types = gdf_buffer.geometry.geom_type.value_counts().to_dict()
+        total_area = gdf_buffer.geometry.area.sum()
+
+        # Prepare attribute summary table (first 10 rows)
+        attr_table = gdf_buffer.head(10).copy()
+        # Convert geometry to WKT for display
+        attr_table['geometry'] = attr_table.geometry.apply(lambda g: g.wkt if g else "None")
+
+        html = f"""
+        <html>
+        <head>
+            <title>Buffer Operation Report</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                table {{ border-collapse: collapse; width: 100%; }}
+                th, td {{ border: 1px solid #ddd; padding: 8px; }}
+                th {{ background-color: #4CAF50; color: white; }}
+            </style>
+        </head>
+        <body>
+            <h1>Buffer Operation Report</h1>
+            <p><strong>Buffer Distance:</strong> {buffer_distance_m:.2f} meters</p>
+            <p><strong>Number of Features Buffered:</strong> {num_features}</p>
+            <p><strong>Geometry Types in Result:</strong> {geom_types}</p>
+            <p><strong>Total Area of Buffers:</strong> {total_area:.2f} square meters</p>
+
+            <h2>Sample of Buffered Features</h2>
+            {attr_table.to_html(index=False, escape=False)}
+
+            <p>Output files and maps can be found at: {path.parent}</p>
+        </body>
+        </html>
+        """
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+
+        logger.info(f"HTML report generated at {path}")
+
+    except Exception as e:
+        logger.exception(f"Failed to generate HTML report: {e}")
+        warnings.warn(f"Failed to generate HTML report: {e}", UserWarning)
+        raise
+
+
 def write_csv(df: pd.DataFrame, output_path: str) -> None:
     """
     Write a DataFrame to a CSV file.

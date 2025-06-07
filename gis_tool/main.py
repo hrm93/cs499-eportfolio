@@ -44,7 +44,7 @@ from gis_tool.db_utils import (
     spatial_feature_schema,
 )
 from gis_tool.logger import setup_logging
-from gis_tool.output_writer import write_gis_output
+from gis_tool.output_writer import write_gis_output, generate_html_report
 from gis_tool.report_reader import read_reports, find_new_reports
 
 logger = logging.getLogger("gis_tool")  # Get the configured logger
@@ -269,6 +269,21 @@ def main() -> None:
                 )
                 logger.info("Merging buffer polygons into future development planning file.")
                 merge_buffers_into_planning_file(output_path, future_development_shp)
+
+                # ====== HTML REPORT GENERATION ======
+                # Generate HTML report path based on the output filename (including prefixes)
+                report_html_path = output_path_obj.with_suffix('')
+                report_html_path = report_html_path.parent / f"{report_html_path.name}_buffer_report.html"
+
+                generate_html_report(
+                    gdf_buffer=gdf_buffer,
+                    buffer_distance_m=buffer_distance * 0.3048,
+                    output_path=str(report_html_path),
+                )
+
+                print(f"✅ HTML buffer report generated: {report_html_path}")
+                logger.info(f"HTML buffer report generated: {report_html_path}")
+
             else:
                 print("ℹ️  Dry run enabled - skipping writing output files and merging.")
                 logger.info("Dry run enabled - skipping writing output files and merging.")

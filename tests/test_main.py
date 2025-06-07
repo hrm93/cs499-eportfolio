@@ -119,48 +119,84 @@ def test_main_with_mongodb(monkeypatch, dummy_inputs, caplog):
 
     # Assert that MongoDB connection logs are present
     assert "Connected to MongoDB." in caplog.text
+    # Also confirm output file is created
+    assert Path(dummy_inputs["output_path"]).exists()
 
 
 # ===== Main Pipeline Tests =====
 
-def run_main_and_check_output(inputs: Dict[str, str], monkeypatch):
-    """Helper to run main and confirm output file creation."""
+def run_main_and_check_output(inputs: Dict[str, str], monkeypatch, tmp_path):
+    """Helper to run main and confirm output file creation and basic validity, cleaning up after."""
+    output_path = tmp_path / Path(inputs["output_path"]).name
+    inputs["output_path"] = str(output_path)
     monkeypatch.setattr("sys.argv", build_testargs(inputs))
     main()
-    assert Path(inputs["output_path"]).exists()
-    logger.info("Main pipeline execution test passed.")
+    assert output_path.exists(), f"Output file {output_path} was not created."
+    logger.info(f"Output file created at {output_path}")
+
+    # Initialize gdf to silence potential warnings
+    gdf = None
+    try:
+        gdf = gpd.read_file(output_path)
+    except Exception as e:
+        pytest.fail(f"Output file {output_path} is not a valid GeoDataFrame: {e}")
+
+    assert gdf is not None, "GeoDataFrame could not be created (unexpected fallback)."
+    assert not gdf.empty, "Output GeoDataFrame is empty."
+    assert "geometry" in gdf.columns, "Output missing 'geometry' column."
+    expected_columns = {"geometry", "Name", "Date", "PSI", "Material"}
+    assert expected_columns.intersection(gdf.columns), (
+        f"Output missing expected columns. Found: {gdf.columns}"
+    )
+
+    logger.info("Output file content validated successfully.")
 
 
-def test_main_executes_pipeline(dummy_inputs, monkeypatch):
-    """Verify that pipeline produces expected .shp output."""
+def test_main_executes_pipeline(dummy_inputs, monkeypatch, tmp_path):
+    """Verify that pipeline produces expected .shp output with valid content."""
     logger.debug("Starting test_main_executes_pipeline with dummy inputs:")
     logger.debug(dummy_inputs)
 
-    run_main_and_check_output(dummy_inputs, monkeypatch)
+    run_main_and_check_output(dummy_inputs, monkeypatch, tmp_path)
 
     logger.debug("Completed test_main_executes_pipeline")
 
 
-def test_main_executes_pipeline_geojson(dummy_geojson_output: Dict[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify pipeline with .geojson output."""
+def test_main_executes_pipeline_geojson(dummy_geojson_output: Dict[str, str], monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Verify pipeline with .geojson output and valid content."""
     logger.debug("Starting test_main_executes_pipeline_geojson with dummy inputs:")
     logger.debug(dummy_geojson_output)
 
-    run_main_and_check_output(dummy_geojson_output, monkeypatch)
+    run_main_and_check_output(dummy_geojson_output, monkeypatch, tmp_path)
 
     logger.debug("Completed test_main_executes_pipeline_geojson")
 
 
-def test_main_with_parallel(monkeypatch, dummy_inputs):
-    """Test main with --parallel flag triggers ProcessPoolExecutor.submit calls."""
+def test_main_with_parallel(monkeypatch, dummy_inputs, tmp_path):
+    """Test main with --parallel flag triggers ProcessPoolExecutor.submit calls and check arguments."""
     logger.info("Testing main execution with parallel processing enabled.")
+    dummy_inputs["output_path"] = str(tmp_path / Path(dummy_inputs["output_path"]).name)
     testargs = build_testargs(dummy_inputs) + ["--parallel"]
     monkeypatch.setattr("sys.argv", testargs)
 
     with mock.patch("gis_tool.main.ProcessPoolExecutor") as executor:
-        executor.return_value.__enter__.return_value.submit = mock.MagicMock()
+        mock_executor_instance = executor.return_value.__enter__.return_value
+        mock_executor_instance.submit = mock.MagicMock()
         main()
-        assert executor.return_value.__enter__.return_value.submit.called
+
+        # Check submit was called
+        assert mock_executor_instance.submit.called, "submit was not called."
+
+        # Check number of calls (you can adjust expected range based on your chunking logic)
+        submit_calls = mock_executor_instance.submit.call_args_list
+        logger.info(f"submit called {len(submit_calls)} times.")
+        assert len(submit_calls) > 0, "Expected multiple submissions for parallel processing."
+
+        # Example: check arguments of first call
+        first_call_args = submit_calls[0][0]
+        assert callable(first_call_args[0]), "First argument to submit should be a callable."
+        # Optionally check args of the chunk
+        logger.debug(f"First submit call args: {first_call_args}")
 
     logger.info("Main with parallel processing test passed.")
 
@@ -168,18 +204,16 @@ def test_main_with_parallel(monkeypatch, dummy_inputs):
 def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, caplog, tmp_path) -> None:
     """Verify error logging when create_pipeline_features fails inside process_report_chunk."""
     logger.info("Testing error logging in process_report_chunk.")
-
     input_folder = tmp_path / "input_folder"
     input_folder.mkdir()
     (input_folder / "dummy_report.txt").write_text("test")
     dummy_gdf = gpd.GeoDataFrame({"geometry": [Point(0, 0)]}, crs="EPSG:4326")
 
-    # Monkeypatch geopandas.read_file to return a dummy GeoDataFrame (avoid reading gas_lines.shp)
     monkeypatch.setattr(gpd, "read_file", lambda *a, **k: dummy_gdf)
-
-    # Patch create_pipeline_features to throw an exception to trigger error logging
-    monkeypatch.setattr(gis_tool.main,"create_pipeline_features",
-                        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("missing")))
+    monkeypatch.setattr(
+        gis_tool.main, "create_pipeline_features",
+        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("missing"))
+    )
 
     with caplog.at_level(logging.ERROR):
         process_report_chunk(
@@ -199,8 +233,8 @@ def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, cap
     not Path("C:/Users/xrose/PycharmProjects/PythonProject/data").exists(),
     reason="Local data path does not exist"
 )
-def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Run main pipeline on real local data (manual validation)."""
+def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Run main pipeline on real local data and check output content (manual validation)."""
     logger.info("Testing main function with real data files from local filesystem.")
     base = Path("C:/Users/xrose/PycharmProjects/PythonProject/data").resolve()
 
@@ -208,7 +242,7 @@ def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch) -> None:
         "input_folder": str(base / "input_folder"),
         "gas_lines_path": str(base / "gas_lines.shp"),
         "future_dev_path": str(base / "future_dev.shp"),
-        "output_path": str(base / "final_output_test.shp")
+        "output_path": str(tmp_path / "final_output_test.shp")
     }
 
     if not all(Path(p).exists() for p in [inputs["input_folder"], inputs["gas_lines_path"], inputs["future_dev_path"]]):
@@ -216,6 +250,13 @@ def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("sys.argv", build_testargs(inputs) + ["--overwrite-output"])
     main()
-    assert Path(inputs["output_path"]).exists()
 
-logger.info("Main function with real data test passed.")
+    output_path = Path(inputs["output_path"])
+    assert output_path.exists(), "Output file does not exist."
+
+    # Additional explicit validation
+    gdf = gpd.read_file(output_path)
+    assert not gdf.empty, "Output file is empty."
+    assert "geometry" in gdf.columns, "Output file missing 'geometry' column."
+
+    logger.info("Main function with real data test passed.")
