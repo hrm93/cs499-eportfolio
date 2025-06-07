@@ -191,6 +191,7 @@ def main() -> None:
     reports_folder_path = Path(input_folder)
 
     if use_parallel:
+        logger.info("Buffering will run in parallel mode.")
         print(f"ℹ️  Starting parallel processing of {len(report_files)} reports using up to {max_workers} workers...")
         logger.info(f"Starting parallel processing of {len(report_files)} report files with max_workers={max_workers}.")
         chunk_size = max(1, len(report_files) // max_workers)
@@ -217,6 +218,7 @@ def main() -> None:
                     print(f"❌ Error in parallel processing: {e}")
                     logger.error(f"Error in parallel processing: {e}")
     else:
+        logger.info("Buffering will run in sequential mode.")
         print("ℹ️  Starting sequential processing of reports...")
         logger.info("Sequential processing of report files.")
         geojson_reports, txt_reports = read_reports(report_files, reports_folder_path)
@@ -249,6 +251,7 @@ def main() -> None:
             gas_lines_shp,
             buffer_distance_ft=buffer_distance,
             parks_path=args.parks_path,
+            use_multiprocessing=use_parallel,
         )
 
         if gdf_buffer.empty:

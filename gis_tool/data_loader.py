@@ -125,7 +125,14 @@ def create_pipeline_features(
             # Reproject geometry if CRS differs
             elif geom.crs.to_string() != spatial_reference:
                 from gis_tool.spatial_utils import reproject_geometry_to_crs
-                geom = reproject_geometry_to_crs(geom, spatial_reference)
+
+                source_crs = geom.crs.to_string() if geom.crs else None
+                if source_crs is None:
+                    logger.error(f"Geometry CRS undefined for feature '{feat['Name']}'. Cannot reproject. Skipping.")
+                    continue
+
+                # Fix: Pass both source_crs and target_crs explicitly
+                geom = reproject_geometry_to_crs(geom, source_crs, spatial_reference)
                 feat["geometry"] = geom
                 logger.debug(f"Reprojected feature '{feat['Name']}' geometry to CRS {spatial_reference}.")
 
