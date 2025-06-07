@@ -9,6 +9,7 @@ Verifies:
 - Logging and error handling
 """
 import logging
+import unittest
 from pathlib import Path
 from typing import List, Dict
 from unittest import mock
@@ -18,6 +19,7 @@ import pytest
 import geopandas as gpd
 from shapely.geometry import Point
 from pymongo.errors import ConnectionFailure
+from shapely.geometry.linestring import LineString
 
 from gis_tool.db_utils import connect_to_mongodb
 import gis_tool.main
@@ -260,3 +262,95 @@ def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     assert "geometry" in gdf.columns, "Output file missing 'geometry' column."
 
     logger.info("Main function with real data test passed.")
+
+
+class TestMainModule(unittest.TestCase):
+    @mock.patch("gis_tool.main.generate_html_report")
+    @mock.patch("gis_tool.main.find_new_reports", return_value=["report1.geojson", "report2.txt"])
+    @mock.patch("gis_tool.main.gpd.read_file")
+    @mock.patch("gis_tool.main.create_pipeline_features")
+    @mock.patch("gis_tool.main.setup_logging")
+    @mock.patch("gis_tool.main.parse_args")
+    @mock.patch("gis_tool.main.connect_to_mongodb")
+    @mock.patch("gis_tool.main.write_gis_output")
+    @mock.patch("gis_tool.main.merge_buffers_into_planning_file")
+    @mock.patch("gis_tool.main.read_reports", return_value=(["geojson"], ["txt"]))
+    @mock.patch("builtins.open", new_callable=mock.mock_open, read_data="{}")  # for config file
+    def test_main_run(
+        self,
+        mock_open,
+        mock_read_reports,
+        mock_merge_buffers,
+        mock_write_output,
+        mock_connect_db,
+        mock_parse_args,
+        mock_setup_logging,
+        mock_create_pipeline_features,
+        mock_gpd_read_file,
+        mock_find_new_reports,
+        mock_generate_html_report
+    ):
+        # Mock CLI arguments to simulate a real CLI run
+        mock_args = mock.Mock()
+        mock_args.config_file = None
+        mock_args.use_mongodb = False
+        mock_args.buffer_distance = 100
+        mock_args.crs = "EPSG:4326"
+        mock_args.parallel = False  # test sequential mode
+        mock_args.output_format = "shp"
+        mock_args.overwrite_output = True
+        mock_args.dry_run = False
+        mock_args.input_folder = "test_data"
+        mock_args.output_path = "output/test_output.shp"
+        mock_args.future_dev_path = "future_dev.shp"
+        mock_args.gas_lines_path = "gas_lines.shp"
+        mock_parse_args.return_value = mock_args
+
+        # Create a minimal valid GeoDataFrame for gas lines
+        mock_gas_lines_gdf = gpd.GeoDataFrame({
+            'geometry': [LineString([(0, 0), (1, 1)])]
+        }, crs="EPSG:4326")
+
+        def side_effect(path, *args, **kwargs):
+            if path == "gas_lines.shp":
+                return mock_gas_lines_gdf
+            elif path == "parks.shp":
+                return gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs="EPSG:4326"))
+            else:
+                return gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs="EPSG:4326"))
+
+        mock_gpd_read_file.side_effect = side_effect
+
+        # Run the main function
+        main()
+
+        # Check that expected functions were called
+        mock_setup_logging.assert_called_once()
+        mock_parse_args.assert_called_once()
+        mock_find_new_reports.assert_called_once_with("test_data")
+        mock_gpd_read_file.assert_called()
+        mock_create_pipeline_features.assert_called()
+        mock_write_output.assert_called()
+        mock_merge_buffers.assert_called()
+
+        # MongoDB not used in this test
+        mock_connect_db.assert_not_called()
+
+    @mock.patch("gis_tool.main.find_new_reports", return_value=[])
+    @mock.patch("gis_tool.main.setup_logging")
+    @mock.patch("gis_tool.main.parse_args")
+    def test_main_no_reports(self, mock_parse_args, mock_setup_logging, mock_find_new_reports):
+        mock_args = mock.Mock()
+        mock_args.config_file = None
+        mock_args.input_folder = "test_data"
+        mock_args.output_path = "output/test_output.shp"
+        mock_parse_args.return_value = mock_args
+
+        # Run main – no new reports
+        main()
+        mock_find_new_reports.assert_called_once()
+        # It should log and exit early – no errors
+
+
+if __name__ == "__main__":
+    unittest.main()
