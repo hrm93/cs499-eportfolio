@@ -2,10 +2,12 @@
 
 import geopandas as gpd
 import logging
+import math
 import warnings
 
 from pyproj import CRS
 from shapely.geometry.base import BaseGeometry
+from typing import Optional, Dict, Any
 
 from . import config
 
@@ -232,3 +234,38 @@ def buffer_intersects_gas_lines(buffer_geom: BaseGeometry, gas_lines_gdf: gpd.Ge
                 return True
 
         return False
+
+
+def is_finite_geometry(geom: Optional[Dict[str, Any]]) -> bool:
+    """
+    Check if a geometry dictionary (GeoJSON-style) has only finite coordinate values.
+
+    Args:
+        geom (Optional[Dict[str, Any]]): Geometry dictionary following GeoJSON structure.
+
+    Returns:
+        bool: True if all coordinates are finite numbers, False otherwise.
+    """
+    if not geom or "coordinates" not in geom:
+        logger.debug("Geometry is missing or does not contain coordinates.")
+        return False
+
+    coords = geom["coordinates"]
+
+
+    def check_finite_coords(coords_part):
+        """
+        Recursively check if all numeric values in a coordinate structure are finite.
+        """
+        if isinstance(coords_part, (list, tuple)):
+            return all(check_finite_coords(item) for item in coords_part)
+        elif isinstance(coords_part, (int, float)):
+            return math.isfinite(coords_part)
+        else:
+            return False
+
+    finite_check = check_finite_coords(coords)
+    if not finite_check:
+        logger.warning(f"Geometry has non-finite coordinates: {geom}")
+
+    return finite_check

@@ -12,9 +12,10 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, PyMongoError
 
-from shapely.geometry import Point, mapping
+from shapely.geometry import Point
 
 from gis_tool.config import MONGODB_URI, DB_NAME
+from gis_tool.spatial_utils import is_finite_geometry
 
 logger = logging.getLogger("gis_tool")
 
@@ -188,6 +189,13 @@ def upsert_mongodb_feature(
         'material': material,
         'geometry': geometry_geojson  # GeoJSON-ready
     }
+
+    # 🔎 Check if geometry coordinates are finite
+    if not is_finite_geometry(feature_doc.get('geometry')):
+        warning_msg = f"Skipping insert/update for feature '{name}': invalid geometry (inf/nan coords)."
+        warnings.warn(warning_msg, UserWarning)
+        logger.warning(warning_msg)
+        return  # Skip insert/update
 
     try:
         existing = collection.find_one({'name': name, 'geometry': feature_doc['geometry']})
