@@ -58,7 +58,6 @@ python -m gis_tool.main --input "data/roads.shp" --buffer 250 --output "output/"
 pip install -r requirements.txt
 ```
 
-### ✅ Done!
 
 ---
 
