@@ -1,17 +1,13 @@
-# db_utils.py
-
 import logging
 import warnings
+from typing import Union
 
 import geopandas as gpd
 import pandas as pd
-from typing import Union
-
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, PyMongoError
-
 from shapely.geometry import Point
 
 from gis_tool.config import MONGODB_URI, DB_NAME
@@ -19,118 +15,89 @@ from gis_tool.spatial_utils import is_finite_geometry
 
 logger = logging.getLogger("gis_tool")
 
-
-# Define the JSON Schema for the 'features' collection.
-# This schema enforces the structure of spatial features stored in MongoDB.
-# It requires fields: name, geometry, date, psi, and material.
-# The 'geometry' field is expected to contain a valid GeoJSON object.
-
 spatial_feature_schema = {
     "bsonType": "object",
     "required": ["name", "geometry", "date", "psi", "material"],
     "properties": {
         "name": {"bsonType": "string"},
-        "geometry": {
-            "bsonType": "object",
-            "description": "GeoJSON geometry"
-        },
+        "geometry": {"bsonType": "object", "description": "GeoJSON geometry"},
         "date": {"bsonType": "string"},
         "psi": {"bsonType": "double"},
-        "material": {"bsonType": "string"}
-    }
+        "material": {"bsonType": "string"},
+    },
 }
+
+
 def ensure_spatial_index(collection: Collection) -> None:
-    """
-    Ensure that a 2dsphere index exists on the 'geometry' field.
-    """
+    """Ensure a 2dsphere index exists on the 'geometry' field."""
     indexes = collection.index_information()
-    if 'geometry_2dsphere' not in indexes:
-        collection.create_index([('geometry', '2dsphere')])
+    if not any(
+            len(index.get('key', [])) == 1 and
+            index['key'][0][0] == 'geometry' and
+            index['key'][0][1] == '2dsphere'
+            for index in indexes.values()
+    ):
+        collection.create_index([("geometry", "2dsphere")], name="geometry_2dsphere")
         logger.info("Created 2dsphere index on 'geometry' field.")
     else:
         logger.info("2dsphere index already exists on 'geometry' field.")
 
 
-def ensure_collection_schema(db, collection_name, schema):
+def ensure_collection_schema(
+    db: Database, collection_name: str, schema: dict
+) -> None:
     """
-    Ensure that the MongoDB collection has a JSON Schema validator.
+    Ensure the MongoDB collection has a JSON Schema validator.
 
-    If the collection does not exist, it is created with the specified schema.
-    If the collection already exists, the schema validator is updated to match the provided schema.
-
-    Args:
-        db (Database): The MongoDB database object.
-        collection_name (str): The name of the collection to ensure the schema for.
-        schema (dict): The JSON Schema to apply as a validator.
-
-    Raises:
-        Exception: If an unexpected error occurs during creation or update.
+    Creates the collection with the validator if it doesn't exist,
+    otherwise updates the validator using collMod.
     """
     logger.info(f"Ensuring JSON Schema for collection: {collection_name}")
     try:
-        # Attempt to create the collection with the JSON Schema validator
-        db.create_collection(
-            collection_name,
-            validator={"$jsonSchema": schema}
-        )
-        logger.debug(f"Created new collection '{collection_name}' with schema: {schema}")
+        db.create_collection(collection_name, validator={"$jsonSchema": schema})
+        logger.debug(f"Created collection '{collection_name}' with schema.")
     except Exception as e:
         if "already exists" in str(e):
-            # If the collection already exists, update the validator using collMod
-            logger.debug(f"Collection '{collection_name}' already exists; updating schema validator.")
-            db.command({
-                "collMod": collection_name,
-                "validator": {"$jsonSchema": schema},
-                "validationLevel": "strict"
-            })
+            db.command(
+                {
+                    "collMod": collection_name,
+                    "validator": {"$jsonSchema": schema},
+                    "validationLevel": "strict",
+                }
+            )
             logger.info(f"Updated schema validator for collection '{collection_name}'.")
         else:
-            # If another error occurs, log and re-raise
-            logger.error(f"Failed to ensure schema for collection '{collection_name}': {e}")
-            raise e
+            logger.error(f"Failed to ensure schema for '{collection_name}': {e}")
+            raise
 
 
-def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Database:
+def connect_to_mongodb(
+    uri: str = MONGODB_URI, db_name: str = DB_NAME
+) -> Database:
     """
-    Establish a connection to a MongoDB database.
-
-    Args:
-        uri (str): MongoDB connection URI.
-        db_name (str): Name of the database to connect.
-
-    Returns:
-        pymongo.database.Database: Connected MongoDB database instance.
-
-    Raises:
-        ConnectionFailure: If the connection to MongoDB fails.
+    Connect to MongoDB and return the database instance.
+    Raises ConnectionFailure or other exceptions on failure.
     """
     try:
         client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-        client.admin.command('ping')  # Test the connection
+        client.admin.command("ping")  # Test connection
         logger.info("Connected to MongoDB successfully.")
         return client[db_name]
     except ConnectionFailure as e:
-        warning_msg = f"Could not connect to MongoDB at {uri}: {e}"
-        warnings.warn(warning_msg, UserWarning)
-        logger.error(warning_msg)
+        msg = f"Could not connect to MongoDB at {uri}: {e}"
+        warnings.warn(msg, UserWarning)
+        logger.error(msg)
         raise
     except Exception as e:
-        warning_msg = f"Unexpected error connecting to MongoDB at {uri}: {e}"
-        warnings.warn(warning_msg, UserWarning)
-        logger.error(warning_msg)
+        msg = f"Unexpected error connecting to MongoDB at {uri}: {e}"
+        warnings.warn(msg, UserWarning)
+        logger.error(msg)
         raise
 
 
 def reproject_to_wgs84(geometry: Point, input_crs: str = "EPSG:3857") -> dict:
     """
-    Reproject a shapely geometry from input_crs to EPSG:4326 and return GeoJSON dict.
-
-    Args:
-        geometry (Point): Shapely geometry to reproject.
-        input_crs (str): CRS of the input geometry (default EPSG:3857).
-
-    Returns:
-        dict: Geometry in GeoJSON format with WGS84 coordinates.
+    Reproject shapely geometry to EPSG:4326 and return GeoJSON dict.
     """
     gdf = gpd.GeoDataFrame(geometry=[geometry], crs=input_crs)
     gdf_wgs84 = gdf.to_crs("EPSG:4326")
@@ -149,89 +116,72 @@ def upsert_mongodb_feature(
     """
     Insert or update a gas line feature in MongoDB.
 
-    Args:
-        collection (Collection): MongoDB collection to update/insert into.
-        name (str): Name of the gas line feature.
-        date: Date associated with the feature (can be string or datetime).
-        psi (float): Pressure specification.
-        material (str): Material type.
-        geometry (Point): Shapely Point geometry object.
-
-    Raises:
-        PyMongoError: On errors interacting with MongoDB.
-        ValueError: If input parameters are invalid.
+    Validates inputs, reprojects geometry, and performs upsert.
     """
     if not isinstance(name, str) or not name.strip():
-        warning_msg = "Invalid 'name' parameter: must be a non-empty string."
-        warnings.warn(warning_msg, UserWarning)
-        logger.error(warning_msg)
-        raise ValueError(warning_msg)
+        msg = "Invalid 'name': must be non-empty string."
+        warnings.warn(msg, UserWarning)
+        logger.error(msg)
+        raise ValueError(msg)
 
     if not isinstance(geometry, Point):
-        warning_msg = f"Invalid geometry type: expected shapely.geometry.Point, got {type(geometry)}"
-        warnings.warn(warning_msg, UserWarning)
-        logger.error(warning_msg)
-        raise ValueError(warning_msg)
+        msg = f"Invalid geometry type: expected shapely.geometry.Point, got {type(geometry)}"
+        warnings.warn(msg, UserWarning)
+        logger.error(msg)
+        raise ValueError(msg)
 
     if isinstance(date, pd.Timestamp):
         date = date.isoformat()
 
-    # Ensure psi is a float to satisfy MongoDB schema expecting a double
     psi = float(psi)
 
-    # Convert geometry to GeoDataFrame for reprojection
     geometry_geojson = reproject_to_wgs84(geometry, input_crs)
 
+    if not is_finite_geometry(geometry_geojson):
+        msg = f"Skipping upsert for '{name}': geometry contains non-finite coordinates."
+        warnings.warn(msg, UserWarning)
+        logger.warning(msg)
+        return
+
     feature_doc = {
-        'name': name,
-        'date': date,
-        'psi': psi,
-        'material': material,
-        'geometry': geometry_geojson  # GeoJSON-ready
+        "name": name,
+        "date": date,
+        "psi": psi,
+        "material": material,
+        "geometry": geometry_geojson,
     }
 
-    # 🔎 Check if geometry coordinates are finite
-    if not is_finite_geometry(feature_doc.get('geometry')):
-        warning_msg = f"Skipping insert/update for feature '{name}': invalid geometry (inf/nan coords)."
-        warnings.warn(warning_msg, UserWarning)
-        logger.warning(warning_msg)
-        return  # Skip insert/update
-
     try:
-        existing = collection.find_one({'name': name, 'geometry': feature_doc['geometry']})
+        existing = collection.find_one({"name": name, "geometry": geometry_geojson})
     except PyMongoError as e:
-        warning_msg = f"Failed to query MongoDB for existing feature '{name}': {e}"
-        warnings.warn(warning_msg, UserWarning)
-        logger.error(warning_msg)
+        msg = f"MongoDB query failed for '{name}': {e}"
+        warnings.warn(msg, UserWarning)
+        logger.error(msg)
         raise
 
     if existing:
-        # Check if any fields changed before updating
-        changes = {}
-        if existing.get('date') != date:
-            changes['date'] = date
-        if existing.get('psi') != psi:
-            changes['psi'] = psi
-        if existing.get('material') != material:
-            changes['material'] = material
-
+        changes = {
+            k: v
+            for k, v in {"date": date, "psi": psi, "material": material}.items()
+            if existing.get(k) != v
+        }
         if changes:
             try:
-                collection.update_one({'_id': existing['_id']}, {'$set': changes})
+                collection.update_one({"_id": existing["_id"]}, {"$set": changes})
                 logger.info(f"Updated MongoDB record for '{name}' with changes: {changes}")
             except PyMongoError as e:
-                warning_msg = f"Failed to update MongoDB record for '{name}': {e}"
-                warnings.warn(warning_msg, UserWarning)
-                logger.error(warning_msg)
+                msg = f"MongoDB update failed for '{name}': {e}"
+                warnings.warn(msg, UserWarning)
+                logger.error(msg)
                 raise
         else:
-            logger.info(f"No changes detected for MongoDB record '{name}', skipping update.")
+            logger.info(f"No changes for MongoDB record '{name}', skipping update.")
     else:
         try:
             collection.insert_one(feature_doc)
             logger.info(f"Inserted new MongoDB record for '{name}'.")
         except PyMongoError as e:
-            warning_msg = f"Failed to insert new MongoDB record for '{name}': {e}"
-            warnings.warn(warning_msg, UserWarning)
-            logger.error(warning_msg)
+            msg = f"MongoDB insert failed for '{name}': {e}"
+            warnings.warn(msg, UserWarning)
+            logger.error(msg)
             raise
