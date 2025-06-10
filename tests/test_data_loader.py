@@ -37,26 +37,15 @@ logger.setLevel(logging.DEBUG)
 
 # ---- PIPELINE FUNCTION TESTS ----
 
-def test_create_pipeline_features_geojson():
+def test_create_pipeline_features_geojson(sample_geojson_report, empty_gas_lines_gdf):
     """
-    Tests create_pipeline_features processes a GeoJSON report,
-    updates gas lines GeoDataFrame, and adds features.
+    Test processing a GeoJSON report updates gas lines GeoDataFrame and adds features.
     """
     logger.info("Testing create_pipeline_features with GeoJSON input.")
-    gdf = gpd.GeoDataFrame({
-        "Name": ["Line1"],
-        "Date": [pd.Timestamp("2023-01-01")],
-        "PSI": [150.0],
-        "Material": ["steel"],
-        "geometry": [Point(1.0, 2.0)]
-    }, crs=DEFAULT_CRS)
-
-    gas_lines = gpd.GeoDataFrame(columns=["Name", "Date", "PSI", "Material", "geometry"], crs=DEFAULT_CRS)
-
     processed_reports, updated_gdf, features_added = create_pipeline_features(
-        geojson_reports=[("geo1.geojson", gdf)],
+        geojson_reports=[sample_geojson_report],
         txt_reports=[],
-        gas_lines_gdf=gas_lines,
+        gas_lines_gdf=empty_gas_lines_gdf,
         spatial_reference=DEFAULT_CRS,
         processed_reports=set(),
         use_mongodb=False
@@ -65,27 +54,26 @@ def test_create_pipeline_features_geojson():
     logger.debug(f"Processed reports: {processed_reports}")
     logger.debug(f"Number of features added: {len(updated_gdf)}; Features added flag: {features_added}")
 
-    assert "geo1.geojson" in processed_reports
-    assert len(updated_gdf) == 1
-    assert features_added is True
+    assert sample_geojson_report[0] in processed_reports, "GeoJSON report should be marked processed"
+    assert len(updated_gdf) == 1, "One feature should be added from GeoJSON"
+    assert features_added, "Features added flag should be True"
+    assert updated_gdf.crs.to_string() == DEFAULT_CRS, "CRS should be preserved after update"
+    assert "Name" in updated_gdf.columns, "Expected columns should be present"
+
     logger.info("create_pipeline_features_geojson test passed.")
 
 
-def test_create_pipeline_features_txt():
+def test_create_pipeline_features_txt(valid_txt_line, empty_gas_lines_gdf):
     """
-    Tests create_pipeline_features processes a TXT report line,
-    updates gas lines GeoDataFrame, and adds features.
+    Test processing a TXT report line updates gas lines GeoDataFrame and adds features.
     """
     logger.info("Testing create_pipeline_features with TXT input.")
-    line = "Line2,2023-03-01,200,copper,10.0,20.0"
-    
-    txt_reports = [("report.txt", [line])]
-    gas_lines = gpd.GeoDataFrame(columns=["Name", "Date", "PSI", "Material", "geometry"], crs=DEFAULT_CRS)
+    txt_reports = [("report.txt", [valid_txt_line])]
 
     processed_reports, updated_gdf, features_added = create_pipeline_features(
         geojson_reports=[],
         txt_reports=txt_reports,
-        gas_lines_gdf=gas_lines,
+        gas_lines_gdf=empty_gas_lines_gdf,
         spatial_reference=DEFAULT_CRS,
         processed_reports=set(),
         use_mongodb=False
@@ -94,112 +82,127 @@ def test_create_pipeline_features_txt():
     logger.debug(f"Processed reports: {processed_reports}")
     logger.debug(f"Number of features added: {len(updated_gdf)}; Features added flag: {features_added}")
 
-    assert "report.txt" in processed_reports
-    assert len(updated_gdf) == 1
-    assert features_added is True
+    assert "report.txt" in processed_reports, "TXT report should be marked processed"
+    assert len(updated_gdf) == 1, "One feature should be added from TXT"
+    assert features_added, "Features added flag should be True"
+    assert updated_gdf.crs.to_string() == DEFAULT_CRS, "CRS should be preserved after update"
+    assert "Material" in updated_gdf.columns, "Expected columns should be present"
+
     logger.info("create_pipeline_features_txt test passed.")
 
 
-def test_create_pipeline_features_skips_processed_reports(empty_gas_lines_gdf, sample_geojson_report):
+def test_create_pipeline_features_skips_processed_reports(empty_gas_lines_gdf, sample_geojson_report, caplog):
     """
-    Test that create_pipeline_features skips reports that have already been processed.
+    Test that processed reports are skipped and gas lines GeoDataFrame remains unchanged.
     """
     logger.info("Running test_create_pipeline_features_skips_processed_reports")
 
-    geojson_reports = [sample_geojson_report]
-    txt_reports = []
-    processed_reports = {"report1.geojson"}
+    processed_reports = {sample_geojson_report[0]}
 
-    new_processed, new_gdf, features_added = dl.create_pipeline_features(
-        geojson_reports, txt_reports, empty_gas_lines_gdf, "EPSG:4326",
-        processed_reports=processed_reports,
-        use_mongodb=False,
-    )
+    with caplog.at_level(logging.INFO):
+        new_processed, new_gdf, features_added = create_pipeline_features(
+            geojson_reports=[sample_geojson_report],
+            txt_reports=[],
+            gas_lines_gdf=empty_gas_lines_gdf,
+            spatial_reference=DEFAULT_CRS,
+            processed_reports=processed_reports,
+            use_mongodb=False
+        )
 
     logger.debug(f"Processed reports returned: {new_processed}")
     logger.debug(f"Features added: {features_added}")
 
-    assert "report1.geojson" in new_processed
-    assert new_gdf.equals(empty_gas_lines_gdf)
-    assert not features_added
+    assert sample_geojson_report[0] in new_processed, "Processed report should still be in set"
+    assert new_gdf.equals(empty_gas_lines_gdf), "GeoDataFrame should remain unchanged when skipping processed reports"
+    assert not features_added, "No features added flag when skipping processed reports"
+    assert any("Skipping already processed report" in msg for msg in caplog.messages), "Log should indicate skipping"
+
     logger.info("Completed test_create_pipeline_features_skips_processed_reports")
 
 
-def test_create_pipeline_features_handles_malformed_txt_lines(tmp_path):
+def test_create_pipeline_features_handles_malformed_txt_lines(empty_gas_lines_gdf, caplog):
     """
-    Test that create_pipeline_features properly handles malformed TXT report lines.
+    Test that malformed TXT lines are handled gracefully with logging.
     """
     # Set up an empty gas_lines_gdf
     logger.info("Running test_create_pipeline_features_handles_malformed_txt_lines")
 
-    gas_lines_gdf = data_utils.make_feature("dummy", "2023-01-01", 50.0, "steel", Point(0, 0), "EPSG:4326")
-    malformed_line = "1 line1 10.0"
-    txt_reports = [("report1.txt", [malformed_line])]
+    malformed_line = "1 line1 10.0"  # Intentionally malformed
+    txt_reports = [("malformed_report.txt", [malformed_line])]
     geojson_reports = []
 
-    processed_reports, new_gdf, features_added = dl.create_pipeline_features(
-        geojson_reports, txt_reports, gas_lines_gdf, "EPSG:4326",
-        processed_reports=set(),
-        use_mongodb=False
-    )
+    with caplog.at_level(logging.WARNING):
+        processed_reports, new_gdf, features_added = create_pipeline_features(
+            geojson_reports,
+            txt_reports,
+            empty_gas_lines_gdf,
+            spatial_reference=DEFAULT_CRS,
+            processed_reports=set(),
+            use_mongodb=False
+        )
 
     logger.warning(f"Malformed line detected in report1.txt: '{malformed_line}'")
     logger.debug(f"Processed reports returned: {processed_reports}")
     logger.debug(f"Features added: {features_added}")
 
-    assert "report1.txt" in processed_reports
-    assert not features_added
-    assert new_gdf.shape[0] == gas_lines_gdf.shape[0]
+    assert "malformed_report.txt" in processed_reports, "Malformed TXT report should be marked processed"
+    assert not features_added, "No features should be added from malformed lines"
+    assert new_gdf.equals(empty_gas_lines_gdf), "GeoDataFrame should remain unchanged on malformed input"
+    assert any("Malformed line" in msg or "Error parsing" in msg for msg in caplog.messages), "Warning should be logged on malformed line"
+
     logger.info("Completed test_create_pipeline_features_handles_malformed_txt_lines")
 
 
-def test_create_pipeline_features_geojson_missing_fields_logs_error(caplog):
+def test_create_pipeline_features_geojson_missing_fields_logs_error(empty_gas_lines_gdf, caplog):
     """
-    Test that create_pipeline_features logs an error when GeoJSON reports have missing required fields.
+    Test that missing required fields in GeoJSON report triggers an error log and no features added.
     """
     logger.info("Running test_create_pipeline_features_geojson_missing_fields_logs_error")
 
-    gas_lines_gdf = GeoDataFrame(columns=data_utils.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
-
-    gdf_missing = GeoDataFrame({
+    gdf_missing = gpd.GeoDataFrame({
         'Name': ['line1'],
         'Date': [pd.Timestamp('2023-01-01')],
+        # Missing 'PSI' field
         'Material': ['steel'],
         'geometry': [Point(1, 1)]
-    }, crs="EPSG:4326")
+    }, crs=DEFAULT_CRS)
 
     geojson_reports = [("bad_report.geojson", gdf_missing)]
     txt_reports = []
 
-    processed_reports, new_gdf, features_added = dl.create_pipeline_features(
-        geojson_reports, txt_reports, gas_lines_gdf, "EPSG:4326",
-        processed_reports=set(),
-        use_mongodb=False
-    )
+    with caplog.at_level(logging.ERROR):
+        processed_reports, new_gdf, features_added = create_pipeline_features(
+            geojson_reports,
+            txt_reports,
+            empty_gas_lines_gdf,
+            spatial_reference=DEFAULT_CRS,
+            processed_reports=set(),
+            use_mongodb=False
+        )
 
     logger.debug(f"Processed reports returned: {processed_reports}")
     logger.debug(f"Features added: {features_added}")
     logger.error("Missing required fields detected in 'bad_report.geojson'")
 
-    assert "bad_report.geojson" in processed_reports
-    assert not features_added
-    assert any("missing required fields" in record.message for record in caplog.records)
+    assert "bad_report.geojson" in processed_reports, "Bad GeoJSON report should be marked processed"
+    assert not features_added, "No features added flag when fields missing"
+    assert new_gdf.equals(empty_gas_lines_gdf), "GeoDataFrame unchanged when fields missing"
+    assert any("missing required fields" in msg for msg in caplog.messages), "Error should be logged for missing fields"
+
     logger.info("Completed test_create_pipeline_features_geojson_missing_fields_logs_error")
 
 
-def test_create_pipeline_features_with_empty_reports():
+def test_create_pipeline_features_with_empty_reports(empty_gas_lines_gdf):
     """
-    Test that create_pipeline_features behaves correctly when no reports are provided.
+    Test that function handles empty inputs correctly without changes.
     """
     logger.info("Running test_create_pipeline_features_with_empty_reports")
 
-    gas_lines_gdf = data_utils.make_feature("dummy", "2023-01-01", 50.0, "steel", Point(0, 0), "EPSG:4326")
-
-    processed_reports, new_gdf, features_added = dl.create_pipeline_features(
+    processed_reports, new_gdf, features_added = create_pipeline_features(
         geojson_reports=[],
         txt_reports=[],
-        gas_lines_gdf=gas_lines_gdf,
-        spatial_reference="EPSG:4326",
+        gas_lines_gdf=empty_gas_lines_gdf,
+        spatial_reference=DEFAULT_CRS,
         processed_reports=set(),
         use_mongodb=False
     )
@@ -207,7 +210,8 @@ def test_create_pipeline_features_with_empty_reports():
     logger.debug(f"Processed reports returned: {processed_reports}")
     logger.debug(f"Features added: {features_added}")
 
-    assert processed_reports == set()
-    assert new_gdf.equals(gas_lines_gdf)
-    assert not features_added
+    assert processed_reports == set(), "No processed reports when no input"
+    assert new_gdf.equals(empty_gas_lines_gdf), "GeoDataFrame unchanged with empty input"
+    assert not features_added, "No features added flag when no input"
+
     logger.info("Completed test_create_pipeline_features_with_empty_reports")

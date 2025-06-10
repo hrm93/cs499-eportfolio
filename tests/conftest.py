@@ -11,8 +11,8 @@ from shapely.geometry import LineString, Point, Polygon
 from pathlib import Path
 from typing import Dict
 
+from gis_tool.config import DEFAULT_CRS
 from gis_tool.logger import setup_logging
-from gis_tool import data_loader as dl
 from gis_tool import data_utils
 
 logger = logging.getLogger("gis_tool")
@@ -143,7 +143,6 @@ def sample_gas_lines_gdf():
     logger.debug(f"Sample gas lines GeoDataFrame created with {len(gdf)} features.")
     return gdf
 
-
 @pytest.fixture
 def empty_gas_lines_gdf():
     """
@@ -151,7 +150,7 @@ def empty_gas_lines_gdf():
     suitable for testing functions that expect an empty gas lines dataset.
     """
     logger.debug("Created empty_gas_lines_gdf fixture.")
-    return GeoDataFrame(columns=data_utils.SCHEMA_FIELDS, geometry=[], crs="EPSG:4326")
+    return gpd.GeoDataFrame(columns=data_utils.SCHEMA_FIELDS, crs=DEFAULT_CRS)
 
 
 @pytest.fixture
@@ -245,14 +244,13 @@ def sample_geojson_report():
      Provides a sample GeoJSON report as a tuple of filename and GeoDataFrame.
      The GeoDataFrame contains a single feature with predefined attributes and geometry.
      """
-    point = Point(1, 1)
     gdf = GeoDataFrame({
         'Name': ['line1'],
         'Date': [pd.Timestamp('2023-01-01')],
-        'PSI': [50.0],
+        'PSI': [150.0],
         'Material': ['steel'],
-        'geometry': [point]
-    }, crs="EPSG:4326")
+        "geometry": [Point(1.0, 2.0)]
+    }, crs=DEFAULT_CRS)
     logger.debug("Created sample_geojson_report fixture with one feature.")
     return "report1.geojson", gdf
 
@@ -329,3 +327,8 @@ def tmp_reports_dir(tmp_path):
 
     logger.info("Temporary reports directory setup complete.")
     return tmp_path
+
+
+@pytest.fixture
+def valid_txt_line():
+    return "Line2,2023-03-01,200,copper,10.0,20.0"
