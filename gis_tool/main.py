@@ -137,26 +137,38 @@ def main() -> None:
             print(f"⚠️  Warning: Failed to load config file {config_path}: {e}")
 
     # Helper function to get config value with CLI override priority
-    def get_config_value(key, default=None):
-        return getattr(args, key, None) or config.get(key, default)
+    def get_config_value(key: str, default=None):
+        cli_value = getattr(args, key, None)
+        if cli_value is not None:
+            return cli_value
+        keys = key.split(".")
+        value = config
+        try:
+            for k in keys:
+                value = value[k]
+            return value
+        except (KeyError, TypeError):
+            return default
 
     # Then use get_config_value() to set your vars
     use_mongodb = get_config_value("use_mongodb", False)
     buffer_distance = get_config_value("buffer_distance", DEFAULT_BUFFER_DISTANCE_FT)
-    spatial_reference = get_config_value("crs", DEFAULT_CRS)
+    spatial_reference = config.get("SPATIAL", {}).get("default_crs", DEFAULT_CRS)
+    geographic_crs = config.get("SPATIAL", {}).get("geographic_crs", "EPSG:4326")
+    buffer_layer_crs = config.get("SPATIAL", {}).get("buffer_layer_crs", "EPSG:32633")
     use_parallel = get_config_value("parallel", PARALLEL)
     output_format = get_config_value("output_format", OUTPUT_FORMAT)
     overwrite_output = get_config_value("overwrite_output", ALLOW_OVERWRITE_OUTPUT)
     dry_run = get_config_value("dry_run", DRY_RUN_MODE)
+    max_workers = MAX_WORKERS
 
     # Also handle file paths similarly
     input_folder = get_config_value("input_folder", None)
     output_path = get_config_value("output_path", None)
     future_development_shp = get_config_value("future_dev_path", None)
     gas_lines_shp = get_config_value("gas_lines_path", None)
-    logger.info("Pipeline processing started.")
 
-    max_workers = MAX_WORKERS
+    logger.info("Pipeline processing started.")
 
     gas_lines_collection = None
 
@@ -164,7 +176,7 @@ def main() -> None:
         try:
             db = connect_to_mongodb()
             ensure_collection_schema(db, "features", spatial_feature_schema)
-            gas_lines_collection = db["gas_lines"]
+            gas_lines_collection = db["features"]
             ensure_spatial_index(gas_lines_collection)
             logger.info("Connected to MongoDB.")
         except PyMongoError as e:

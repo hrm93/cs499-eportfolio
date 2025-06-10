@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from pymongo.errors import ConnectionFailure
-from shapely.geometry import Point
+from shapely.geometry import Point, mapping
 
 from gis_tool.db_utils import (
     ensure_spatial_index,
@@ -235,15 +235,15 @@ def test_upsert_mongodb_feature_insert(monkeypatch):
 
 def test_upsert_mongodb_feature_update(monkeypatch):
     """
-    Test updating an existing MongoDB feature.
-
-    Mocks existing document with different attributes, and
-    verifies update_one is called with correct filter and update.
+    Test updating an existing MongoDB feature with GeoJSON geometry in WGS84.
     """
     logger.info("Testing upsert: update existing MongoDB feature.")
 
     mock_collection = MagicMock()
     geometry = Point(3, 4)
+
+    # Manually create WGS84 GeoJSON geometry for the existing doc (simulate reprojection)
+    geometry_geojson = mapping(geometry)
 
     existing_doc = {
         "_id": "12345",
@@ -251,13 +251,8 @@ def test_upsert_mongodb_feature_update(monkeypatch):
         "date": "2023-12-31",
         "psi": 100.0,
         "material": "Iron",
-        "geometry": geometry.wkt  # Simplified geometry stored as WKT
+        "geometry": geometry_geojson
     }
-
-    monkeypatch.setattr(
-        "gis_tool.db_utils.simplify_geometry",
-        lambda g: g.wkt  # match existing_doc format
-    )
 
     mock_collection.find_one.return_value = existing_doc
 
@@ -276,6 +271,9 @@ def test_upsert_mongodb_feature_update(monkeypatch):
 
     assert update_call[0] == {"_id": "12345"}
     assert "$set" in update_call[1]
+    assert update_call[1]["$set"]["date"] == "2024-01-01"
+    assert update_call[1]["$set"]["psi"] == 120.0
+    assert update_call[1]["$set"]["material"] == "Steel"
 
     logger.info("Update existing feature test passed.")
 
@@ -283,14 +281,14 @@ def test_upsert_mongodb_feature_update(monkeypatch):
 def test_upsert_mongodb_feature_no_update(monkeypatch):
     """
     Test that no update or insert occurs if existing document matches
-    all provided values.
-
-    Verifies that neither insert_one nor update_one is called.
+    all provided values, using GeoJSON geometry.
     """
     logger.info("Testing upsert: no operation when data matches existing doc.")
 
     mock_collection = MagicMock()
     geometry = Point(3, 4)
+
+    geometry_geojson = mapping(geometry)
 
     existing_doc = {
         "_id": "99999",
@@ -298,13 +296,8 @@ def test_upsert_mongodb_feature_no_update(monkeypatch):
         "date": "2024-01-01",
         "psi": 250.0,
         "material": "Steel",
-        "geometry": geometry.wkt
+        "geometry": geometry_geojson
     }
-
-    monkeypatch.setattr(
-        "gis_tool.db_utils.simplify_geometry",
-        lambda g: g.wkt
-    )
 
     mock_collection.find_one.return_value = existing_doc
 

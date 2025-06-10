@@ -2,6 +2,8 @@
 
 import logging
 import warnings
+
+import geopandas as gpd
 import pandas as pd
 from typing import Union
 
@@ -10,9 +12,8 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, PyMongoError
 
-from shapely.geometry import Point
+from shapely.geometry import Point, mapping
 
-from gis_tool.geometry_cleaning import simplify_geometry
 from gis_tool.config import MONGODB_URI, DB_NAME
 
 logger = logging.getLogger("gis_tool")
@@ -119,13 +120,30 @@ def connect_to_mongodb(uri: str = MONGODB_URI, db_name: str = DB_NAME) -> Databa
         raise
 
 
+def reproject_to_wgs84(geometry: Point, input_crs: str = "EPSG:3857") -> dict:
+    """
+    Reproject a shapely geometry from input_crs to EPSG:4326 and return GeoJSON dict.
+
+    Args:
+        geometry (Point): Shapely geometry to reproject.
+        input_crs (str): CRS of the input geometry (default EPSG:3857).
+
+    Returns:
+        dict: Geometry in GeoJSON format with WGS84 coordinates.
+    """
+    gdf = gpd.GeoDataFrame(geometry=[geometry], crs=input_crs)
+    gdf_wgs84 = gdf.to_crs("EPSG:4326")
+    return gdf_wgs84.iloc[0].geometry.__geo_interface__
+
+
 def upsert_mongodb_feature(
     collection: Collection,
     name: str,
     date: Union[str, pd.Timestamp],
     psi: float,
     material: str,
-    geometry: Point
+    geometry: Point,
+    input_crs: str = "EPSG:3857",
 ) -> None:
     """
     Insert or update a gas line feature in MongoDB.
@@ -154,12 +172,21 @@ def upsert_mongodb_feature(
         logger.error(warning_msg)
         raise ValueError(warning_msg)
 
+    if isinstance(date, pd.Timestamp):
+        date = date.isoformat()
+
+    # Ensure psi is a float to satisfy MongoDB schema expecting a double
+    psi = float(psi)
+
+    # Convert geometry to GeoDataFrame for reprojection
+    geometry_geojson = reproject_to_wgs84(geometry, input_crs)
+
     feature_doc = {
         'name': name,
         'date': date,
         'psi': psi,
         'material': material,
-        'geometry': simplify_geometry(geometry)  # Use simplified geometry
+        'geometry': geometry_geojson  # GeoJSON-ready
     }
 
     try:
