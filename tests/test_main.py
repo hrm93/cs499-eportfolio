@@ -1,12 +1,13 @@
 # test for main:
 """
-Test suite for GIS pipeline main module and MongoDB integration.
+Updated test suite for GIS pipeline main module and MongoDB integration.
 
 Verifies:
 - CLI execution with .shp and .geojson output
 - MongoDB success/failure handling
 - Parallel processing behavior
 - Logging and error handling
+- Updated CLI flags (--use-mongodb, --overwrite-output, --parallel)
 """
 import logging
 import unittest
@@ -31,9 +32,9 @@ logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Capture all logs during testing
 
 
-def build_testargs(inputs: Dict[str, str]) -> List[str]:
+def build_testargs(inputs: Dict[str, str], extra_flags: List[str] = None) -> List[str]:
     """Helper to create sys.argv list for CLI invocation."""
-    return [
+    args = [
         "prog",
         "--input-folder", inputs["input_folder"],
         "--output-path", inputs["output_path"],
@@ -43,6 +44,9 @@ def build_testargs(inputs: Dict[str, str]) -> List[str]:
         "--buffer-distance", "50",
         "--no-mongodb"
     ]
+    if extra_flags:
+        args.extend(extra_flags)
+    return args
 
 
 # ===== MongoDB Integration Tests =====
@@ -88,8 +92,9 @@ def test_connect_to_mongodb_failure_logs(monkeypatch, caplog):
     assert "Simulating MongoDB failure" in caplog.text
 
 
-def test_main_with_mongodb(monkeypatch, dummy_inputs, caplog):
+def test_main_with_mongodb(monkeypatch, dummy_inputs, caplog, tmp_path):
     """Test main execution with MongoDB interaction."""
+    dummy_inputs["output_path"] = str(tmp_path / Path(dummy_inputs["output_path"]).name)
     testargs = build_testargs(dummy_inputs)[:-1] + ["--use-mongodb"]
     monkeypatch.setattr("sys.argv", testargs)
 
