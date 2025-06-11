@@ -6,7 +6,7 @@ import geopandas as gpd
 import pandas as pd
 
 from unittest.mock import MagicMock
-from shapely.geometry import Point
+from shapely.geometry import Point, LineString, Polygon
 
 from gis_tool import data_utils
 from gis_tool.data_utils import make_feature
@@ -75,7 +75,7 @@ def test_create_and_upsert_feature_adds_row(monkeypatch):
         date=new_date,
         psi=new_psi,
         material=new_material,
-        point=new_point,
+        geometry=new_point,
         spatial_reference=crs,
         gas_lines_gdf=initial_gdf,
         gas_lines_collection=gas_lines_collection,
@@ -107,7 +107,7 @@ def test_create_and_upsert_feature_skips_mongodb(monkeypatch):
         date="2023-06-04",
         psi=85.0,
         material="Steel",
-        point=Point(-70, 45),
+        geometry=Point(-70, 45),
         spatial_reference=crs,
         gas_lines_gdf=initial_gdf,
         gas_lines_collection=None,
@@ -148,7 +148,7 @@ def test_create_and_upsert_feature_reindex_and_geometry_set():
         date="2023-01-01",
         psi=50,
         material="steel",
-        point=Point(0, 0),
+        geometry=Point(0, 0),
         spatial_reference=crs,
         gas_lines_gdf=initial_gdf,
         gas_lines_collection=None,
@@ -171,3 +171,33 @@ def test_make_feature_creates_valid_gdf():
     assert feature.crs.to_string() == DEFAULT_CRS
     logger.debug("make_feature created a valid GeoDataFrame with correct CRS and normalized material.")
     logger.info("make_feature test passed.")
+
+
+@pytest.mark.parametrize("geom", [
+    Point(-75, 40),
+    LineString([(-75, 40), (-76, 41), (-77, 39)]),
+    Polygon([(-75, 40), (-76, 41), (-77, 39), (-75, 40)])
+])
+def test_create_and_upsert_feature_various_geometries(monkeypatch, geom):
+    crs = "EPSG:4326"
+    initial_gdf = gpd.GeoDataFrame(
+        columns=["Name", "Date", "PSI", "Material", "geometry"], crs=crs
+    )
+
+    monkeypatch.setattr(data_utils, "upsert_mongodb_feature", lambda *args, **kwargs: None)
+
+    updated_gdf = data_utils.create_and_upsert_feature(
+        name="TestPipe",
+        date="2023-06-10",
+        psi=100.0,
+        material="TestMaterial",
+        geometry=geom,
+        spatial_reference=crs,
+        gas_lines_gdf=initial_gdf,
+        gas_lines_collection=None,
+        use_mongodb=False,
+    )
+
+    assert len(updated_gdf) == 1
+    assert updated_gdf.iloc[0].geometry.equals(geom)
+    assert updated_gdf.iloc[0]["Material"] == "testmaterial"

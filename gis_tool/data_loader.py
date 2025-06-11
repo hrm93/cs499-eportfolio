@@ -96,7 +96,8 @@ def create_pipeline_features(
         gas_lines_gdf = validate_and_reproject_crs(gas_lines_gdf, spatial_reference, "gas_lines_gdf")
 
     # Geometry column validation for gas_lines_gdf
-    gas_lines_gdf = validate_geometry_column(gas_lines_gdf, "gas_lines_gdf", allowed_geom_types=["LineString", "Point"])
+    gas_lines_gdf = validate_geometry_column(gas_lines_gdf, "gas_lines_gdf",
+                                             allowed_geom_types=["Point", "LineString", "Polygon"])
 
     required_fields = ["Name", "Date", "PSI", "Material", "geometry"]
 
@@ -138,7 +139,7 @@ def create_pipeline_features(
 
             # Validate geometry type
             geom_type = feat["geometry"].geom_type if feat.get("geometry") else None
-            if geom_type not in ["Point", "LineString"]:
+            if geom_type not in ["Point", "LineString", "Polygon"]:
                 logger.error(f"Unsupported geometry type '{geom_type}' in feature '{feat['Name']}'. Skipping.")
                 continue
 
@@ -153,7 +154,7 @@ def create_pipeline_features(
                 date=feat["Date"],
                 psi=feat["PSI"],
                 material=feat["Material"],
-                point=feat["geometry"],
+                geometry=feat["geometry"],
                 spatial_reference=spatial_reference,
                 gas_lines_gdf=gas_lines_gdf,
                 gas_lines_collection=gas_lines_collection,

@@ -8,7 +8,9 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, PyMongoError
-from shapely.geometry import Point
+from shapely.geometry import Point, LineString, Polygon
+from shapely.geometry.base import BaseGeometry
+from shapely.geometry import mapping
 
 from gis_tool.config import MONGODB_URI, DB_NAME
 from gis_tool.spatial_utils import is_finite_geometry
@@ -20,7 +22,15 @@ spatial_feature_schema = {
     "required": ["name", "geometry", "date", "psi", "material"],
     "properties": {
         "name": {"bsonType": "string"},
-        "geometry": {"bsonType": "object", "description": "GeoJSON geometry"},
+        "geometry": {
+            "bsonType": "object",
+            "required": ["type", "coordinates"],
+            "description": "GeoJSON geometry",
+            "properties": {
+                "type": {"enum": ["Point", "LineString", "Polygon"]},
+                "coordinates": {"bsonType": "array"}
+            },
+        },
         "date": {"bsonType": "string"},
         "psi": {"bsonType": "double"},
         "material": {"bsonType": "string"},
@@ -95,13 +105,13 @@ def connect_to_mongodb(
         raise
 
 
-def reproject_to_wgs84(geometry: Point, input_crs: str = "EPSG:3857") -> dict:
+def reproject_to_wgs84(geometry: BaseGeometry, input_crs: str = "EPSG:3857") -> dict:
     """
     Reproject shapely geometry to EPSG:4326 and return GeoJSON dict.
     """
     gdf = gpd.GeoDataFrame(geometry=[geometry], crs=input_crs)
     gdf_wgs84 = gdf.to_crs("EPSG:4326")
-    return gdf_wgs84.iloc[0].geometry.__geo_interface__
+    return mapping(gdf_wgs84.iloc[0].geometry)
 
 
 def upsert_mongodb_feature(
@@ -110,7 +120,7 @@ def upsert_mongodb_feature(
     date: Union[str, pd.Timestamp],
     psi: float,
     material: str,
-    geometry: Point,
+    geometry: BaseGeometry,
     input_crs: str = "EPSG:3857",
 ) -> None:
     """
@@ -124,8 +134,8 @@ def upsert_mongodb_feature(
         logger.error(msg)
         raise ValueError(msg)
 
-    if not isinstance(geometry, Point):
-        msg = f"Invalid geometry type: expected shapely.geometry.Point, got {type(geometry)}"
+    if geometry.geom_type not in {"Point", "LineString", "Polygon"}:
+        msg = f"Unsupported geometry type: {geometry.geom_type}"
         warnings.warn(msg, UserWarning)
         logger.error(msg)
         raise ValueError(msg)

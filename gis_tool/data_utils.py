@@ -5,6 +5,7 @@ import geopandas as gpd
 import pandas as pd
 from pymongo.collection import Collection
 from shapely.geometry import Point
+from shapely.geometry.base import BaseGeometry
 
 from gis_tool.db_utils import upsert_mongodb_feature
 
@@ -20,7 +21,7 @@ def make_feature(
     date: Union[str, pd.Timestamp],
     psi: float,
     material: str,
-    geometry: Point,
+    geometry: BaseGeometry,
     crs: str
 ) -> gpd.GeoDataFrame:
     """
@@ -60,24 +61,28 @@ def create_and_upsert_feature(
     date: Union[str, pd.Timestamp],
     psi: float,
     material: str,
-    point: Point,
+    geometry: BaseGeometry,
     spatial_reference: str,
     gas_lines_gdf: gpd.GeoDataFrame,
     gas_lines_collection: Optional[Collection],
     use_mongodb: bool
 ) -> gpd.GeoDataFrame:
     """
-    Create a new feature GeoDataFrame row and optionally upsert into MongoDB.
+    Create and insert a new feature supporting multiple geometry types (Point, LineString, Polygon).
+    Optionally upserts into MongoDB if enabled.
     """
-    new_feature = make_feature(name, date, psi, material, point, spatial_reference)
+    new_feature = make_feature(name, date, psi, material, geometry, spatial_reference)
 
     if use_mongodb and gas_lines_collection is not None:
+        if geometry.geom_type != "Point":
+            logger.warning(
+                f"MongoDB only supports Point geometry directly. Feature '{name}' has type {geometry.geom_type}."
+            )
         logger.debug(f"Inserting/updating feature in MongoDB: {name}")
         upsert_mongodb_feature(
-            gas_lines_collection, name, date, psi, material, point
+            gas_lines_collection, name, date, psi, material, geometry
         )
-
-    # Reindex to align columns exactly
+    # Align schema
     new_feature = new_feature.reindex(columns=gas_lines_gdf.columns)
 
     if 'geometry' in new_feature.columns:
