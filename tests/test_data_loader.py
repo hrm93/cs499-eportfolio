@@ -22,12 +22,10 @@ import logging
 import pandas as pd
 import geopandas as gpd
 
-from geopandas import GeoDataFrame
+
 from shapely.geometry import Point
 
-from gis_tool import data_utils
 from gis_tool.config import DEFAULT_CRS
-from gis_tool import data_loader as dl
 from gis_tool.data_loader import create_pipeline_features
 
 # Logger setup
@@ -63,12 +61,17 @@ def test_create_pipeline_features_geojson(sample_geojson_report, empty_gas_lines
     logger.info("create_pipeline_features_geojson test passed.")
 
 
-def test_create_pipeline_features_txt(valid_txt_line, empty_gas_lines_gdf):
+def test_create_pipeline_features_txt(empty_gas_lines_gdf):
     """
-    Test processing a TXT report line updates gas lines GeoDataFrame and adds features.
+    Test processing a properly formatted CSV-style TXT report with quoted location updates the GeoDataFrame.
     """
-    logger.info("Testing create_pipeline_features with TXT input.")
-    txt_reports = [("report.txt", [valid_txt_line])]
+    logger.info("Testing create_pipeline_features with CSV-style TXT input.")
+
+    # Simulate a CSV-style TXT report line with quoted lat/lon
+    valid_txt_line = 'ID,Date,PSI,Material,Location,Notes,ExtraField\n' \
+                     '123,2025-06-10,88,Steel,"12.345, 67.890","Test note",N/A'
+
+    txt_reports = [("report.txt", valid_txt_line.splitlines())]
 
     processed_reports, updated_gdf, features_added = create_pipeline_features(
         geojson_reports=[],
@@ -86,7 +89,10 @@ def test_create_pipeline_features_txt(valid_txt_line, empty_gas_lines_gdf):
     assert len(updated_gdf) == 1, "One feature should be added from TXT"
     assert features_added, "Features added flag should be True"
     assert updated_gdf.crs.to_string() == DEFAULT_CRS, "CRS should be preserved after update"
-    assert "Material" in updated_gdf.columns, "Expected columns should be present"
+    assert "Material" in updated_gdf.columns, "Expected 'Material' column should be present"
+    assert updated_gdf.iloc[0]["Material"] == "steel", "Material should be normalized to lowercase"
+    assert updated_gdf.iloc[0].geometry.x == 12.345, "Longitude should be parsed correctly"
+    assert updated_gdf.iloc[0].geometry.y == 67.89, "Latitude should be parsed correctly"
 
     logger.info("create_pipeline_features_txt test passed.")
 

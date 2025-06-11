@@ -8,7 +8,7 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, PyMongoError
-from shapely.geometry import Point, LineString, Polygon
+
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry import mapping
 

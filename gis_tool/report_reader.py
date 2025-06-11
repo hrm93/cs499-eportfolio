@@ -1,5 +1,6 @@
 # report_reader.py
 
+import csv
 import logging
 import warnings
 import os
@@ -106,30 +107,35 @@ def load_txt_report_lines(filepath: str) -> List[str]:
 
 def parse_txt_report(lines: List[str]) -> List[dict]:
     features = []
-    for line in lines:
-        parts = [p.strip() for p in line.split(',')]
-        if len(parts) < 6:
-            logger.warning(f"Skipping malformed line: {line}")
-            continue
-        name, date_str, psi_str, material, lat_str, lon_str = parts[:6]
 
-        date = robust_date_parse(date_str)
+    # Use csv.DictReader to handle quoted fields and headers
+    reader = csv.DictReader(lines, skipinitialspace=True, quotechar='"')
 
+    for row in reader:
         try:
-            psi = float(psi_str)
-            lat = float(lat_str)
+            name = row.get("ID", "").strip()
+            date = robust_date_parse(row.get("Date", "").strip())
+            psi = float(row.get("PSI", "").strip())
+            material = row.get("Material", "").strip().lower()
+            location_str = row.get("Location", "").strip().strip('"')
+
+            # Extract lat/lon from the quoted "lat, lon" string
+            lon_str, lat_str = map(str.strip, location_str.split(","))
             lon = float(lon_str)
-        except ValueError:
-            logger.warning(f"Skipping line with invalid numeric values: {line}")
+            lat = float(lat_str)
+
+            features.append({
+                "Name": name,
+                "Date": date,
+                "PSI": psi,
+                "Material": material,
+                "geometry": Point(lon, lat)
+            })
+
+        except Exception as e:
+            logger.warning(f"Skipping line due to parsing error: {row} | Error: {e}")
             continue
 
-        features.append({
-            "Name": name,
-            "Date": date,
-            "PSI": psi,
-            "Material": material.lower(),  # normalize to lowercase
-            "geometry": Point(lon, lat),
-        })
     return features
 
 
