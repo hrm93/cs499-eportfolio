@@ -199,7 +199,7 @@ DB_NAME = getenv_or_config('DATABASE', 'db_name', 'gis_database')
 """str: Name of the MongoDB database."""
 
 # Spatial settings
-DEFAULT_CRS = getenv_or_config('SPATIAL', 'default_crs', 'EPSG:32633')
+DEFAULT_CRS = getenv_or_config('SPATIAL', 'default_crs', 'EPSG:4326')
 """str: Default Coordinate Reference System for spatial data."""
 
 GEOGRAPHIC_CRS = getenv_or_config('SPATIAL', 'geographic_crs', 'EPSG:4326')

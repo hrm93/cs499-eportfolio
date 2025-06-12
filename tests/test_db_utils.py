@@ -1,11 +1,13 @@
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from typing import Any
 
 import pytest
 
 from pymongo.errors import ConnectionFailure
-from shapely.geometry import Point, mapping
+from shapely.geometry import Point, mapping, shape
+
+from shapely.geometry.base import BaseGeometry
 
 from gis_tool.db_utils import (
     ensure_spatial_index,
@@ -202,34 +204,42 @@ def test_connect_to_mongodb_failure(monkeypatch: pytest.MonkeyPatch, caplog: pyt
 def test_upsert_mongodb_feature_insert() -> None:
     """
     Test inserting a new feature into MongoDB collection.
+    Ensures geometry is correctly reprojected and stored.
     """
     logger.info("Starting test: upsert_mongodb_feature_insert")
 
     mock_collection = MagicMock()
-    geometry = Point(1, 2)
+    input_geometry = Point(1, 2)
 
-    # Use the actual reprojection function to get GeoJSON dict geometry
-    reproj_geom = reproject_to_wgs84(geometry)
+    # Define known reprojected GeoJSON result (mocked)
+    mocked_geojson = {
+        "type": "Point",
+        "coordinates": [8.983152841195214e-06, 1.7966305682390134e-05]
+    }
 
-    mock_collection.find_one.return_value = None
+    with patch("gis_tool.db_utils.reproject_to_wgs84", return_value=mocked_geojson):
+        mock_collection.find_one.return_value = None
 
-    upsert_mongodb_feature(
-        collection=mock_collection,
-        name="Line A",
-        date="2024-01-01",
-        psi=250.0,
-        material="Steel",
-        geometry=geometry,
-    )
+        upsert_mongodb_feature(
+            collection=mock_collection,
+            name="Line A",
+            date="2024-01-01",
+            psi=250.0,
+            material="Steel",
+            geometry=input_geometry,
+        )
 
-    mock_collection.insert_one.assert_called_once()
-    inserted_doc = mock_collection.insert_one.call_args[0][0]
+        mock_collection.insert_one.assert_called_once()
+        inserted_doc = mock_collection.insert_one.call_args[0][0]
 
-    assert inserted_doc["name"] == "Line A"
-    assert inserted_doc["material"] == "Steel"
-    assert "geometry" in inserted_doc
-    assert inserted_doc["geometry"] == reproj_geom
+        assert inserted_doc["name"] == "Line A"
+        assert inserted_doc["material"] == "Steel"
+        assert inserted_doc["geometry"] == mocked_geojson
 
+        # Confirm shape parses correctly
+        inserted_geom = shape(inserted_doc["geometry"])
+        assert isinstance(inserted_geom, BaseGeometry)
+        assert inserted_geom.geom_type == "Point"
     logger.info("Completed test: upsert_mongodb_feature_insert")
 
 

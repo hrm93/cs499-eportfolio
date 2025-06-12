@@ -4,7 +4,7 @@ import logging
 import geopandas as gpd
 
 from unittest.mock import Mock
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point, Polygon, mapping
 from shapely.geometry.base import BaseGeometry
 
 from gis_tool.geometry_cleaning import fix_geometry, simplify_geometry
@@ -71,34 +71,34 @@ def test_geometry_simplification_accuracy():
 def test_simplify_geometry_returns_mapping():
     """
     Tests simplify_geometry returns a GeoJSON-like dict with geometry simplified
-    according to the specified tolerance.
+    according to the specified tolerance, coordinates within tolerance,
+    and correct geometry type.
     """
     logger.info("Testing simplify_geometry function.")
 
     # Test with Point
     point = Point(10.123456789, 20.987654321)
-    simplified_point = simplify_geometry(point, tolerance=0.01)
-    logger.debug(f"Simplified Point geometry output: {simplified_point}")
+    simplified_geom = simplify_geometry(point, tolerance=0.01)
+    simplified_point = mapping(simplified_geom)  # convert to dict
+
     assert isinstance(simplified_point, dict)
-    assert 'type' in simplified_point and simplified_point['type'] == 'Point'
+    assert simplified_point.get('type') == 'Point'
     coords = simplified_point.get('coordinates', [])
     assert abs(coords[0] - 10.123456789) < 0.01
     assert abs(coords[1] - 20.987654321) < 0.01
 
     # Test with Polygon
     polygon = Polygon([(0, 0), (1, 1), (1, 0)])
-    simplified_poly = simplify_geometry(polygon, tolerance=0.1)
-    logger.debug(f"Simplified Polygon geometry output: {simplified_poly}")
+    simplified_poly = mapping(simplify_geometry(polygon, tolerance=0.1))
     assert isinstance(simplified_poly, dict)
-    assert 'type' in simplified_poly and simplified_poly['type'] == 'Polygon'
+    assert simplified_poly.get('type') == 'Polygon'
     assert 'coordinates' in simplified_poly
 
     # Test with LineString
     line = LineString([(0, 0), (1, 1), (2, 2)])
-    simplified_line = simplify_geometry(line, tolerance=0.1)
-    logger.debug(f"Simplified LineString geometry output: {simplified_line}")
+    simplified_line = mapping(simplify_geometry(line, tolerance=0.1))
     assert isinstance(simplified_line, dict)
-    assert 'type' in simplified_line and simplified_line['type'] == 'LineString'
+    assert simplified_line.get('type') == 'LineString'
     assert 'coordinates' in simplified_line
 
     logger.info("simplify_geometry test passed.")

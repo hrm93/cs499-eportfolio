@@ -56,23 +56,18 @@ def fix_geometry(g: BaseGeometry) -> Optional[BaseGeometry]:
         return None
 
 
-def simplify_geometry(geom: BaseGeometry, tolerance: float = 0.00001) -> Dict:
+def simplify_geometry(geom: BaseGeometry, tolerance: float = 0.00001) -> BaseGeometry:
     """
     Simplify a geometry to reduce floating point precision issues.
-
-    Uses Shapely's simplify method with topology preservation to reduce
-    the complexity of the geometry while maintaining its shape.
 
     Args:
         geom (BaseGeometry): The input Shapely geometry to simplify.
         tolerance (float, optional): The tolerance threshold for simplification.
-            Defaults to 0.00001.
 
     Returns:
-        dict: A GeoJSON-like mapping dictionary of the simplified geometry.
+        BaseGeometry: Simplified geometry preserving topology.
     """
-    # Simplify geometry to avoid floating point precision issues
     logger.debug(f"simplify_geometry called with tolerance: {tolerance} for geometry type: {geom.geom_type}")
     simplified = geom.simplify(tolerance, preserve_topology=True)
     logger.debug("Geometry simplified.")
-    return mapping(simplified)
+    return simplified

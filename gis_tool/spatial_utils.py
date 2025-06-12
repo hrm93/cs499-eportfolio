@@ -252,6 +252,9 @@ def is_finite_geometry(geom: Optional[Dict[str, Any]]) -> bool:
 
     coords = geom["coordinates"]
 
+    if not isinstance(coords, (list, tuple)):
+        logger.warning("Coordinates are not a list or tuple.")
+        return False
 
     def check_finite_coords(coords_part):
         """
@@ -266,6 +269,6 @@ def is_finite_geometry(geom: Optional[Dict[str, Any]]) -> bool:
 
     finite_check = check_finite_coords(coords)
     if not finite_check:
-        logger.warning(f"Geometry has non-finite coordinates: {geom}")
+        logger.warning(f"Non-finite geometry detected (type: {geom.get('type')}): {geom}")
 
     return finite_check

@@ -1,6 +1,6 @@
 import logging
 import warnings
-from typing import Union
+from typing import Dict, Optional, Union
 
 import geopandas as gpd
 import pandas as pd
@@ -12,8 +12,9 @@ from pymongo.errors import ConnectionFailure, PyMongoError
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry import mapping
 
-from gis_tool.config import MONGODB_URI, DB_NAME
+from gis_tool.config import MONGODB_URI, DB_NAME, DEFAULT_CRS
 from gis_tool.spatial_utils import is_finite_geometry
+from gis_tool.geometry_cleaning import fix_geometry, simplify_geometry
 
 logger = logging.getLogger("gis_tool")
 
@@ -105,13 +106,49 @@ def connect_to_mongodb(
         raise
 
 
-def reproject_to_wgs84(geometry: BaseGeometry, input_crs: str = "EPSG:3857") -> dict:
+def reproject_to_wgs84(geometry: BaseGeometry, input_crs: str = "EPSG:3857") -> Optional[Dict]:
     """
     Reproject shapely geometry to EPSG:4326 and return GeoJSON dict.
+
+    Args:
+        geometry (BaseGeometry): Input shapely geometry.
+        input_crs (str): CRS of input geometry (default EPSG:3857).
+
+    Returns:
+        Optional[dict]: GeoJSON-like dict of geometry in EPSG:4326 or None if failure.
     """
-    gdf = gpd.GeoDataFrame(geometry=[geometry], crs=input_crs)
-    gdf_wgs84 = gdf.to_crs("EPSG:4326")
-    return mapping(gdf_wgs84.iloc[0].geometry)
+    if geometry is None:
+        logger.warning("Input geometry is None, skipping reprojection.")
+        return None
+
+    if not input_crs:
+        raise ValueError("Input CRS is not defined for reprojection.")
+
+    fixed_geom = fix_geometry(geometry)
+    if fixed_geom is None:
+        logger.warning("Geometry could not be fixed, skipping reprojection.")
+        return None
+
+    simplified_geom = simplify_geometry(fixed_geom)
+
+    if input_crs == "EPSG:4326":
+        geom_to_check = simplified_geom
+    else:
+        try:
+            gdf = gpd.GeoDataFrame(index=[0], geometry=[simplified_geom], crs=input_crs)
+            gdf_wgs84 = gdf.to_crs("EPSG:4326")
+            geom_to_check = gdf_wgs84.iloc[0].geometry
+        except Exception as e:
+            logger.error(f"Failed to reproject geometry: {e}")
+            return None
+
+    geojson_geom = mapping(geom_to_check)
+
+    if not is_finite_geometry(geojson_geom):
+        logger.warning("Geometry contains non-finite coordinates after reprojection and cleaning.")
+        return None
+
+    return geojson_geom
 
 
 def upsert_mongodb_feature(
@@ -121,12 +158,13 @@ def upsert_mongodb_feature(
     psi: float,
     material: str,
     geometry: BaseGeometry,
-    input_crs: str = "EPSG:3857",
+    input_crs: str = DEFAULT_CRS,
 ) -> None:
     """
     Insert or update a gas line feature in MongoDB.
 
     Validates inputs, reprojects geometry, and performs upsert.
+    Skips insertion if geometry contains non-finite coordinates.
     """
     if not isinstance(name, str) or not name.strip():
         msg = "Invalid 'name': must be non-empty string."
@@ -146,6 +184,13 @@ def upsert_mongodb_feature(
     psi = float(psi)
 
     geometry_geojson = reproject_to_wgs84(geometry, input_crs)
+    logger.debug(f"[MongoDB Upsert] Feature '{name}' reprojection complete using input_crs='{input_crs}'.")
+
+    if geometry_geojson is None:
+        msg = f"Skipping upsert for '{name}': invalid or non-finite geometry after cleaning/reprojection."
+        warnings.warn(msg, UserWarning)
+        logger.warning(msg)
+        return
 
     if not is_finite_geometry(geometry_geojson):
         msg = f"Skipping upsert for '{name}': geometry contains non-finite coordinates."
