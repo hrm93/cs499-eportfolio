@@ -18,10 +18,8 @@ from gis_tool.spatial_utils import (
     reproject_geometry_to_crs
 )
 from gis_tool import config
-from gis_tool.buffer_processor import (
-    create_buffer_with_geopandas,
-    merge_buffers_into_planning_file,
-)
+from gis_tool.buffer_processor import merge_buffers_into_planning_file
+from gis_tool.buffer_creation import create_buffer_with_geopandas
 
 logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Capture all logs

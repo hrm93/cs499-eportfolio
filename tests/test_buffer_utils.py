@@ -6,6 +6,7 @@ import geopandas as gpd
 
 from shapely.geometry import Point, Polygon
 
+import gis_tool.buffer_creation
 from gis_tool import buffer_processor
 from gis_tool.buffer_utils import (
     buffer_geometry,
@@ -126,7 +127,7 @@ def test_final_geometry_validation_removes_invalid_and_empty(tmp_path, sample_ga
     gas_lines_path = tmp_path / "gas_lines.geojson"
     sample_gas_lines_gdf.to_file(str(gas_lines_path), driver='GeoJSON')
 
-    result = buffer_processor.create_buffer_with_geopandas(
+    result = gis_tool.buffer_creation.create_buffer_with_geopandas(
         input_gas_lines_path=str(gas_lines_path),
         buffer_distance_ft=328.084,
         parks_path=None,

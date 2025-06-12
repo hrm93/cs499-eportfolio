@@ -21,8 +21,8 @@ import fiona.errors
 import geopandas as gpd
 from pymongo.errors import PyMongoError
 
+from gis_tool.buffer_creation import  create_buffer_with_geopandas
 from gis_tool.buffer_processor import (
-    create_buffer_with_geopandas,
     merge_buffers_into_planning_file,
     fix_geometry,
 )
