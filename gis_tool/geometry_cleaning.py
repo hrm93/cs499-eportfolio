@@ -1,8 +1,7 @@
 import logging
-from typing import Dict, Optional
+from typing import Optional
 from geopandas import gpd
 from pyproj import CRS
-from shapely.geometry import mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.errors import TopologicalError
 

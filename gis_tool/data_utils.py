@@ -89,10 +89,26 @@ def create_and_upsert_feature(
         new_feature.set_geometry('geometry', inplace=True)
 
     logger.debug(f"Adding new feature: {name}")
-    # Concatenate and ensure the result is a GeoDataFrame
-    combined_gdf = gpd.GeoDataFrame(
-        pd.concat([gas_lines_gdf, new_feature], ignore_index=True),
-        crs=gas_lines_gdf.crs
-    )
 
-    return combined_gdf
+    if not new_feature.empty:
+        # For gas_lines_gdf
+        non_geom_cols = [c for c in gas_lines_gdf.columns if c != 'geometry']
+        gas_lines_clean = gpd.GeoDataFrame(
+            gas_lines_gdf['geometry'], crs=gas_lines_gdf.crs
+        ).join(gas_lines_gdf[non_geom_cols].dropna(axis=1, how='all'))
+
+        # For new_feature
+        non_geom_cols_nf = [c for c in new_feature.columns if c != 'geometry']
+        new_feature_clean = gpd.GeoDataFrame(
+            new_feature['geometry'], crs=new_feature.crs
+        ).join(new_feature[non_geom_cols_nf].dropna(axis=1, how='all'))
+
+        # Concatenate cleaned GeoDataFrames
+        combined_gdf = pd.concat([gas_lines_clean, new_feature_clean], ignore_index=True)
+
+        # Return GeoDataFrame with CRS
+        return gpd.GeoDataFrame(combined_gdf, crs=gas_lines_gdf.crs)
+
+    else:
+        logger.debug(f"New feature for {name} is empty, skipping concat.")
+        return gas_lines_gdf
