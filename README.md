@@ -1,32 +1,52 @@
 # 🌎GIS Pipeline Tool
 
+
+---
+
+## 🚩 Project Overview
+
+This GIS Pipeline Tool provides a lightweight, open-source alternative for geospatial buffering workflows.
+It replaces proprietary ArcPy processes with modern libraries like GeoPandas and Shapely, improving portability,
+modularity, and accessibility across platforms and environments. 
+This tool is designed for GIS professionals and developers seeking an open, flexible solution for spatial data processing.
+
+
 ---
 
 ## 📌 Purpose
-This tool performs geospatial buffering on vector data using open-source libraries. 
-It replaces proprietary ArcPy workflows with GeoPandas and Shapely to improve portability, 
-modularity, and accessibility across systems.
+The tool performs geospatial buffering on vector data using open-source libraries. 
+It improves upon traditional proprietary workflows by leveraging GeoPandas, Shapely, and other Python GIS libraries 
+to enable easy integration, customization, and reproducibility.
 
 ---
 
 ## 🛠 Features
 - Command-line interface using `argparse`
-- Modular and testable codebase
-- Logging and exception handling
+- Modular, well-structured, and testable codebase  
+- Comprehensive logging and exception handling  
 - Unit test scaffolding with `pytest`
 - Open-source spatial processing with `GeoPandas`, `Shapely`, `Fiona`, and `PyProj`
-- MongoDB support for storing spatial metadata and logs
+- Optional MongoDB support for storing spatial metadata and processing logs  
 
 ---
 
-## 🚀 How to Run
+## ⚡ Getting Started
 
-### Install dependencies:
+### 1. Clone the repository
+
+```
+git clone https://github.com/hrm93/cs499-eportfolio
+cd cs499-eportfolio
+```
+
+### 2. Install dependencies:
 ```
 pip install -r requirements.txt
-````
+```
 
-### Run the tool:
+## 🚀 How to Run
+### Run the tool from the command line using:
+
 ```
 python -m gis_tool.main --input data/input.shp --buffer 100 --output output/
 ```
@@ -58,6 +78,14 @@ python -m gis_tool.main --input "data/roads.shp" --buffer 250 --output "output/"
 pip install -r requirements.txt
 ```
 
+---
+
+## 💾 MongoDB Integration  
+MongoDB support is optional and provides a way to store spatial metadata and processing logs for auditing and analysis.
+#### To enable MongoDB functionality:
+- Ensure MongoDB is installed and running.  
+- Configure connection parameters (e.g., URI, database name) in config.py or via environment variables.  
+- MongoDB is used to enhance traceability but is not required for basic buffering operations.  
 
 ---
 
@@ -69,19 +97,63 @@ When running tests with pytest on Windows, you might occasionally see a warning 
 Exception ignored in atexit callback: <function cleanup_numbered_dir at 0x...>
 PermissionError: [WinError 5] Access is denied: 'C:\\Users\\user\\AppData\\Local\\Temp\\pytest-of-user\\pytest-current'
 ```
-This occurs because Windows sometimes restricts permission to delete temporary test directories during cleanup.
-It does not indicate a failure in your tests or the tool itself.
+This happens because Windows sometimes restricts deletion of temporary test directories during cleanup.
 
-### How to mitigate:
+### Mitigation steps:
 - Close editors, terminals, or other programs that may be locking files.
 - Run pytest with Administrator privileges.
 - Manually delete the pytest temp folders under your Windows temp directory:  
 `C:\Users\<your-username>\AppData\Local\Temp\pytest-of-<username>\`
 - Temporarily disable antivirus or Windows Defender which may lock files.
-- Use the pytest option to specify a different base temp folder, e.g.:
+- Use pytest’s --basetemp option to specify a custom temp directory, e.g.:
   `pytest --basetemp=./.pytest_tmp`
 
 ### You can safely ignore this warning if it does not affect your tests passing.
+
+---
+
+## 🗂 Project Structure
+
+gis_tool/
+├── __init__.py  
+├── buffer_creation.py  
+├── buffer_processor.py  
+├── buffer_utils.py  
+├── cli.py  
+├── config.py  
+├── data_loader.py  
+├── data_utils.py  
+├── db_utils.py  
+├── geometry_cleaning.py  
+├── logger.py  
+├── main.py  
+├── output_writer.py  
+├── parallel_utils.py  
+├── parks_subtraction.py  
+├── report_reader.py  
+├── spatial_utils.py  
+├── utils.py  
+└── tests/  
+
+---
+
+## 🤝 Contributing
+Contributions, issues, and feature requests are welcome!  
+Please use the GitHub repository’s issue tracker to submit feedback or pull requests.  
+
+---
+
+---
+
+## 📄 License
+This project is licensed under the MIT License. See the LICENSE file for details.  
+
+---
+
+## 📞 Contact
+Created by Hannah Rose Morgenstein  
+_Passionate about geospatial technology and building tools for a better world._  
+GitHub: https://github.com/hrm93  
 
 ---
 
@@ -91,5 +163,4 @@ It does not indicate a failure in your tests or the tool itself.
 
 ---
 
-© 2025 • Hannah Rose Morgenstein  
-_Passionate about geospatial technology and building tools for a better world._
+© 2025 • Hannah Rose Morgenstein
