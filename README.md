@@ -53,7 +53,7 @@ python -m gis_tool.main --input data/input.shp --buffer 100 --output output/
 
 ---
 
-## 🔧 Example
+### 🔧 Example
 
 ```
 python -m gis_tool.main --input "data/roads.shp" --buffer 250 --output "output/"
@@ -108,13 +108,13 @@ This happens because Windows sometimes restricts deletion of temporary test dire
 - Use pytest’s --basetemp option to specify a custom temp directory, e.g.:
   `pytest --basetemp=./.pytest_tmp`
 
-### You can safely ignore this warning if it does not affect your tests passing.
+You can safely ignore this warning if it does not affect your tests passing.
 
 ---
 
 ## 🗂 Project Structure
 
-gis_tool/
+gis_tool/  
 ├── __init__.py  
 ├── buffer_creation.py  
 ├── buffer_processor.py  
@@ -138,8 +138,8 @@ gis_tool/
 ---
 
 ## 🤝 Contributing
-Contributions, issues, and feature requests are welcome!  
-Please use the GitHub repository’s issue tracker to submit feedback or pull requests.  
+Contributions, issues, and feature requests are welcome!     
+_Please use the GitHub repository’s issue tracker to submit feedback or pull requests._  
 
 ---
 
@@ -153,6 +153,7 @@ This project is licensed under the MIT License. See the LICENSE file for details
 ## 📞 Contact
 Created by Hannah Rose Morgenstein  
 _Passionate about geospatial technology and building tools for a better world._  
+  
 GitHub: https://github.com/hrm93  
 
 ---
