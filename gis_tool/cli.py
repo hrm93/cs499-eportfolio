@@ -95,6 +95,8 @@ def parse_args():
                         help='Run the pipeline without writing outputs or modifying databases (for testing).')
     parser.add_argument('--config-file', type=str, default=None,
                         help='Path to a configuration file with pipeline settings.')
+    parser.add_argument('--no-config', action='store_true',
+                        help='Ignore config file and only use CLI arguments.')
     parser.add_argument('--overwrite-output', action='store_true',
                         default=config.ALLOW_OVERWRITE_OUTPUT,
                         help='Allow overwriting existing output files.')
@@ -109,19 +111,17 @@ def parse_args():
 
     args = parser.parse_args()
 
-    # Load and merge config file settings if provided
-    if args.config_file:
-        if not os.path.isfile(args.config_file):
-            parser.error(f"❌ Config file not found: {args.config_file}")
+    # === EARLY VALIDATION ===
+    if args.config_file and not os.path.isfile(args.config_file):
+        parser.error(f"❌ Config file does not exist: {args.config_file}")
 
+    # === MERGE CONFIG (if enabled) ===
+    if args.config_file and not args.no_config:
         config_values = load_config_file(args.config_file)
-
         print(f"🔧 Loaded settings from {args.config_file}")  # Inform the user!
 
         for key, value in config_values.items():
-
             if hasattr(args, key):
-
                 # Get the parser's default value for this key
                 default_val = parser.get_default(key)
                 current_val = getattr(args, key)
@@ -129,13 +129,13 @@ def parse_args():
                 # Override only if current arg value equals the parser's default
                 if current_val == default_val:
                     setattr(args, key, value)
+                    print(f"🔁 Config override: {key} = {value}")
+                else:
+                    print(f"🛑 CLI overrides config: {key} = {current_val} (ignored config value = {value})")
+    elif args.no_config:
+        print("🚫 Skipping config file loading due to --no-config flag.")
 
-
-    # === VALIDATION START ===
-
-    # Validate existence of --config-file if provided
-    if args.config_file and not os.path.isfile(args.config_file):
-        parser.error(f"❌ Config file does not exist: {args.config_file}")
+    # === VALIDATION ===
 
     # Input folder must exist
     if not os.path.isdir(args.input_folder):
@@ -180,6 +180,7 @@ def parse_args():
     # Handle verbose flag override
     if args.verbose:
         args.log_level = 'DEBUG'
+        print("⚠️ Verbose mode activated: Logging level set to DEBUG.")
 
     # === POST-VALIDATION NOTICES ===
 
@@ -195,11 +196,6 @@ def parse_args():
         # Warn if overwriting outputs
     if args.overwrite_output:
         print("⚠️ Warning: Existing output files will be overwritten if they exist.")
-
-        # Inform about verbose flag override
-    if args.verbose:
-        args.log_level = 'DEBUG'
-        print("⚠️ Verbose mode activated: Logging level set to DEBUG.")
 
     # === VALIDATION END ===
 
