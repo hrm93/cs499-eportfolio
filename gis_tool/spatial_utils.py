@@ -32,21 +32,24 @@ def validate_and_reproject_crs(
         logger.error(f"[CRS Validation] Dataset '{dataset_name}' has no CRS defined. "
                       f"Please ensure it has a valid CRS.")
         raise ValueError(f"Dataset '{dataset_name}' is missing a CRS.")
+    try:
+        # Normalize CRS objects for comparison
+        target_crs = CRS(reference_crs)
+        current_crs = gdf.crs
 
-    # Normalize CRS objects for comparison
-    target_crs = CRS(reference_crs)
-    current_crs = gdf.crs
-
-    if not current_crs.equals(target_crs):
-        logger.warning(
-            f"[CRS Validation] Dataset '{dataset_name}' CRS mismatch: "
-            f"{current_crs} → {target_crs}. Auto-reprojecting."
-        )
-        gdf = gdf.to_crs(target_crs)
-    else:
-        logger.info(
-            f"[CRS Validation] Dataset '{dataset_name}' already in target CRS ({target_crs})."
-        )
+        if not current_crs.equals(target_crs):
+            logger.warning(
+                f"[CRS Validation] Dataset '{dataset_name}' CRS mismatch: "
+                f"{current_crs} → {target_crs}. Auto-reprojecting."
+            )
+            gdf = gdf.to_crs(target_crs)
+        else:
+            logger.info(
+                f"[CRS Validation] Dataset '{dataset_name}' already in target CRS ({target_crs})."
+            )
+    except Exception as e:
+        logger.error(f"[CRS Validation] Failed to validate or reproject CRS for dataset '{dataset_name}': {e}")
+        raise
 
     return gdf
 
@@ -65,20 +68,25 @@ def validate_geometry_column(
     :param allowed_geom_types: List or set of allowed geometry types (e.g. ['Point', 'LineString']).
     :return: The same GeoDataFrame if valid, else raises ValueError.
     """
-    if "geometry" not in gdf.columns:
-        logger.error(f"[Geometry Validation] Dataset '{dataset_name}' missing 'geometry' column.")
-        raise ValueError(f"Dataset '{dataset_name}' must have a 'geometry' column.")
+    try:
+        if "geometry" not in gdf.columns:
+            logger.error(f"[Geometry Validation] Dataset '{dataset_name}' missing 'geometry' column.")
+            raise ValueError(f"Dataset '{dataset_name}' must have a 'geometry' column.")
 
-    if gdf.geometry.is_empty.any():
-        logger.warning(f"[Geometry Validation] Dataset '{dataset_name}' contains empty geometries.")
+        if gdf.geometry.is_empty.any():
+            logger.warning(f"[Geometry Validation] Dataset '{dataset_name}' contains empty geometries.")
 
-    if allowed_geom_types is not None:
-        invalid_types = gdf.geometry.geom_type[~gdf.geometry.geom_type.isin(allowed_geom_types)]
-        if not invalid_types.empty:
-            logger.warning(
-                f"[Geometry Validation] Dataset '{dataset_name}' contains unsupported geometry types: "
-                f"{set(invalid_types)}"
-            )
+        if allowed_geom_types is not None:
+            invalid_types = gdf.geometry.geom_type[~gdf.geometry.geom_type.isin(allowed_geom_types)]
+            if not invalid_types.empty:
+                logger.warning(
+                    f"[Geometry Validation] Dataset '{dataset_name}' contains unsupported geometry types: "
+                    f"{set(invalid_types)}"
+                )
+    except Exception as e:
+        logger.error(f"[Geometry Validation] Error validating geometry column in dataset '{dataset_name}': {e}")
+        raise
+
     return gdf
 
 
@@ -119,10 +127,14 @@ def reproject_geometry_to_crs(geom: BaseGeometry, source_crs: str, target_crs: s
     Returns:
         BaseGeometry: The reprojected geometry.
     """
-    # Wrap geometry into a GeoSeries to use geopandas reprojection
-    geo_series = gpd.GeoSeries([geom], crs=source_crs)
-    reprojected_series = geo_series.to_crs(target_crs)
-    return reprojected_series.iloc[0]
+    try:
+        # Wrap geometry into a GeoSeries to use geopandas reprojection
+        geo_series = gpd.GeoSeries([geom], crs=source_crs)
+        reprojected_series = geo_series.to_crs(target_crs)
+        return reprojected_series.iloc[0]
+    except Exception as e:
+        logger.error(f"Failed to reproject geometry: {e}")
+        raise
 
 
 def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -139,16 +151,21 @@ def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         ValueError: If input GeoDataFrame has no CRS defined.
     """
     logger.debug(f"ensure_projected_crs called with CRS: {gdf.crs}")
+
     if gdf.crs is None:
         warnings.warn("Input GeoDataFrame has no CRS defined. Cannot proceed without CRS.", UserWarning)
         raise ValueError("Input GeoDataFrame has no CRS defined.")
+    try:
+        if not gdf.crs.is_projected:
+            warnings.warn(f"Input CRS {gdf.crs} is not projected. Reprojecting to {config.DEFAULT_CRS}.", UserWarning)
+            logger.info(f"Reprojecting from {gdf.crs} to {config.DEFAULT_CRS}")
+            gdf = gdf.to_crs(config.DEFAULT_CRS)
+        else:
+            logger.debug("GeoDataFrame already has projected CRS.")
+    except Exception as e:
+        logger.error(f"Failed to ensure projected CRS: {e}")
+        raise
 
-    if not gdf.crs.is_projected:
-        warnings.warn(f"Input CRS {gdf.crs} is not projected. Reprojecting to {config.DEFAULT_CRS}.", UserWarning)
-        logger.info(f"Reprojecting from {gdf.crs} to {config.DEFAULT_CRS}")
-        gdf = gdf.to_crs(config.DEFAULT_CRS)
-    else:
-        logger.debug("GeoDataFrame already has projected CRS.")
     return gdf
 
 
