@@ -191,6 +191,31 @@ def get_driver_from_extension(path: str) -> str:
     return "ESRI Shapefile"
 
 
+def _get_output_formats() -> list[str]:
+    """
+    Get the output formats as a list of lowercase strings.
+
+    This supports:
+    - A single string (e.g., 'shp')
+    - A list of strings (e.g., ['shp', 'geojson'])
+    from environment variables or config files.
+
+    Returns:
+        list[str]: List of output formats, normalized to lowercase.
+    """
+    raw_val = getenv_or_config('OUTPUT', 'output_format', 'shp')
+
+    if isinstance(raw_val, str):
+        # single string, split by comma if present
+        return [fmt.strip().lower() for fmt in raw_val.split(',') if fmt.strip()]
+    elif isinstance(raw_val, list):
+        # list of formats from YAML or config
+        return [str(fmt).strip().lower() for fmt in raw_val if str(fmt).strip()]
+    else:
+        # fallback single default
+        return ['shp']
+
+
 # MongoDB connection settings
 MONGODB_URI = getenv_or_config('DATABASE', 'mongodb_uri', 'mongodb://localhost:27017/')
 """str: URI to connect to MongoDB."""
@@ -219,14 +244,18 @@ LOG_LEVEL = getenv_or_config('LOGGING', 'log_level', 'INFO').upper()
 """str: Logging level (e.g., 'DEBUG', 'INFO')."""
 
 # Parallel processing
-MAX_WORKERS = getenv_int('MAX_WORKERS', 2)
+MAX_WORKERS = getenv_int('MAX_WORKERS', 5)
 """int: Default number of parallel worker processes."""
 
 PARALLEL = getenv_bool('PARALLEL', False)
 """bool: Whether to enable multiprocessing for report processing."""
 
-OUTPUT_FORMAT = getenv_or_config('OUTPUT', 'output_format', 'shp').lower()
-"""str: Default output format for buffer file: 'shp' or 'geojson'."""
+OUTPUT_FORMATS = _get_output_formats()
+"""list[str]: List of output formats, e.g. ['shp', 'geojson']."""
+
+# Keeping the old OUTPUT_FORMAT for backward compatibility (string of first):
+OUTPUT_FORMAT = OUTPUT_FORMATS[0]
+"""str: Primary output format (first in OUTPUT_FORMATS list)."""
 
 ALLOW_OVERWRITE_OUTPUT = getenv_bool('ALLOW_OVERWRITE_OUTPUT', False)
 """bool: Whether existing output files can be overwritten."""

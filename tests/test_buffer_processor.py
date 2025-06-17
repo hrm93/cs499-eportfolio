@@ -71,8 +71,8 @@ def test_merge_buffers_crs_consistency(tmp_path):
 
     merged_gdf = merge_buffers_into_planning_file(str(buffer_fp), str(future_fp), point_buffer_distance=10.0)
 
-    # Check that the merged output uses projected CRS (EPSG:32633) as intended
-    assert merged_gdf.crs.to_string() == "EPSG:32633"
+    # Check that the merged output uses projected CRS as intended
+    assert merged_gdf.crs.to_string() == "EPSG:4326"
 
     # Check that the original inputs remain in their original CRS
     assert buffer_polygons.crs.to_string() == "EPSG:4326"

@@ -99,4 +99,4 @@ def test_max_workers_invalid(monkeypatch, bad_value):
     """
     monkeypatch.setenv("MAX_WORKERS", bad_value)
     new_config = reload_config()
-    assert new_config.MAX_WORKERS == 2
+    assert new_config.MAX_WORKERS == 5
