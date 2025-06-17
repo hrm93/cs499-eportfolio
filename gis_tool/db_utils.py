@@ -41,17 +41,21 @@ spatial_feature_schema = {
 
 def ensure_spatial_index(collection: Collection) -> None:
     """Ensure a 2dsphere index exists on the 'geometry' field."""
-    indexes = collection.index_information()
-    if not any(
-            len(index.get('key', [])) == 1 and
-            index['key'][0][0] == 'geometry' and
-            index['key'][0][1] == '2dsphere'
-            for index in indexes.values()
-    ):
-        collection.create_index([("geometry", "2dsphere")], name="geometry_2dsphere")
-        logger.info("Created 2dsphere index on 'geometry' field.")
-    else:
-        logger.info("2dsphere index already exists on 'geometry' field.")
+    try:
+        indexes = collection.index_information()
+        if not any(
+                len(index.get('key', [])) == 1 and
+                index['key'][0][0] == 'geometry' and
+                index['key'][0][1] == '2dsphere'
+                for index in indexes.values()
+        ):
+            collection.create_index([("geometry", "2dsphere")], name="geometry_2dsphere")
+            logger.info("Created 2dsphere index on 'geometry' field.")
+        else:
+            logger.info("2dsphere index already exists on 'geometry' field.")
+    except PyMongoError as e:
+        logger.error(f"Failed to ensure spatial index: {e}")
+        raise
 
 
 def ensure_collection_schema(
@@ -69,14 +73,18 @@ def ensure_collection_schema(
         logger.debug(f"Created collection '{collection_name}' with schema.")
     except Exception as e:
         if "already exists" in str(e):
-            db.command(
-                {
-                    "collMod": collection_name,
-                    "validator": {"$jsonSchema": schema},
-                    "validationLevel": "strict",
-                }
-            )
-            logger.info(f"Updated schema validator for collection '{collection_name}'.")
+            try:
+                db.command(
+                    {
+                        "collMod": collection_name,
+                        "validator": {"$jsonSchema": schema},
+                        "validationLevel": "strict",
+                    }
+                )
+                logger.info(f"Updated schema validator for collection '{collection_name}'.")
+            except PyMongoError as cmd_err:
+                logger.error(f"Failed to update schema for '{collection_name}': {cmd_err}")
+                raise
         else:
             logger.error(f"Failed to ensure schema for '{collection_name}': {e}")
             raise
