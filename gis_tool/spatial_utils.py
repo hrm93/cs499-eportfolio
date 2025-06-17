@@ -2,12 +2,10 @@
 
 import geopandas as gpd
 import logging
-import math
 import warnings
 
 from pyproj import CRS
 from shapely.geometry.base import BaseGeometry
-from typing import Optional, Dict, Any
 
 from . import config
 
@@ -169,51 +167,6 @@ def ensure_projected_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return gdf
 
 
-def assert_geodataframes_equal(gdf1, gdf2, tol=1e-6):
-    """
-      Assert that two GeoDataFrames are equal in terms of CRS, length, and geometry,
-      with geometries compared using an exact match within a given tolerance.
-
-      Parameters
-      ----------
-      gdf1 : geopandas.GeoDataFrame
-          The first GeoDataFrame to compare.
-      gdf2 : geopandas.GeoDataFrame
-          The second GeoDataFrame to compare.
-      tol : float, optional
-          Tolerance for geometry equality comparison (default is 1e-6).
-
-      Raises
-      ------
-      AssertionError
-          If any of the checks (type, CRS, length, geometry equality) fail.
-      """
-    logger.info("Comparing two GeoDataFrames for equality.")
-    assert isinstance(gdf1, gpd.GeoDataFrame), "First input is not a GeoDataFrame"
-    assert isinstance(gdf2, gpd.GeoDataFrame), "Second input is not a GeoDataFrame"
-
-    # Normalize CRS for comparison
-    crs1 = gdf1.crs
-    crs2 = gdf2.crs
-    assert crs1 is not None and crs2 is not None, "One or both GeoDataFrames lack CRS"
-    assert CRS(crs1).equals(CRS(crs2)), f"CRS mismatch: {crs1} != {crs2}"
-
-    assert len(gdf1) == len(gdf2), "GeoDataFrames have different lengths"
-
-    for i, (geom1, geom2) in enumerate(zip(gdf1.geometry, gdf2.geometry)):
-        # Check for None or invalid geometry
-        if not isinstance(geom1, BaseGeometry) or geom1.is_empty or geom1 is None:
-            raise AssertionError(f"Invalid geometry at index {i} in first GeoDataFrame")
-        if not isinstance(geom2, BaseGeometry) or geom2.is_empty or geom2 is None:
-            raise AssertionError(f"Invalid geometry at index {i} in second GeoDataFrame")
-
-        equal = geom1.equals_exact(geom2, tolerance=tol)
-        logger.debug(f"Geometry check at index {i}: {'equal' if equal else 'not equal'}")
-        assert equal, f"Geometries at index {i} differ"
-
-    logger.info("GeoDataFrames are equal.")
-
-
 def buffer_intersects_gas_lines(buffer_geom: BaseGeometry, gas_lines_gdf: gpd.GeoDataFrame) -> bool:
     """
     Check if the buffer geometry intersects with any gas line geometries.
@@ -251,41 +204,3 @@ def buffer_intersects_gas_lines(buffer_geom: BaseGeometry, gas_lines_gdf: gpd.Ge
                 return True
 
         return False
-
-
-def is_finite_geometry(geom: Optional[Dict[str, Any]]) -> bool:
-    """
-    Check if a geometry dictionary (GeoJSON-style) has only finite coordinate values.
-
-    Args:
-        geom (Optional[Dict[str, Any]]): Geometry dictionary following GeoJSON structure.
-
-    Returns:
-        bool: True if all coordinates are finite numbers, False otherwise.
-    """
-    if not geom or "coordinates" not in geom:
-        logger.debug("Geometry is missing or does not contain coordinates.")
-        return False
-
-    coords = geom["coordinates"]
-
-    if not isinstance(coords, (list, tuple)):
-        logger.warning("Coordinates are not a list or tuple.")
-        return False
-
-    def check_finite_coords(coords_part):
-        """
-        Recursively check if all numeric values in a coordinate structure are finite.
-        """
-        if isinstance(coords_part, (list, tuple)):
-            return all(check_finite_coords(item) for item in coords_part)
-        elif isinstance(coords_part, (int, float)):
-            return math.isfinite(coords_part)
-        else:
-            return False
-
-    finite_check = check_finite_coords(coords)
-    if not finite_check:
-        logger.warning(f"Non-finite geometry detected (type: {geom.get('type')}): {geom}")
-
-    return finite_check

@@ -13,8 +13,11 @@ from shapely.geometry.base import BaseGeometry
 from shapely.geometry import mapping
 
 from gis_tool.config import MONGODB_URI, DB_NAME, DEFAULT_CRS
-from gis_tool.spatial_utils import is_finite_geometry
-from gis_tool.geometry_cleaning import fix_geometry, simplify_geometry
+from gis_tool.geometry_cleaning import (
+    fix_geometry,
+    simplify_geometry,
+    is_finite_geometry,
+)
 
 logger = logging.getLogger("gis_tool")
 

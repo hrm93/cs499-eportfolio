@@ -7,7 +7,7 @@ import pytest
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
 
-from gis_tool.spatial_utils import assert_geodataframes_equal
+from tests.test_utils import assert_geodataframes_equal
 import gis_tool.parks_subtraction
 
 logger = logging.getLogger("gis_tool")

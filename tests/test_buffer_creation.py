@@ -7,7 +7,7 @@ import geopandas as gpd
 from shapely.geometry import Polygon
 
 import gis_tool.buffer_creation
-from gis_tool.spatial_utils import assert_geodataframes_equal
+from tests.test_utils import assert_geodataframes_equal
 
 logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs

@@ -1,7 +1,7 @@
 ### test_logger.py
 import logging
 import os
-import pytest
+
 from logging.handlers import RotatingFileHandler
 
 from gis_tool.logger import setup_logging

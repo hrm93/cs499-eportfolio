@@ -1,9 +1,11 @@
 import logging
-from typing import Optional
+import math
+
 from geopandas import gpd
 from pyproj import CRS
 from shapely.geometry.base import BaseGeometry
 from shapely.errors import TopologicalError
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger("gis_tool")
 
@@ -70,3 +72,41 @@ def simplify_geometry(geom: BaseGeometry, tolerance: float = 0.00001) -> BaseGeo
     simplified = geom.simplify(tolerance, preserve_topology=True)
     logger.debug("Geometry simplified.")
     return simplified
+
+
+def is_finite_geometry(geom: Optional[Dict[str, Any]]) -> bool:
+    """
+    Check if a geometry dictionary (GeoJSON-style) has only finite coordinate values.
+
+    Args:
+        geom (Optional[Dict[str, Any]]): Geometry dictionary following GeoJSON structure.
+
+    Returns:
+        bool: True if all coordinates are finite numbers, False otherwise.
+    """
+    if not geom or "coordinates" not in geom:
+        logger.debug("Geometry is missing or does not contain coordinates.")
+        return False
+
+    coords = geom["coordinates"]
+
+    if not isinstance(coords, (list, tuple)):
+        logger.warning("Coordinates are not a list or tuple.")
+        return False
+
+    def check_finite_coords(coords_part):
+        """
+        Recursively check if all numeric values in a coordinate structure are finite.
+        """
+        if isinstance(coords_part, (list, tuple)):
+            return all(check_finite_coords(item) for item in coords_part)
+        elif isinstance(coords_part, (int, float)):
+            return math.isfinite(coords_part)
+        else:
+            return False
+
+    finite_check = check_finite_coords(coords)
+    if not finite_check:
+        logger.warning(f"Non-finite geometry detected (type: {geom.get('type')}): {geom}")
+
+    return finite_check
