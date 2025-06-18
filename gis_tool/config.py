@@ -1,63 +1,67 @@
-# config.py
 """
-Configuration constants for GIS pipeline processing.
-Supports overriding via environment variables and a config.ini file.
+config.py
 
-Environment Variables (override config.ini):
-- MONGODB_URI: MongoDB connection URI (default: 'mongodb://localhost:27017/')
-- DB_NAME: MongoDB database name (default: 'gis_database')
-- DEFAULT_CRS: Default Coordinate Reference System (default: 'EPSG:32633')
-- DEFAULT_BUFFER_DISTANCE_FT: Default buffer distance in feet (default: 25.0)
-- LOG_FILENAME: Log file name (default: 'pipeline_processing.log')
-- LOG_LEVEL: Logging level (default: 'INFO')
-- MAX_WORKERS: Default number of parallel workers (default: 2)
-- OUTPUT_FORMAT: Default output format (default: 'shp')
-- ALLOW_OVERWRITE_OUTPUT: Allow overwriting existing output (default: False)
-- DRY_RUN_MODE: Enable dry run mode (default: False)
+Configuration constants and utilities for GIS pipeline processing.
+
+Supports overriding settings via environment variables,
+`config.ini`, and `config.yaml` files with priority:
+Environment > config.ini > config.yaml > defaults.
+
+Includes utilities to parse environment variables as
+typed values and helpers for spatial file formats.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-18
 """
+
 import os
 import configparser
 from typing import cast
 
 import yaml
 
-# Load config.ini if it exists
+# Initialize configparser and load config.ini if present
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-# Load config.yaml if it exists
+# Load config.yaml if present
 config_yaml = {}
 if os.path.exists('config.yaml'):
     with open('config.yaml', 'r') as f:
         config_yaml = yaml.safe_load(f) or {}
 
-
-def getenv_or_config(section, key, default):
+def getenv_or_config(section: str, key: str, default):
     """
-    Get value from environment variable or config file.
+    Retrieve configuration value from environment variable,
+    then config.ini, then config.yaml, else default.
 
-    Priority: ENV > config.ini > default
+    Args:
+        section (str): Config file section name.
+        key (str): Configuration key name.
+        default: Default value if not found.
+
+    Returns:
+        The resolved configuration value.
     """
     env_val = os.getenv(key.upper())
     if env_val is not None:
         return env_val
     if config.has_option(section, key):
         return config.get(section, key)
-    # fallback to YAML
     return config_yaml.get(section, {}).get(key, default)
-
 
 def getenv_float(var_name: str, default: float, section='DEFAULT') -> float:
     """
-    Get an environment variable as a float.
+    Retrieve a float configuration value from environment,
+    config.ini, or config.yaml.
 
     Args:
-        var_name (str): The name of the environment variable.
-        default (float): The default value to use if the variable is not set or invalid.
-        section (str, optional): The config file section to read the variable from if not found in environment. Defaults to 'DEFAULT'.
+        var_name (str): Variable name.
+        default (float): Default value if unset or invalid.
+        section (str): Config file section to check.
 
     Returns:
-        float: The float value of the environment variable or the default.
+        float: Parsed float or default.
     """
     val = os.getenv(var_name)
     if val is not None:
@@ -73,14 +77,14 @@ def getenv_float(var_name: str, default: float, section='DEFAULT') -> float:
             return default
 
     if section in config_yaml and isinstance(config_yaml[section], dict):
-        val_yaml = config_yaml[section].get(var_name.lower(), None)
+        val_yaml = config_yaml[section].get(var_name.lower())
         if val_yaml is not None:
             try:
                 return float(val_yaml)
             except (ValueError, TypeError):
                 return default
 
-    val_yaml = config_yaml.get(var_name, None)
+    val_yaml = config_yaml.get(var_name)
     if val_yaml is not None:
         try:
             return float(cast(str, val_yaml))
@@ -89,18 +93,18 @@ def getenv_float(var_name: str, default: float, section='DEFAULT') -> float:
 
     return default
 
-
 def getenv_int(var_name: str, default: int, section='DEFAULT') -> int:
     """
-    Get an environment variable as an integer.
+    Retrieve an integer configuration value from environment,
+    config.ini, or config.yaml.
 
     Args:
-        var_name (str): The name of the environment variable.
-        default (int): The default value to use if the variable is not set or invalid.
-        section (str, optional): The config file section to read the variable from if not found in environment. Defaults to 'DEFAULT'.
+        var_name (str): Variable name.
+        default (int): Default if unset or invalid.
+        section (str): Config file section.
 
     Returns:
-        int: The integer value of the environment variable or the default.
+        int: Parsed integer or default.
     """
     val = os.getenv(var_name)
     if val is not None:
@@ -116,14 +120,14 @@ def getenv_int(var_name: str, default: int, section='DEFAULT') -> int:
             return default
 
     if section in config_yaml and isinstance(config_yaml[section], dict):
-        val_yaml = config_yaml[section].get(var_name.lower(), None)
+        val_yaml = config_yaml[section].get(var_name.lower())
         if val_yaml is not None:
             try:
                 return int(val_yaml)
             except (ValueError, TypeError):
                 return default
 
-    val_yaml = config_yaml.get(var_name, None)
+    val_yaml = config_yaml.get(var_name)
     if val_yaml is not None:
         try:
             return int(cast(str, val_yaml))
@@ -132,20 +136,20 @@ def getenv_int(var_name: str, default: int, section='DEFAULT') -> int:
 
     return default
 
-
 def getenv_bool(var_name: str, default: bool, section='DEFAULT') -> bool:
     """
-    Get an environment variable as a boolean.
+    Retrieve a boolean configuration value from environment,
+    config.ini, or config.yaml.
 
-    Accepts common truthy values like '1', 'true', 'yes', 'on' (case-insensitive).
+    Recognizes '1', 'true', 'yes', 'on' (case-insensitive) as True.
 
     Args:
-        var_name (str): The name of the environment variable.
-        default (bool): The default value to use if the variable is not set or invalid.
-        section (str, optional): The config file section to read the variable from if not found in environment. Defaults to 'DEFAULT'.
+        var_name (str): Variable name.
+        default (bool): Default if unset or invalid.
+        section (str): Config file section.
 
     Returns:
-        bool: The boolean value of the environment variable or the default.
+        bool: Parsed boolean or default.
     """
     val = os.getenv(var_name)
     if val is not None:
@@ -155,17 +159,15 @@ def getenv_bool(var_name: str, default: bool, section='DEFAULT') -> bool:
         val = config.get(section, var_name.lower())
         return val.strip().lower() in ['1', 'true', 'yes', 'on']
 
-    # Try to get from config_yaml under the section if it exists
     if section in config_yaml and isinstance(config_yaml[section], dict):
-        val_yaml = config_yaml[section].get(var_name.lower(), None)
+        val_yaml = config_yaml[section].get(var_name.lower())
         if val_yaml is not None:
             if isinstance(val_yaml, bool):
                 return val_yaml
             if isinstance(val_yaml, str):
                 return val_yaml.strip().lower() in ['1', 'true', 'yes', 'on']
 
-    # Fall back to top-level YAML key (for root-level keys like PARALLEL)
-    val_yaml = config_yaml.get(var_name, None)
+    val_yaml = config_yaml.get(var_name)
     if val_yaml is not None:
         if isinstance(val_yaml, bool):
             return val_yaml
@@ -174,91 +176,85 @@ def getenv_bool(var_name: str, default: bool, section='DEFAULT') -> bool:
 
     return default
 
-
 def get_driver_from_extension(path: str) -> str:
     """
-    Get the appropriate file driver for saving GeoDataFrames based on file extension.
+    Determine GDAL driver string based on file extension.
 
     Args:
-        path (str): File path.
+        path (str): Output file path.
 
     Returns:
-        str: GDAL driver string (e.g., 'GeoJSON' or 'ESRI Shapefile').
+        str: Driver string ('GeoJSON' or 'ESRI Shapefile').
     """
     ext = os.path.splitext(path)[1].lower()
     if ext == ".geojson":
         return "GeoJSON"
     return "ESRI Shapefile"
 
-
 def _get_output_formats() -> list[str]:
     """
-    Get the output formats as a list of lowercase strings.
+    Parse output formats from config sources.
 
-    This supports:
-    - A single string (e.g., 'shp')
-    - A list of strings (e.g., ['shp', 'geojson'])
-    from environment variables or config files.
+    Supports comma-separated strings or lists, normalized to lowercase.
 
     Returns:
-        list[str]: List of output formats, normalized to lowercase.
+        list[str]: List of output formats.
     """
     raw_val = getenv_or_config('OUTPUT', 'output_format', 'shp')
 
     if isinstance(raw_val, str):
-        # single string, split by comma if present
+        # Split comma-separated string into list
         return [fmt.strip().lower() for fmt in raw_val.split(',') if fmt.strip()]
     elif isinstance(raw_val, list):
-        # list of formats from YAML or config
+        # List of formats
         return [str(fmt).strip().lower() for fmt in raw_val if str(fmt).strip()]
     else:
-        # fallback single default
         return ['shp']
-
 
 # MongoDB connection settings
 MONGODB_URI = getenv_or_config('DATABASE', 'mongodb_uri', 'mongodb://localhost:27017/')
-"""str: URI to connect to MongoDB."""
+"""str: MongoDB connection URI."""
 
 DB_NAME = getenv_or_config('DATABASE', 'db_name', 'gis_database')
-"""str: Name of the MongoDB database."""
+"""str: MongoDB database name."""
 
 # Spatial settings
 DEFAULT_CRS = getenv_or_config('SPATIAL', 'default_crs', 'EPSG:4326')
-"""str: Default Coordinate Reference System for spatial data."""
+"""str: Default coordinate reference system (CRS)."""
 
 GEOGRAPHIC_CRS = getenv_or_config('SPATIAL', 'geographic_crs', 'EPSG:4326')
-"""str: Geographic CRS for lat/lon data (default: WGS84)."""
+"""str: Geographic CRS for latitude/longitude data."""
 
 BUFFER_LAYER_CRS = getenv_or_config('SPATIAL', 'buffer_layer_crs', DEFAULT_CRS)
-"""str: CRS to assume for buffer input if missing (defaults to DEFAULT_CRS)."""
+"""str: CRS to assume for buffers if missing."""
 
 DEFAULT_BUFFER_DISTANCE_FT = getenv_float('DEFAULT_BUFFER_DISTANCE_FT', 25.0, section='SPATIAL')
-"""float: Default buffer distance around gas lines in feet."""
+"""float: Default buffer distance in feet."""
 
 # Logging settings
 LOG_FILENAME = getenv_or_config('LOGGING', 'log_filename', 'pipeline_processing.log')
-"""str: Path to the log file."""
+"""str: Log file name."""
 
 LOG_LEVEL = getenv_or_config('LOGGING', 'log_level', 'INFO').upper()
 """str: Logging level (e.g., 'DEBUG', 'INFO')."""
 
 # Parallel processing
 MAX_WORKERS = getenv_int('MAX_WORKERS', 5)
-"""int: Default number of parallel worker processes."""
+"""int: Number of parallel worker processes."""
 
 PARALLEL = getenv_bool('PARALLEL', False)
-"""bool: Whether to enable multiprocessing for report processing."""
+"""bool: Enable multiprocessing for processing."""
 
+# Output format settings
 OUTPUT_FORMATS = _get_output_formats()
 """list[str]: List of output formats, e.g. ['shp', 'geojson']."""
 
-# Keeping the old OUTPUT_FORMAT for backward compatibility (string of first):
+# Legacy single output format for backward compatibility
 OUTPUT_FORMAT = OUTPUT_FORMATS[0]
-"""str: Primary output format (first in OUTPUT_FORMATS list)."""
+"""str: Primary output format."""
 
 ALLOW_OVERWRITE_OUTPUT = getenv_bool('ALLOW_OVERWRITE_OUTPUT', False)
-"""bool: Whether existing output files can be overwritten."""
+"""bool: Allow overwriting existing output files."""
 
 DRY_RUN_MODE = getenv_bool('DRY_RUN_MODE', False)
-"""bool: Whether to enable dry-run mode (no file writes or DB operations)."""
+"""bool: Enable dry-run mode (no file or DB writes)."""

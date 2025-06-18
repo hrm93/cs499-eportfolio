@@ -1,15 +1,31 @@
-# buffer_utils
+# buffer_utils.py
+
+"""
+Module: buffer_utils
+
+This module provides utility functions for buffering geometries,
+subtracting park geometries from buffers, and filtering invalid
+geometries in GeoDataFrames.
+
+It leverages Shapely for geometry operations and GeoPandas for
+handling GeoDataFrames. Geometry cleaning is performed using
+the fix_geometry function from gis_tool.geometry_cleaning.
+
+Logging is implemented for debugging, error tracking, and process
+transparency.
+"""
 
 import logging
 import warnings
-import geopandas as gpd
 
+import geopandas as gpd
 from shapely.geometry import Polygon
 from shapely.geometry.base import BaseGeometry
 
 from gis_tool.geometry_cleaning import fix_geometry
 
-logger = logging.getLogger("gis_tool")
+# Initialize logger for this module
+logger = logging.getLogger("gis_tool.buffer_utils")
 
 
 def buffer_geometry(geom: BaseGeometry, buffer_distance_m: float) -> BaseGeometry | None:
@@ -52,7 +68,7 @@ def buffer_geometry_helper(geom_and_distance: tuple[BaseGeometry, float]) -> Bas
 
 def subtract_park_from_geom(buffer_geom, parks_geoms):
     """
-     Subtract all park geometries from a single buffer geometry.
+    Subtract all park geometries from a single buffer geometry.
 
     Parameters:
     - buffer_geom: geometry to subtract from
@@ -62,7 +78,7 @@ def subtract_park_from_geom(buffer_geom, parks_geoms):
     - Geometry after subtraction, or empty Polygon if input invalid or error occurs.
     """
     logger.debug("subtract_park_from_geom called.")
-    # Fix initial geometry
+    # Fix initial geometry for validity before subtraction
     buffer_geom = fix_geometry(buffer_geom)
     if buffer_geom is None or buffer_geom.is_empty:
         logger.warning("Input buffer geometry is invalid or empty; returning empty Polygon.")
@@ -71,6 +87,7 @@ def subtract_park_from_geom(buffer_geom, parks_geoms):
 
     try:
         for park_geom in parks_geoms:
+            # Clean each park geometry before subtraction
             park_geom = fix_geometry(park_geom)
             if park_geom is None or park_geom.is_empty:
                 logger.debug("Skipping invalid or empty park geometry during subtraction.")
@@ -111,12 +128,23 @@ def subtract_park_from_geom_helper(geom_and_parks):
 
 
 def log_and_filter_invalid_geometries(gdf: gpd.GeoDataFrame, layer_name: str) -> gpd.GeoDataFrame:
-    """Helper to log and filter out null, empty, and invalid geometries from a GeoDataFrame."""
+    """
+    Helper to log and filter out null, empty, and invalid geometries from a GeoDataFrame.
+
+    Parameters:
+    - gdf: GeoDataFrame to clean
+    - layer_name: descriptive name for logging context
+
+    Returns:
+    - Filtered GeoDataFrame with only valid geometries.
+    """
+    # Identify empty or null geometries
     null_or_empty = gdf.geometry.is_empty | gdf.geometry.isnull()
     if null_or_empty.any():
         logger.warning(f"{layer_name}: {null_or_empty.sum()} features with empty or null geometries excluded.")
     gdf = gdf[~null_or_empty]
 
+    # Identify invalid geometries
     invalid = ~gdf.geometry.is_valid
     if invalid.any():
         logger.warning(f"{layer_name}: {invalid.sum()} invalid geometries excluded.")

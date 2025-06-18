@@ -31,11 +31,11 @@ Typical usage:
     create_pipeline_features(new_reports, "gas_lines.shp", "/path/to/reports", "EPSG:4326",
                              gas_lines_collection=db['gas_lines'])
 """
+
 import logging
 from typing import List, Tuple, Optional, Set
 
 import geopandas as gpd
-
 from pymongo.collection import Collection
 
 from gis_tool import report_reader
@@ -47,7 +47,10 @@ from gis_tool.spatial_utils import (
 )
 from gis_tool.db_utils import upsert_mongodb_feature
 
+# Configure module-level logger
 logger = logging.getLogger("gis_tool")
+if not logger.hasHandlers():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
 def create_pipeline_features(
@@ -65,15 +68,24 @@ def create_pipeline_features(
     Uses the report_reader module to parse features from input reports and updates
     the gas_lines_gdf and optionally a MongoDB collection.
 
+    Args:
+        geojson_reports (List[Tuple[str, gpd.GeoDataFrame]]): List of tuples with report filenames and GeoDataFrames.
+        txt_reports (List[Tuple[str, List[str]]]): List of tuples with report filenames and lines of TXT report.
+        gas_lines_gdf (gpd.GeoDataFrame): Existing GeoDataFrame of gas line features.
+        spatial_reference (str): Target spatial reference system (e.g., "EPSG:4326").
+        gas_lines_collection (Optional[Collection]): Optional MongoDB collection for storing gas line features.
+        processed_reports (Optional[Set[str]]): Set of filenames already processed.
+        use_mongodb (bool): Flag to enable MongoDB upserts.
+
     Returns:
         Tuple containing:
-            - updated set of processed report filenames,
-            - updated gas_lines_gdf,
-            - bool flag indicating if new features were added.
+            - Updated set of processed report filenames,
+            - Updated gas_lines_gdf,
+            - Boolean flag indicating if new features were added.
     """
     logger.info("Starting pipeline feature creation...")
 
-    # User-facing warnings
+    # Warn if no reports or empty existing dataset
     if not geojson_reports:
         logger.warning("No GeoJSON reports were found. Please check your input directory and file patterns.")
     if not txt_reports:
@@ -87,30 +99,40 @@ def create_pipeline_features(
     processed_pipelines = set()
     features_added = False
 
-    # Validate and reproject gas_lines_gdf CRS
+    # Validate and reproject gas_lines_gdf CRS if necessary
     if gas_lines_gdf.crs is None:
         logger.error("gas_lines_gdf is missing CRS. Please define CRS before processing.")
         raise ValueError("gas_lines_gdf must have a CRS defined.")
     if gas_lines_gdf.crs.to_string() != spatial_reference:
         gas_lines_gdf = validate_and_reproject_crs(gas_lines_gdf, spatial_reference, "gas_lines_gdf")
 
-    # Geometry column validation for gas_lines_gdf
-    gas_lines_gdf = validate_geometry_column(gas_lines_gdf, "gas_lines_gdf",
-                                             allowed_geom_types=["Point", "LineString", "Polygon"])
+    # Validate geometry column and types
+    gas_lines_gdf = validate_geometry_column(
+        gas_lines_gdf,
+        "gas_lines_gdf",
+        allowed_geom_types=["Point", "LineString", "Polygon"]
+    )
 
     required_fields = ["Name", "Date", "PSI", "Material", "geometry"]
 
     def process_features(feature_list: List[dict]) -> None:
-        nonlocal gas_lines_gdf, features_added
-        for feat in feature_list:
+        """
+        Internal helper to process individual features parsed from reports.
 
-            # Validate required keys presence per feature to avoid KeyError
+        Args:
+            feature_list (List[dict]): List of feature dictionaries parsed from a report.
+        """
+        nonlocal gas_lines_gdf, features_added
+
+        for feat in feature_list:
+            # Validate required fields presence
             missing_keys = [key for key in required_fields if key not in feat]
             if missing_keys:
                 logger.error(f"Feature skipped due to missing required fields: {missing_keys} in feature {feat}")
                 continue
 
             if feat["Name"] in processed_pipelines:
+                # Skip duplicates within current processing batch
                 continue
 
             geom = feat["geometry"]
@@ -131,7 +153,7 @@ def create_pipeline_features(
                     logger.error(f"Geometry CRS undefined for feature '{feat['Name']}'. Cannot reproject. Skipping.")
                     continue
 
-                # Fix: Pass both source_crs and target_crs explicitly
+                # Reproject geometry to target CRS
                 geom = reproject_geometry_to_crs(geom, source_crs, spatial_reference)
                 feat["geometry"] = geom
                 logger.debug(f"Reprojected feature '{feat['Name']}' geometry to CRS {spatial_reference}.")
@@ -142,11 +164,12 @@ def create_pipeline_features(
                 logger.error(f"Unsupported geometry type '{geom_type}' in feature '{feat['Name']}'. Skipping.")
                 continue
 
-            # Now the geometry CRS should match spatial_reference, but validate anyway
+            # Validate geometry CRS matches spatial_reference
             if not validate_geometry_crs(feat["geometry"], spatial_reference):
                 logger.error(f"Geometry CRS mismatch or undefined in feature '{feat['Name']}'. Skipping.")
                 continue
 
+            # Insert or update feature in gas_lines_gdf and optionally MongoDB
             before_len = len(gas_lines_gdf)
             gas_lines_gdf = create_and_upsert_feature(
                 name=feat["Name"],
@@ -163,7 +186,7 @@ def create_pipeline_features(
                 processed_pipelines.add(feat["Name"])
                 features_added = True
 
-            # MongoDB upsert directly for feature
+            # MongoDB upsert for feature if enabled
             if use_mongodb and gas_lines_collection is not None:
                 try:
                     upsert_mongodb_feature(
@@ -186,18 +209,18 @@ def create_pipeline_features(
 
         logger.info(f"Processing GeoJSON report: {report_name}")
 
-        # Validate required columns before parsing features
+        # Validate required columns presence
         missing_cols = [col for col in required_fields if col not in gdf.columns]
         if missing_cols:
             logger.error(f"GeoJSON report '{report_name}' missing required fields: {missing_cols}. Skipping report.")
             processed_reports.add(report_name)
             continue
 
-        # Validate and reproject CRS
+        # Validate and reproject CRS if necessary
         if gdf.crs is None or gdf.crs.to_string() != spatial_reference:
             gdf = validate_and_reproject_crs(gdf, spatial_reference, report_name)
 
-        # Validate geometry column and types (assuming LineString or Point)
+        # Validate geometry column and types
         gdf = validate_geometry_column(gdf, report_name, allowed_geom_types=["LineString", "Point"])
 
         features = report_reader.parse_geojson_report(gdf)
