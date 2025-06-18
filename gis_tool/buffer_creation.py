@@ -1,9 +1,8 @@
-
+# buffer_creation.py
 import logging
 import warnings
 from typing import Optional
 import geopandas as gpd
-
 
 from .spatial_utils import buffer_intersects_gas_lines
 from . import spatial_utils

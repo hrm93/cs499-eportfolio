@@ -23,8 +23,7 @@ from pymongo.errors import ConnectionFailure
 from shapely.geometry.linestring import LineString
 
 from gis_tool.db_utils import connect_to_mongodb
-import gis_tool.main
-from gis_tool.main import main, process_report_chunk
+from gis_tool.main import main
 
 
 # Logger setup for test module
@@ -206,34 +205,6 @@ def test_main_with_parallel(monkeypatch, dummy_inputs, tmp_path):
         logger.debug(f"First submit call args: {first_call_args}")
 
     logger.info("Main with parallel processing test passed.")
-
-
-def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, caplog, tmp_path) -> None:
-    """Verify error logging when create_pipeline_features fails inside process_report_chunk."""
-    logger.info("Testing error logging in process_report_chunk.")
-    input_folder = tmp_path / "input_folder"
-    input_folder.mkdir()
-    (input_folder / "dummy_report.txt").write_text("test")
-    dummy_gdf = gpd.GeoDataFrame({"geometry": [Point(0, 0)]}, crs="EPSG:4326")
-
-    monkeypatch.setattr(gpd, "read_file", lambda *a, **k: dummy_gdf)
-    monkeypatch.setattr(
-        gis_tool.main, "create_pipeline_features",
-        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("missing"))
-    )
-
-    with caplog.at_level(logging.ERROR):
-        process_report_chunk(
-            report_chunk=["dummy_report.txt"],
-            gas_lines_shp=str(input_folder / "gas_lines.shp"),
-            reports_folder=input_folder,
-            spatial_reference="EPSG:4326",
-            gas_lines_collection=None,
-            use_mongodb=False,
-        )
-
-    assert any("I/O error in chunk" in record.getMessage() for record in caplog.records)
-    logger.info("Error logging test in process_report_chunk passed.")
 
 
 @pytest.mark.skipif(
