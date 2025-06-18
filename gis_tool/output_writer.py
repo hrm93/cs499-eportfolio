@@ -1,13 +1,18 @@
-### output_writer.py
-
 """
-Module to handle writing GIS output files in various formats.
+output_writer.py
 
-Currently, supports:
-- Writing GeoJSON or Shapefile from GeoDataFrames
-- Writing CSV files from attribute data (DataFrames)
-- Writing plain text reports
+Module to handle writing GIS output files in various formats for the GIS pipeline tool.
+
+Features:
+- Writing GeoJSON or Shapefile from GeoDataFrames.
+- Writing CSV files from tabular data.
+- Writing plain text reports.
+- Generating HTML summary reports from buffer results.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
+
 import logging
 import warnings
 from pathlib import Path
@@ -17,7 +22,7 @@ import pandas as pd
 
 import gis_tool.config as config
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.output_writer")
 
 
 def generate_html_report(
@@ -33,8 +38,9 @@ def generate_html_report(
         buffer_distance_m (float): The buffer distance used, in meters.
         output_path (str): Path where to save the HTML report (without extension).
 
-    Notes:
-        The report will be saved as an HTML file with the same base name as output_path.
+    Raises:
+        FileNotFoundError: If the output directory does not exist.
+        Exception: If HTML generation fails.
     """
     path = Path(output_path).with_suffix(".html")
     if not path.parent.exists():
@@ -48,9 +54,8 @@ def generate_html_report(
         geom_types = gdf_buffer.geometry.geom_type.value_counts().to_dict()
         total_area = gdf_buffer.geometry.area.sum()
 
-        # Prepare attribute summary table (first 10 rows)
+        # Display first 10 rows of attributes with WKT geometry
         attr_table = gdf_buffer.head(10).copy()
-        # Convert geometry to WKT for display
         attr_table['geometry'] = attr_table.geometry.apply(lambda g: g.wkt if g else "None")
 
         html = f"""
@@ -70,20 +75,16 @@ def generate_html_report(
             <p><strong>Number of Features Buffered:</strong> {num_features}</p>
             <p><strong>Geometry Types in Result:</strong> {geom_types}</p>
             <p><strong>Total Area of Buffers:</strong> {total_area:.2f} square meters</p>
-
             <h2>Sample of Buffered Features</h2>
             {attr_table.to_html(index=False, escape=False)}
-
             <p>Output files and maps can be found at: {path.parent}</p>
         </body>
         </html>
         """
-
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
 
         logger.info(f"HTML report generated at {path}")
-
     except Exception as e:
         logger.exception(f"Failed to generate HTML report: {e}")
         warnings.warn(f"Failed to generate HTML report: {e}", UserWarning)
@@ -97,6 +98,10 @@ def write_csv(df: pd.DataFrame, output_path: str) -> None:
     Args:
         df (pd.DataFrame): DataFrame containing tabular data.
         output_path (str): Path to the output CSV file.
+
+    Raises:
+        FileNotFoundError: If output directory does not exist.
+        Exception: If file write fails.
     """
     path = Path(output_path)
     if not path.parent.exists():
@@ -104,6 +109,7 @@ def write_csv(df: pd.DataFrame, output_path: str) -> None:
         warnings.warn(warning_msg, UserWarning)
         logger.error(warning_msg)
         raise FileNotFoundError(warning_msg)
+
     try:
         df.to_csv(path, index=False)
         logger.info(f"CSV file written to {path}")
@@ -121,6 +127,10 @@ def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
     Args:
         gdf (gpd.GeoDataFrame): GeoDataFrame containing spatial features.
         output_path (str): Path to the output GeoJSON file.
+
+    Raises:
+        FileNotFoundError: If output directory does not exist.
+        Exception: If file write fails.
     """
     path = Path(output_path)
     if not path.parent.exists():
@@ -128,9 +138,10 @@ def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
         warnings.warn(warning_msg, UserWarning)
         logger.error(warning_msg)
         raise FileNotFoundError(warning_msg)
+
     try:
         gdf.to_file(str(path), driver="GeoJSON")
-        logger.info(f"GEOJSON file written to {path}")
+        logger.info(f"GeoJSON file written to {path}")
     except Exception as e:
         warning_msg = f"Failed to write GeoJSON file to {path}: {e}"
         warnings.warn(warning_msg, UserWarning)
@@ -138,37 +149,52 @@ def write_geojson(gdf: gpd.GeoDataFrame, output_path: str) -> None:
         raise
 
 
-def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str = config.OUTPUT_FORMAT, overwrite: bool = False) -> None:
+def write_gis_output(
+    gdf: gpd.GeoDataFrame,
+    output_path: str,
+    output_format: str = config.OUTPUT_FORMAT,
+    overwrite: bool = False
+) -> None:
     """
-    Write a GeoDataFrame to a file in the specified format.
+    Write a GeoDataFrame to a GIS file in the specified format.
 
     Args:
-        gdf (gpd.GeoDataFrame): GeoDataFrame containing spatial features.
+        gdf (gpd.GeoDataFrame): GeoDataFrame with spatial features.
         output_path (str): Path to the output file (.shp or .geojson).
-        output_format (str): Output format: 'shp' or 'geojson'.
+        output_format (str): Desired format ('shp' or 'geojson').
         overwrite (bool): Whether to overwrite existing files.
+
+    Raises:
+        FileExistsError: If file exists and overwrite is False.
+        FileNotFoundError: If output directory doesn't exist.
+        ValueError: If unsupported format is specified.
+        Exception: If file write fails.
     """
     if gdf.empty:
         warning_msg = f"GeoDataFrame is empty; no file written to {output_path}"
         warnings.warn(warning_msg, UserWarning)
         logger.warning(warning_msg)
         return
+
     path = Path(output_path)
     if path.exists() and not overwrite:
         warning_msg = f"{output_path} exists and overwriting is disabled; file not written."
         warnings.warn(warning_msg, UserWarning)
         logger.error(warning_msg)
         raise FileExistsError(warning_msg)
+
     if not path.parent.exists():
         warning_msg = f"Output directory does not exist: {path.parent}"
         warnings.warn(warning_msg, UserWarning)
         logger.error(warning_msg)
         raise FileNotFoundError(warning_msg)
+
     if config.DRY_RUN_MODE:
         warning_msg = f"Dry run enabled: skipping write of {output_path}"
         warnings.warn(warning_msg, UserWarning)
         logger.info(warning_msg)
         return
+
     try:
         if output_format == "geojson":
             gdf.to_file(output_path, driver="GeoJSON")
@@ -179,6 +205,7 @@ def write_gis_output(gdf: gpd.GeoDataFrame, output_path: str, output_format: str
             warnings.warn(warning_msg, UserWarning)
             logger.error(warning_msg)
             raise ValueError(warning_msg)
+
         logger.info(f"{output_format.upper()} file written to {output_path}")
     except Exception as e:
         warning_msg = f"Failed to write {output_format} file to {output_path}: {e}"
@@ -192,8 +219,12 @@ def write_report(text: str, output_path: str) -> None:
     Write a plain text report to a file.
 
     Args:
-        text (str): Text content of the report.
+        text (str): Report content as a string.
         output_path (str): Path to the output text file.
+
+    Raises:
+        FileNotFoundError: If output directory does not exist.
+        Exception: If file write fails.
     """
     path = Path(output_path)
     if not path.parent.exists():
@@ -201,6 +232,7 @@ def write_report(text: str, output_path: str) -> None:
         warnings.warn(warning_msg, UserWarning)
         logger.error(warning_msg)
         raise FileNotFoundError(warning_msg)
+
     try:
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)

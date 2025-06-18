@@ -1,5 +1,3 @@
-# buffer_creation.py
-
 """
 Module: buffer_creation
 
@@ -17,6 +15,9 @@ Dependencies:
 - typing (Optional)
 - Internal modules for spatial utilities, geometry cleaning, buffering helpers,
   multiprocessing support, parks subtraction, and configuration.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
 
 import logging

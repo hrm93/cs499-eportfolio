@@ -1,4 +1,15 @@
-# db_utils.py
+"""
+db_utils.py
+
+MongoDB utility functions for spatial data pipelines.
+
+This module manages MongoDB connectivity, schema enforcement, spatial indexing,
+and feature insertion/updating. It includes geometry validation, reprojection,
+and compliance with 2dsphere indexing standards.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
+"""
 
 import logging
 import warnings
@@ -10,9 +21,8 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import ConnectionFailure, PyMongoError
-
-from shapely.geometry.base import BaseGeometry
 from shapely.geometry import mapping
+from shapely.geometry.base import BaseGeometry
 
 from gis_tool.config import MONGODB_URI, DB_NAME, DEFAULT_CRS
 from gis_tool.geometry_cleaning import (
@@ -21,8 +31,9 @@ from gis_tool.geometry_cleaning import (
     is_finite_geometry,
 )
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.db_utils")
 
+# MongoDB schema used to validate spatial feature documents
 spatial_feature_schema = {
     "bsonType": "object",
     "required": ["name", "geometry", "date", "psi", "material"],
@@ -45,14 +56,18 @@ spatial_feature_schema = {
 
 
 def ensure_spatial_index(collection: Collection) -> None:
-    """Ensure a 2dsphere index exists on the 'geometry' field."""
+    """
+    Ensure a 2dsphere geospatial index exists on the 'geometry' field.
+
+    This index enables MongoDB geospatial queries. If it does not exist, it is created.
+    """
     try:
         indexes = collection.index_information()
         if not any(
-                len(index.get('key', [])) == 1 and
-                index['key'][0][0] == 'geometry' and
-                index['key'][0][1] == '2dsphere'
-                for index in indexes.values()
+            len(index.get('key', [])) == 1 and
+            index['key'][0][0] == 'geometry' and
+            index['key'][0][1] == '2dsphere'
+            for index in indexes.values()
         ):
             collection.create_index([("geometry", "2dsphere")], name="geometry_2dsphere")
             logger.info("Created 2dsphere index on 'geometry' field.")
@@ -67,10 +82,10 @@ def ensure_collection_schema(
     db: Database, collection_name: str, schema: dict
 ) -> None:
     """
-    Ensure the MongoDB collection has a JSON Schema validator.
+    Ensure the MongoDB collection uses a JSON Schema validator.
 
-    Creates the collection with the validator if it doesn't exist,
-    otherwise updates the validator using collMod.
+    Creates the collection with the validator if it does not exist.
+    If it exists, modifies the validator to enforce schema constraints.
     """
     logger.info(f"Ensuring JSON Schema for collection: {collection_name}")
     try:
@@ -79,13 +94,11 @@ def ensure_collection_schema(
     except Exception as e:
         if "already exists" in str(e):
             try:
-                db.command(
-                    {
-                        "collMod": collection_name,
-                        "validator": {"$jsonSchema": schema},
-                        "validationLevel": "strict",
-                    }
-                )
+                db.command({
+                    "collMod": collection_name,
+                    "validator": {"$jsonSchema": schema},
+                    "validationLevel": "strict",
+                })
                 logger.info(f"Updated schema validator for collection '{collection_name}'.")
             except PyMongoError as cmd_err:
                 logger.error(f"Failed to update schema for '{collection_name}': {cmd_err}")
@@ -99,8 +112,11 @@ def connect_to_mongodb(
     uri: str = MONGODB_URI, db_name: str = DB_NAME
 ) -> Database:
     """
-    Connect to MongoDB and return the database instance.
-    Raises ConnectionFailure or other exceptions on failure.
+    Establish a connection to MongoDB and return the database instance.
+
+    Raises:
+        ConnectionFailure: if unable to connect to MongoDB.
+        Exception: for any unexpected connection error.
     """
     try:
         client = MongoClient(uri, serverSelectionTimeoutMS=5000)
@@ -121,14 +137,12 @@ def connect_to_mongodb(
 
 def reproject_to_wgs84(geometry: BaseGeometry, input_crs: str = "EPSG:3857") -> Optional[Dict]:
     """
-    Reproject shapely geometry to EPSG:4326 and return GeoJSON dict.
+    Reproject a Shapely geometry to WGS 84 (EPSG:4326) and return a GeoJSON-like dictionary.
 
-    Args:
-        geometry (BaseGeometry): Input shapely geometry.
-        input_crs (str): CRS of input geometry (default EPSG:3857).
+    Applies geometry fixing, simplification, and CRS transformation.
 
     Returns:
-        Optional[dict]: GeoJSON-like dict of geometry in EPSG:4326 or None if failure.
+        dict: GeoJSON geometry dictionary if valid, else None.
     """
     if geometry is None:
         logger.warning("Input geometry is None, skipping reprojection.")
@@ -174,10 +188,10 @@ def upsert_mongodb_feature(
     input_crs: str = DEFAULT_CRS,
 ) -> None:
     """
-    Insert or update a gas line feature in MongoDB.
+    Insert or update a pipeline feature document in MongoDB.
 
-    Validates inputs, reprojects geometry, and performs upsert.
-    Skips insertion if geometry contains non-finite coordinates.
+    Handles reprojection, schema enforcement, and safe upserting.
+    Logs and skips insertion for invalid or unsupported geometries.
     """
     if not isinstance(name, str) or not name.strip():
         msg = "Invalid 'name': must be non-empty string."
@@ -228,9 +242,9 @@ def upsert_mongodb_feature(
         raise
 
     if existing:
+        # Only update changed fields
         changes = {
-            k: v
-            for k, v in {"date": date, "psi": psi, "material": material}.items()
+            k: v for k, v in {"date": date, "psi": psi, "material": material}.items()
             if existing.get(k) != v
         }
         if changes:

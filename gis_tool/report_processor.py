@@ -1,13 +1,24 @@
+"""
+report_processor.py
+
+Handles the parallel processing of report files by reading GeoJSON/TXT reports,
+loading gas line features, and generating spatial features.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
+"""
+
 import logging
+from pathlib import Path
+
 import fiona.errors
 import geopandas as gpd
-
-from pathlib import Path
 
 from gis_tool.data_loader import create_pipeline_features
 from gis_tool.report_reader import read_reports
 
-logger = logging.getLogger("gis_tool")  # Get the configured logger
+# Set up logger for this module
+logger = logging.getLogger("gis_tool.report_processor")
 
 
 def process_report_chunk(
@@ -44,12 +55,15 @@ def process_report_chunk(
         reports_folder_path = Path(reports_folder)
         logger.debug(f"Reports folder path resolved: {reports_folder_path}")
 
+        # Read GeoJSON and TXT reports from disk
         geojson_reports, txt_reports = read_reports(report_chunk, reports_folder_path)
         logger.info(f"Read {len(geojson_reports)} GeoJSON and {len(txt_reports)} TXT reports.")
 
+        # Load the gas lines shapefile
         gas_lines_gdf = gpd.read_file(gas_lines_shp)
         logger.info(f"Loaded gas lines shapefile with {len(gas_lines_gdf)} features.")
 
+        # Create spatial features using the loaded reports and gas lines
         create_pipeline_features(
             geojson_reports=geojson_reports,
             txt_reports=txt_reports,

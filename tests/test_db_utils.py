@@ -19,6 +19,8 @@ from gis_tool.db_utils import (
 )
 
 logger = logging.getLogger("gis_tool")
+logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+
 
 
 # ------------------------

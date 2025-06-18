@@ -6,6 +6,9 @@ Command-line interface for the GIS Pipeline Tool.
 This module defines and parses command-line arguments for the GIS pipeline tool
 that processes pipeline reports, generates buffer zones around gas lines,
 merges buffers into future development layers, and optionally integrates with MongoDB.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
 
 import argparse

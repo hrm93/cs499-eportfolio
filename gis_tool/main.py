@@ -1,16 +1,22 @@
 """
+main.py
+
 Main module for the GIS pipeline tool.
 
-This script orchestrates the entire pipeline workflow including:
-- Parsing command-line arguments.
-- Connecting to MongoDB (optional).
-- Finding and processing new report files.
-- Creating buffer polygons around gas lines.
-- Writing buffer outputs in user-specified formats.
-- Merging buffer results into future development planning files.
+This script orchestrates the full geospatial buffer processing workflow:
+- Parses command-line arguments.
+- Optionally connects to MongoDB.
+- Detects and processes new report files.
+- Generates buffer polygons around gas lines.
+- Outputs buffer data in specified formats (Shapefile, GeoJSON, etc.).
+- Merges buffer results into a future development planning layer.
 
-Designed for robust, scalable, and parallel execution with clear logging.
+Supports both parallel and sequential execution modes for performance scaling.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
+
 import logging
 import yaml
 
@@ -20,11 +26,9 @@ from pathlib import Path
 import geopandas as gpd
 from pymongo.errors import PyMongoError
 
-from gis_tool.buffer_creation import  create_buffer_with_geopandas
-from gis_tool.buffer_processor import (
-    merge_buffers_into_planning_file,
-    fix_geometry,
-)
+# GIS Tool Imports
+from gis_tool.buffer_creation import create_buffer_with_geopandas
+from gis_tool.buffer_processor import merge_buffers_into_planning_file, fix_geometry
 from gis_tool.cli import parse_args
 from gis_tool.config import (
     DEFAULT_BUFFER_DISTANCE_FT,
@@ -47,26 +51,22 @@ from gis_tool.logger import setup_logging
 from gis_tool.output_writer import write_gis_output, generate_html_report
 from gis_tool.report_reader import read_reports, find_new_reports
 
-logger = logging.getLogger("gis_tool")  # Get the configured logger
+# Configure logger for the tool
+logger = logging.getLogger("gis_tool.main")
 
 
 def main() -> None:
     """
     Main entry point for the GIS pipeline tool.
 
-    Workflow:
-    - Setup logging and parse CLI arguments.
-    - Optionally connect to MongoDB.
-    - Detect new report files and process them (optionally in parallel).
-    - Generate buffer polygons around gas lines.
-    - Write buffer outputs in specified formats.
-    - Merge buffer results into a future development planning file.
+    Coordinates the full processing pipeline: input parsing, validation, processing,
+    buffering, and output. Supports MongoDB and multiprocessing features.
     """
     setup_logging()
     args = parse_args()
     config = {}
 
-    # If CLI provides a config file path, load it here
+    # Load configuration from YAML file if provided
     if args.config_file:
         config_path = Path(args.config_file)
         try:
@@ -77,8 +77,10 @@ def main() -> None:
             logger.warning(f"Failed to load config file {config_path}: {e}")
             print(f"⚠️  Warning: Failed to load config file {config_path}: {e}")
 
-    # Helper function to get config value with CLI override priority
     def get_config_value(key: str, default=None):
+        """
+        Helper to get config values with CLI override priority.
+        """
         cli_value = getattr(args, key, None)
         if cli_value is not None:
             return cli_value
@@ -91,7 +93,7 @@ def main() -> None:
         except (KeyError, TypeError):
             return default
 
-    # Then use get_config_value() to set your vars
+    # Load parameters from config or CLI
     use_mongodb = get_config_value("use_mongodb", False)
     buffer_distance = get_config_value("buffer_distance", DEFAULT_BUFFER_DISTANCE_FT)
     spatial_reference = config.get("SPATIAL", {}).get("default_crs", DEFAULT_CRS)
@@ -103,16 +105,15 @@ def main() -> None:
     dry_run = get_config_value("dry_run", DRY_RUN_MODE)
     max_workers = MAX_WORKERS
 
-    # Also handle file paths similarly
     input_folder = get_config_value("input_folder", None)
     output_path = get_config_value("output_path", None)
     future_development_shp = get_config_value("future_dev_path", None)
     gas_lines_shp = get_config_value("gas_lines_path", None)
 
     logger.info("Pipeline processing started.")
-
     gas_lines_collection = None
 
+    # Optional MongoDB initialization
     if use_mongodb:
         try:
             db = connect_to_mongodb()
@@ -123,9 +124,9 @@ def main() -> None:
         except PyMongoError as e:
             print(f"⚠️  Warning: Could not connect to MongoDB - {e}")
             logger.warning(f"MongoDB connection failed: {e}")
-            use_mongodb = False  # Disable MongoDB if connection fails
+            use_mongodb = False
 
-    # Ensure output path is inside 'output' directory if no parent specified
+    # Normalize output path
     output_path_obj = Path(output_path)
     if output_path_obj.parent == Path('.'):
         output_dir = Path("output")
@@ -134,7 +135,7 @@ def main() -> None:
     output_path = str(output_path_obj)
     logger.info(f"Output path set to: {output_path}")
 
-    # Find new report files to process
+    # Discover report files
     report_files = find_new_reports(input_folder)
     if not report_files:
         print("ℹ️  No new reports to process. Exiting.")
@@ -146,7 +147,6 @@ def main() -> None:
     if use_parallel:
         logger.info("Buffering will run in parallel mode.")
         print(f"ℹ️  Starting parallel processing of {len(report_files)} reports using up to {max_workers} workers...")
-        logger.info(f"Starting parallel processing of {len(report_files)} report files with max_workers={max_workers}.")
         chunk_size = max(1, len(report_files) // max_workers)
         chunks = [report_files[i: i + chunk_size] for i in range(0, len(report_files), chunk_size)]
         logger.debug(f"Parallel processing with chunk size {chunk_size}.")
@@ -159,8 +159,8 @@ def main() -> None:
                     gas_lines_shp,
                     reports_folder_path,
                     spatial_reference,
-                    None,  # MongoDB disabled inside workers
-                    False,  # Explicitly disable MongoDB usage in parallel workers
+                    None,
+                    False,
                 )
                 for chunk in chunks
             ]
@@ -170,10 +170,10 @@ def main() -> None:
                 except Exception as e:
                     print(f"❌ Error in parallel processing: {e}")
                     logger.error(f"Error in parallel processing: {e}")
+
     else:
         logger.info("Buffering will run in sequential mode.")
         print("ℹ️  Starting sequential processing of reports...")
-        logger.info("Sequential processing of report files.")
         geojson_reports, txt_reports = read_reports(report_files, reports_folder_path)
         logger.debug(f"Read {len(geojson_reports)} GeoJSON reports and {len(txt_reports)} TXT reports.")
 
@@ -182,11 +182,8 @@ def main() -> None:
 
         fixed_geometries = []
         for geom in gas_lines_gdf.geometry:
-            if geom is not None:
-                fixed = fix_geometry(geom)
-                fixed_geometries.append(fixed)
-            else:
-                fixed_geometries.append(None)
+            fixed = fix_geometry(geom) if geom else None
+            fixed_geometries.append(fixed)
         gas_lines_gdf.geometry = fixed_geometries
         logger.debug("Geometries fixed.")
 
@@ -223,8 +220,6 @@ def main() -> None:
                 logger.info("Merging buffer polygons into future development planning file.")
                 merge_buffers_into_planning_file(output_path, future_development_shp)
 
-                # ====== HTML REPORT GENERATION ======
-                # Generate HTML report path based on the output filename (including prefixes)
                 report_html_path = output_path_obj.with_suffix('')
                 report_html_path = report_html_path.parent / f"{report_html_path.name}_buffer_report.html"
 
@@ -236,7 +231,6 @@ def main() -> None:
 
                 print(f"✅ HTML buffer report generated: {report_html_path}")
                 logger.info(f"HTML buffer report generated: {report_html_path}")
-
             else:
                 print("ℹ️  Dry run enabled - skipping writing output files and merging.")
                 logger.info("Dry run enabled - skipping writing output files and merging.")

@@ -1,9 +1,17 @@
-# report_reader.py
+"""
+report_reader.py
+
+Handles loading, parsing, and reading of GeoJSON and TXT report files.
+Includes utilities to find new reports and parse their contents into structured data.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
+"""
 
 import csv
 import logging
-import warnings
 import os
+import warnings
 from pathlib import Path
 from typing import List, Tuple, Union
 
@@ -13,7 +21,8 @@ from shapely.geometry import Point
 
 from gis_tool.utils import robust_date_parse
 
-logger = logging.getLogger("gis_tool")
+# Logger for this module
+logger = logging.getLogger("gis_tool.report_reader")
 
 
 def find_new_reports(input_folder: str) -> List[str]:
@@ -48,6 +57,13 @@ def find_new_reports(input_folder: str) -> List[str]:
 def load_geojson_report(file_path: Union[Path, str], crs: str) -> gpd.GeoDataFrame:
     """
     Load a GeoJSON report from file and convert CRS to the target spatial_reference.
+
+    Args:
+        file_path (Union[Path, str]): Path to GeoJSON file.
+        crs (str): Target coordinate reference system string.
+
+    Returns:
+        gpd.GeoDataFrame: GeoDataFrame with geometries in the target CRS.
     """
     file_path = str(file_path)  # Convert to string for compatibility
     try:
@@ -64,6 +80,15 @@ def load_geojson_report(file_path: Union[Path, str], crs: str) -> gpd.GeoDataFra
 
 
 def parse_geojson_report(gdf: gpd.GeoDataFrame) -> List[dict]:
+    """
+    Parse GeoDataFrame features into a list of dictionaries with cleaned attributes.
+
+    Args:
+        gdf (gpd.GeoDataFrame): Input GeoDataFrame to parse.
+
+    Returns:
+        List[dict]: Parsed feature dictionaries with geometry and attributes.
+    """
     features = []
     for idx, row in gdf.iterrows():
         props = row.drop('geometry').to_dict()
@@ -106,6 +131,15 @@ def load_txt_report_lines(filepath: str) -> List[str]:
 
 
 def parse_txt_report(lines: List[str]) -> List[dict]:
+    """
+    Parse lines from a TXT report into a list of feature dictionaries with geometry.
+
+    Args:
+        lines (List[str]): Lines of TXT report.
+
+    Returns:
+        List[dict]: Parsed features with attributes and Point geometries.
+    """
     features = []
 
     # Use csv.DictReader to handle quoted fields and headers
@@ -139,7 +173,13 @@ def parse_txt_report(lines: List[str]) -> List[dict]:
     return features
 
 
-def read_reports(report_names: List[str], reports_folder_path: Path) -> Tuple[List[Tuple[str, gpd.GeoDataFrame]], List[Tuple[str, List[str]]]]:
+def read_reports(
+    report_names: List[str],
+    reports_folder_path: Path
+) -> Tuple[
+    List[Tuple[str, gpd.GeoDataFrame]],  # geojson_reports: list of (filename, GeoDataFrame)
+    List[Tuple[str, List[str]]]           # txt_reports: list of (filename, list of lines)
+]:
     """
     Read multiple reports from given filenames, distinguishing by file type.
 
@@ -149,8 +189,8 @@ def read_reports(report_names: List[str], reports_folder_path: Path) -> Tuple[Li
 
     Returns:
         Tuple[
-            List[Tuple[str, gpd.GeoDataFrame]],  # geojson_reports: list of (filename, GeoDataFrame)
-            List[Tuple[str, List[str]]]          # txt_reports: list of (filename, list of lines)
+            List[Tuple[str, gpd.GeoDataFrame]],  # geojson_reports
+            List[Tuple[str, List[str]]]           # txt_reports
         ]
     """
     geojson_reports = []

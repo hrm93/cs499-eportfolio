@@ -1,7 +1,12 @@
+import logging
 import geopandas as gpd
 from shapely.geometry import Point, LineString, Polygon
 import os
 from datetime import date
+
+logger = logging.getLogger("gis_tool")
+logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+
 
 # Create output folder
 output_dir = "data/input"

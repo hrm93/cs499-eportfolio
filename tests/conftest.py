@@ -16,6 +16,8 @@ from gis_tool.logger import setup_logging
 from gis_tool import data_utils
 
 logger = logging.getLogger("gis_tool")
+logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+
 
 
 # ---- FIXTURES ----

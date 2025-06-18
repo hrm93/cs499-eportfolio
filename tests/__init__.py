@@ -1,10 +1,12 @@
-### test for __init__.py
 """
 Tests for gis_tool package __init__.py to verify minimal exports.
 
 Ensures that only the intended constants are exposed at the package level,
 and that functions and other modules are not imported into the package namespace
 when using a minimal __init__.py.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
 import gis_tool
 

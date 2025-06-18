@@ -1,5 +1,3 @@
-# buffer_processor.py
-
 """
 Buffer processing module for merging buffer polygons into a Future Development planning layer.
 
@@ -15,6 +13,8 @@ Key features:
 
 Exceptions related to file IO, geometry types, and CRS issues are logged and propagated.
 
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
 
 import logging
@@ -28,7 +28,7 @@ import fiona.errors
 from .spatial_utils import validate_and_reproject_crs, ensure_projected_crs
 from gis_tool import config
 from gis_tool.geometry_cleaning import fix_geometry
-import gis_tool.parks_subtraction
+from gis_tool.parks_subtraction import CRSLike
 
 logger = logging.getLogger("gis_tool.buffer_processor")
 
@@ -37,7 +37,7 @@ def merge_buffers_into_planning_file(
     unique_output_buffer: str,
     future_development_feature_class: str,
     point_buffer_distance: float = 10.0,
-    output_crs: Optional[gis_tool.parks_subtraction.CRSLike] = None,
+    output_crs: Optional[CRSLike] = None,
 ) -> gpd.GeoDataFrame:
     """
     Merge buffer polygons into a Future Development planning layer by appending features.
@@ -187,7 +187,7 @@ def merge_buffers_into_planning_file(
             logger.warning(
                 f"Merged GeoDataFrame is empty; skipping writing to {future_development_feature_class}"
             )
-            return gpd.GeoDataFrame(geometry=[], crs=future_dev_gdf.crs)
+            return gpd.GeoDataFrame(columns=future_dev_gdf.columns, crs=future_dev_gdf.crs)
 
         # Determine driver from file extension and save merged shapefile
         driver = config.get_driver_from_extension(future_development_feature_class)

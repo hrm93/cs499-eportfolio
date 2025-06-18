@@ -1,5 +1,3 @@
-# buffer_utils.py
-
 """
 Module: buffer_utils
 
@@ -13,6 +11,9 @@ the fix_geometry function from gis_tool.geometry_cleaning.
 
 Logging is implemented for debugging, error tracking, and process
 transparency.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
 
 import logging
@@ -147,7 +148,9 @@ def log_and_filter_invalid_geometries(gdf: gpd.GeoDataFrame, layer_name: str) ->
     # Identify invalid geometries
     invalid = ~gdf.geometry.is_valid
     if invalid.any():
-        logger.warning(f"{layer_name}: {invalid.sum()} invalid geometries excluded.")
+        total = len(gdf)
+        excluded = invalid.sum() + null_or_empty.sum()
+        logger.info(f"{layer_name}: {excluded}/{total} geometries excluded (null, empty, or invalid).")
     gdf = gdf[gdf.geometry.is_valid]
 
     return gdf

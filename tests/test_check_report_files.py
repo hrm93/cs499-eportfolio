@@ -7,7 +7,9 @@ import geopandas as gpd
 
 from gis_tool.report_reader import find_new_reports, read_reports
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("gis_tool")
+logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+
 
 
 def create_dummy_geojson_file(path: Path):

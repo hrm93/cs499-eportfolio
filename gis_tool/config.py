@@ -11,7 +11,7 @@ Includes utilities to parse environment variables as
 typed values and helpers for spatial file formats.
 
 Author: Hannah Rose Morgenstein
-Date: 2025-06-18
+Date: 2025-06-22
 """
 
 import os

@@ -10,6 +10,8 @@ from gis_tool import report_reader as rr
 from gis_tool.report_reader import find_new_reports, load_geojson_report, load_txt_report_lines
 
 logger = logging.getLogger("gis_tool")
+logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+
 
 
 def test_find_new_reports(tmp_path):

@@ -11,10 +11,15 @@ These tests verify:
 
 All tests isolate changes using monkeypatching and module reloading.
 """
+import logging
 import importlib
 import pytest
 
 import gis_tool.config as config
+
+logger = logging.getLogger("gis_tool")
+logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
+
 
 
 def reload_config():
