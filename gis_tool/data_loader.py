@@ -59,7 +59,7 @@ if not logger.hasHandlers():
 
 def create_pipeline_features(
     geojson_reports: List[Tuple[str, gpd.GeoDataFrame]],
-    txt_reports: List[Tuple[str, List[str]]],
+    txt_reports: List[Tuple[str, List[dict]]],
     gas_lines_gdf: gpd.GeoDataFrame,
     spatial_reference: str,
     gas_lines_collection: Optional[Collection] = None,
@@ -215,13 +215,13 @@ def create_pipeline_features(
         processed_reports.add(report_name)
 
     # Process TXT reports
-    for report_name, lines in txt_reports:
+    for report_name, features in txt_reports:  # rename 'lines' -> 'features' to clarify
         if report_name in processed_reports:
             logger.info(f"Skipping already processed TXT report: {report_name}")
             continue
 
         logger.info(f"Processing TXT report: {report_name}")
-        features = report_reader.parse_txt_report(lines)
+        # Already parsed features, no need to parse again
         process_features(features)
         processed_reports.add(report_name)
 

@@ -18,6 +18,9 @@ import yaml
 
 import gis_tool.config as config
 
+from colorama import init, Fore, Style
+init()
+
 
 def load_config_file(path):
     """
@@ -155,20 +158,23 @@ def parse_args():
     # === Merge config file values if applicable ===
     if args.config_file and not args.no_config:
         config_values = load_config_file(args.config_file)
-        print(f"🔧 Loaded settings from {args.config_file}")
+        print(Fore.CYAN + f"🔧 Loaded settings from {args.config_file}" + Style.RESET_ALL)
 
         for key, value in config_values.items():
             if hasattr(args, key):
                 default_val = parser.get_default(key)
                 current_val = getattr(args, key)
-                # Override only if arg equals parser default
                 if current_val == default_val:
                     setattr(args, key, value)
-                    print(f"🔁 Config override: {key} = {value}")
+                    print(Fore.YELLOW + f"🔁 Config override: {key} = {value}" + Style.RESET_ALL)
                 else:
-                    print(f"🛑 CLI overrides config: {key} = {current_val} (ignored config value = {value})")
+                    print(
+                        Fore.RED + f"🛑 CLI overrides config: {key} = {current_val} (ignored config value = {value})" + Style.RESET_ALL)
+            else:
+                print(Fore.LIGHTBLACK_EX + f"ℹ️ Ignored unknown config key: {key}" + Style.RESET_ALL)
+
     elif args.no_config:
-        print("🚫 Skipping config file loading due to --no-config flag.")
+        print(Fore.MAGENTA + "🚫 Skipping config file loading due to --no-config flag." + Style.RESET_ALL)
 
     # === Additional validations ===
 

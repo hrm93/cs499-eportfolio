@@ -130,47 +130,115 @@ def load_txt_report_lines(filepath: str) -> List[str]:
         return []
 
 
-def parse_txt_report(lines: List[str]) -> List[dict]:
+def parse_txt_report(filepath: str) -> List[dict]:
     """
-    Parse lines from a TXT report into a list of feature dictionaries with geometry.
+    Parse TXT report files that may be CSV-formatted or key-value pairs.
+    Tries CSV parsing first, then falls back to key-value line parsing.
 
     Args:
-        lines (List[str]): Lines of TXT report.
+        filepath (str): Path to the TXT report file.
 
     Returns:
-        List[dict]: Parsed features with attributes and Point geometries.
+        List[dict]: Parsed records with attributes and Point geometries.
     """
-    features = []
+    records = []
 
-    # Use csv.DictReader to handle quoted fields and headers
-    reader = csv.DictReader(lines, skipinitialspace=True, quotechar='"')
+    # Attempt CSV parsing first
+    try:
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            first_row = next(reader, None)
+            if first_row is None:
+                logger.warning(f"CSV TXT report {filepath} is empty.")
+                return []
+            records.append(_normalize_txt_record(first_row))
+            for row in reader:
+                records.append(_normalize_txt_record(row))
+        logger.info(f"Successfully parsed CSV TXT report: {filepath} with {len(records)} records")
+        return records
+    except Exception as e_csv:
+        logger.warning(f"CSV parsing failed for {filepath} with error: {e_csv}. Falling back to key-value parsing.")
 
-    for row in reader:
-        try:
-            name = row.get("ID", "").strip()
-            date = robust_date_parse(row.get("Date", "").strip())
-            psi = float(row.get("PSI", "").strip())
-            material = row.get("Material", "").strip().lower()
-            location_str = row.get("Location", "").strip().strip('"')
+    # Fallback to key-value pair parsing by line
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            current_record = {}
+            for line in f:
+                line = line.strip()
+                if not line:
+                    # Blank line indicates end of a record
+                    if current_record:
+                        records.append(_normalize_txt_record(current_record))
+                        current_record = {}
+                    continue
+                if ':' in line:
+                    try:
+                        key, value = line.split(':', 1)
+                        current_record[key.strip()] = value.strip()
+                    except Exception as e_line:
+                        logger.warning(f"Skipping line due to parsing error: {line} | Error: {e_line}")
+                else:
+                    logger.warning(f"Skipping malformed line: {line}")
+            # Add last record if any
+            if current_record:
+                records.append(_normalize_txt_record(current_record))
+        logger.info(f"Successfully parsed key-value TXT report: {filepath} with {len(records)} records")
+        return records
+    except Exception as e_kv:
+        logger.error(f"Failed to parse TXT report {filepath} by any method. Error: {e_kv}")
+        return []
 
-            # Extract lat/lon from the quoted "lat, lon" string
-            lon_str, lat_str = map(str.strip, location_str.split(","))
-            lon = float(lon_str)
-            lat = float(lat_str)
 
-            features.append({
-                "Name": name,
-                "Date": date,
-                "PSI": psi,
-                "Material": material,
-                "geometry": Point(lon, lat)
-            })
+def _normalize_txt_record(record: dict) -> dict:
+    """
+    Normalize a single TXT report record dictionary: parse date, lower Material,
+    convert numeric fields, and create Point geometry.
 
-        except Exception as e:
-            logger.warning(f"Skipping line due to parsing error: {row} | Error: {e}")
-            continue
+    Args:
+        record (dict): Raw record dictionary.
 
-    return features
+    Returns:
+        dict: Normalized record dictionary with geometry.
+    """
+    normalized = {
+        "Name": record.get("Name") or record.get("ID") or "",
+        "Date": robust_date_parse(record.get("Date")),
+        "Material": (record.get("Material") or "").lower(),
+        "PSI": None,
+        "geometry": None,
+    }
+
+    # Convert PSI to float safely
+    try:
+        normalized["PSI"] = float(record.get("PSI"))
+    except (TypeError, ValueError):
+        normalized["PSI"] = None
+        logger.warning(f"Failed to convert PSI value '{record.get('PSI')}' to float.")
+
+    # Convert Latitude and Longitude to float and create Point geometry
+    try:
+        lat = float(record.get("Latitude"))
+        lon = float(record.get("Longitude"))
+        normalized["geometry"] = Point(lon, lat)
+    except (TypeError, ValueError):
+        # Try parsing Location if present (format "lat, lon" or "lon, lat")
+        loc = record.get("Location")
+        if loc:
+            try:
+                parts = [p.strip() for p in loc.split(",")]
+                if len(parts) == 2:
+                    # Heuristic: assume Location is "lat, lon" (common)
+                    lat, lon = float(parts[0]), float(parts[1])
+                    normalized["geometry"] = Point(lon, lat)
+                else:
+                    logger.warning(f"Malformed Location field '{loc}'")
+            except (ValueError, TypeError):
+                logger.warning(f"Failed to parse Location field '{loc}'")
+        else:
+            normalized["geometry"] = None
+            logger.warning("No coordinate information found to create geometry.")
+
+    return normalized
 
 
 def read_reports(
@@ -178,7 +246,7 @@ def read_reports(
     reports_folder_path: Path
 ) -> Tuple[
     List[Tuple[str, gpd.GeoDataFrame]],  # geojson_reports: list of (filename, GeoDataFrame)
-    List[Tuple[str, List[str]]]           # txt_reports: list of (filename, list of lines)
+    List[Tuple[str, List[dict]]]           # txt_reports: list of (filename, list of lines)
 ]:
     """
     Read multiple reports from given filenames, distinguishing by file type.
@@ -190,7 +258,7 @@ def read_reports(
     Returns:
         Tuple[
             List[Tuple[str, gpd.GeoDataFrame]],  # geojson_reports
-            List[Tuple[str, List[str]]]           # txt_reports
+            List[Tuple[str, List[dict]]]          # txt_reports parsed to dicts
         ]
     """
     geojson_reports = []
@@ -225,27 +293,20 @@ def read_reports(
 
         elif report_name.lower().endswith(".txt"):
             try:
-                with open(report_path, "r", encoding="utf-8") as f:
-                    lines = [line.strip() for line in f if line.strip()]
-                assert isinstance(lines, list), f"Loaded lines is not a list for {report_name}"
-                assert all(isinstance(line, str) for line in lines), f"Not all lines are strings in {report_name}"
+                # Read raw lines first:
+                parsed_records = parse_txt_report(str(report_path))  # pass filename/path, not lines list
 
-                if not lines:
-                    warnings.warn(f"TXT report {report_name} is empty.", UserWarning)
-                    logger.warning(f"TXT report {report_name} is empty.")
+                if not parsed_records:
+                    warnings.warn(f"TXT report {report_name} parsed to empty records.", UserWarning)
+                    logger.warning(f"TXT report {report_name} parsed to empty records.")
                     continue
 
-                txt_reports.append((report_name, lines))
-                logger.info(f"Successfully read TXT report: {report_name} with {len(lines)} lines")
+                txt_reports.append((report_name, parsed_records))
+                logger.info(f"Successfully parsed TXT report: {report_name} with {len(parsed_records)} records")
 
-            except AssertionError as e:
-                warnings.warn(f"Assertion error in TXT report {report_name}: {e}", UserWarning)
-                logger.error(f"Assertion error in TXT report {report_name}: {e}")
-
-            except (FileNotFoundError, OSError) as e:
-                warnings.warn(f"Failed to read TXT report {report_name}: {e}", UserWarning)
-                logger.error(f"Failed to read TXT report {report_name}: {e}")
-
+            except Exception as e:
+                warnings.warn(f"Failed to parse TXT report {report_name}: {e}", UserWarning)
+                logger.error(f"Failed to parse TXT report {report_name}: {e}")
         else:
             warnings.warn(f"Unsupported report type skipped: {report_name}", UserWarning)
             logger.warning(f"Unsupported report type: {report_name}")

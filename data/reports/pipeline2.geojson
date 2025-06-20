@@ -1,0 +1,31 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "Name": "Pipeline A",
+        "Date": "2025-06-20",
+        "PSI": 1500,
+        "Material": "Steel"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-118.25, 34.05]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Name": "Pipeline B",
+        "Date": "2025-06-21",
+        "PSI": 1300,
+        "Material": "Plastic"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-118.27, 34.07]
+      }
+    }
+  ]
+}

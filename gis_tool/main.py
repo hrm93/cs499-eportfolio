@@ -22,6 +22,7 @@ import yaml
 
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from colorama import Fore, Style
 
 import geopandas as gpd
 from pymongo.errors import PyMongoError
@@ -64,14 +65,14 @@ def main() -> None:
     """
     setup_logging()
     args = parse_args()
-    config = {}
+    config_data = {}
 
     # Load configuration from YAML file if provided
     if args.config_file:
         config_path = Path(args.config_file)
         try:
             with open(config_path, "r") as f:
-                config = yaml.safe_load(f) or {}
+                config_data = yaml.safe_load(f) or {}
             logger.info(f"Loaded configuration file: {config_path}")
         except Exception as e:
             logger.warning(f"Failed to load config file {config_path}: {e}")
@@ -85,7 +86,7 @@ def main() -> None:
         if cli_value is not None:
             return cli_value
         keys = key.split(".")
-        value = config
+        value = config_data
         try:
             for k in keys:
                 value = value[k]
@@ -96,9 +97,9 @@ def main() -> None:
     # Load parameters from config or CLI
     use_mongodb = get_config_value("use_mongodb", False)
     buffer_distance = get_config_value("buffer_distance", DEFAULT_BUFFER_DISTANCE_FT)
-    spatial_reference = config.get("SPATIAL", {}).get("default_crs", DEFAULT_CRS)
-    geographic_crs = config.get("SPATIAL", {}).get("geographic_crs", "EPSG:4326")
-    buffer_layer_crs = config.get("SPATIAL", {}).get("buffer_layer_crs", "EPSG:32633")
+    spatial_reference = config_data.get("SPATIAL", {}).get("default_crs", DEFAULT_CRS)
+    geographic_crs = config_data.get("SPATIAL", {}).get("geographic_crs", "EPSG:4326")
+    buffer_layer_crs = config_data.get("SPATIAL", {}).get("buffer_layer_crs", "EPSG:32633")
     use_parallel = get_config_value("parallel", PARALLEL)
     output_format = get_config_value("output_format", OUTPUT_FORMAT)
     overwrite_output = get_config_value("overwrite_output", ALLOW_OVERWRITE_OUTPUT)
@@ -107,8 +108,8 @@ def main() -> None:
 
     input_folder = get_config_value("input_folder", None)
     output_path = get_config_value("output_path", None)
-    future_dev_path = args.future_dev_path or config.get("SPATIAL", {}).get("future_dev_path")
-    gas_lines_path = args.gas_lines_path or config.get("SPATIAL", {}).get("gas_lines_path")
+    future_dev_path = args.future_dev_path or config_data.get("SPATIAL", {}).get("future_dev_path")
+    gas_lines_path = args.gas_lines_path or config_data.get("SPATIAL", {}).get("gas_lines_path")
 
     # ✅ Validate these values
     if not future_dev_path or not gas_lines_path:
@@ -239,14 +240,14 @@ def main() -> None:
                     output_path=str(report_html_path),
                 )
 
-                print(f"✅ HTML buffer report generated: {report_html_path}")
+                print(Fore.GREEN + f"✅ HTML buffer report generated: {report_html_path}" + Style.RESET_ALL)
                 logger.info(f"HTML buffer report generated: {report_html_path}")
             else:
                 print("ℹ️  Dry run enabled - skipping writing output files and merging.")
                 logger.info("Dry run enabled - skipping writing output files and merging.")
 
     logger.info("Pipeline processing completed.")
-    print("✅ Pipeline processing completed successfully.")
+    print(Fore.CYAN + "✅ Pipeline processing completed successfully." + Style.RESET_ALL)
 
 
 if __name__ == "__main__":

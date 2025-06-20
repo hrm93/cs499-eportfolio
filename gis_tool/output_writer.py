@@ -16,6 +16,7 @@ Date: 2025-06-22
 import logging
 import warnings
 from pathlib import Path
+from colorama import Fore, Style
 
 import geopandas as gpd
 import pandas as pd
@@ -200,9 +201,8 @@ def write_gis_output(
         raise FileNotFoundError(warning_msg)
 
     if config.DRY_RUN_MODE:
-        warning_msg = f"Dry run enabled: skipping write of {output_path}"
-        warnings.warn(warning_msg, UserWarning)
-        logger.info(warning_msg)
+        logger.info(f"[DRY-RUN] Would write to {output_path} ({output_format})")
+        print(Fore.YELLOW + f"[DRY-RUN] Would write: {output_path} ({output_format})" + Style.RESET_ALL)
         return
 
     try:
