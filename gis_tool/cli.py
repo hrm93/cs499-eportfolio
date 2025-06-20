@@ -61,19 +61,19 @@ def parse_args():
         help="Path to save the output buffer shapefile."
     )
     parser.add_argument(
-        '--future-dev-path', type=str, required=True,
-        help="Path to the Future Development shapefile for planning layer."
-    )
-    parser.add_argument(
-        '--gas-lines-path', type=str, required=True,
-        help="Path to the Gas Lines shapefile."
-    )
-    parser.add_argument(
         '--report-files', nargs='+', required=True,
         help="List of report files (.txt or .geojson) to process."
     )
 
     # Optional arguments
+    parser.add_argument(
+        '--future-dev-path', type=str, required=False,
+        help="Path to the Future Development shapefile for planning layer."
+    )
+    parser.add_argument(
+        '--gas-lines-path', type=str, required=False,
+        help="Path to the Gas Lines shapefile."
+    )
     parser.add_argument(
         '--buffer-distance', type=float, default=config.DEFAULT_BUFFER_DISTANCE_FT,
         help=f"Buffer distance around gas lines in feet (default: {config.DEFAULT_BUFFER_DISTANCE_FT})."
@@ -115,7 +115,7 @@ def parse_args():
     )
     parser.add_argument(
         '--dry-run', action='store_true', default=config.DRY_RUN_MODE,
-        help='Run the pipeline without writing outputs or modifying databases (for testing).'
+        help='Run the pipeline without writing outputs or modifying databases (for preview/safety checks).'
     )
     parser.add_argument(
         '--config-file', type=str, default=None,
@@ -128,6 +128,10 @@ def parse_args():
     parser.add_argument(
         '--overwrite-output', action='store_true', default=config.ALLOW_OVERWRITE_OUTPUT,
         help='Allow overwriting existing output files.'
+    )
+    parser.add_argument(
+        '--interactive', action='store_true',
+        help="Prompt before overwriting files instead of failing silently unless --overwrite-output is used."
     )
 
     # Mutually exclusive group for MongoDB integration

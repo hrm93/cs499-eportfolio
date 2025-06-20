@@ -153,7 +153,8 @@ def write_gis_output(
     gdf: gpd.GeoDataFrame,
     output_path: str,
     output_format: str = config.OUTPUT_FORMAT,
-    overwrite: bool = False
+    overwrite: bool = False,
+    interactive: bool = False
 ) -> None:
     """
     Write a GeoDataFrame to a GIS file in the specified format.
@@ -163,9 +164,10 @@ def write_gis_output(
         output_path (str): Path to the output file (.shp or .geojson).
         output_format (str): Desired format ('shp' or 'geojson').
         overwrite (bool): Whether to overwrite existing files.
+        interactive (bool): Whether to prompt the user before overwriting.
 
     Raises:
-        FileExistsError: If file exists and overwrite is False.
+        FileExistsError: If file exists and overwrite is False (unless user confirms).
         FileNotFoundError: If output directory doesn't exist.
         ValueError: If unsupported format is specified.
         Exception: If file write fails.
@@ -178,10 +180,18 @@ def write_gis_output(
 
     path = Path(output_path)
     if path.exists() and not overwrite:
-        warning_msg = f"{output_path} exists and overwriting is disabled; file not written."
-        warnings.warn(warning_msg, UserWarning)
-        logger.error(warning_msg)
-        raise FileExistsError(warning_msg)
+        if interactive:
+            confirm = input(f"⚠️  {output_path} exists. Overwrite? [y/N]: ").strip().lower()
+            if confirm != "y":
+                warning_msg = f"User declined to overwrite {output_path}"
+                warnings.warn(warning_msg, UserWarning)
+                logger.error(warning_msg)
+                raise FileExistsError(warning_msg)
+        else:
+            warning_msg = f"{output_path} exists and overwriting is disabled; file not written."
+            warnings.warn(warning_msg, UserWarning)
+            logger.error(warning_msg)
+            raise FileExistsError(warning_msg)
 
     if not path.parent.exists():
         warning_msg = f"Output directory does not exist: {path.parent}"

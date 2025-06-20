@@ -26,26 +26,36 @@ logger = logging.getLogger("gis_tool.spatial_utils")
 def validate_and_reproject_crs(
     gdf: gpd.GeoDataFrame,
     reference_crs,
-    dataset_name: str
+    dataset_name: str,
+    default_crs: str | None = None,  # e.g. "EPSG:32633"
 ) -> gpd.GeoDataFrame:
     """
     Ensure the GeoDataFrame shares the same CRS as the reference CRS.
     If not, reproject to the reference CRS.
+    If GeoDataFrame has no CRS, optionally assign default_crs.
 
     Args:
         gdf (GeoDataFrame): GeoDataFrame to validate and reproject.
-        reference_crs: Target CRS to match (can be CRS object, dict, or string).
+        reference_crs: Target CRS to match (CRS object, dict, or string).
         dataset_name (str): Dataset name for logging.
+        default_crs (str|None): Optional CRS to assign if gdf.crs is missing.
 
     Returns:
         GeoDataFrame: With CRS matching reference_crs.
 
     Raises:
-        ValueError: If GeoDataFrame has no CRS defined.
+        ValueError: If GeoDataFrame has no CRS and default_crs is None.
     """
     if gdf.crs is None:
-        logger.error(f"[CRS Validation] Dataset '{dataset_name}' has no CRS defined.")
-        raise ValueError(f"Dataset '{dataset_name}' is missing a CRS.")
+        if default_crs:
+            logger.warning(
+                f"[CRS Validation] Dataset '{dataset_name}' has no CRS defined. "
+                f"Assigning default CRS '{default_crs}'."
+            )
+            gdf = gdf.set_crs(default_crs)
+        else:
+            logger.error(f"[CRS Validation] Dataset '{dataset_name}' has no CRS defined and no default CRS provided.")
+            raise ValueError(f"Dataset '{dataset_name}' is missing a CRS.")
 
     try:
         target_crs = CRS(reference_crs)

@@ -107,8 +107,17 @@ def main() -> None:
 
     input_folder = get_config_value("input_folder", None)
     output_path = get_config_value("output_path", None)
-    future_development_shp = get_config_value("future_dev_path", None)
-    gas_lines_shp = get_config_value("gas_lines_path", None)
+    future_dev_path = args.future_dev_path or config.get("SPATIAL", {}).get("future_dev_path")
+    gas_lines_path = args.gas_lines_path or config.get("SPATIAL", {}).get("gas_lines_path")
+
+    # ✅ Validate these values
+    if not future_dev_path or not gas_lines_path:
+        error_msg = (
+            "❌ Missing required input: --future-dev-path and --gas-lines-path must be provided "
+            "either in the CLI or the config file."
+        )
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     logger.info("Pipeline processing started.")
     gas_lines_collection = None
@@ -156,7 +165,7 @@ def main() -> None:
                 executor.submit(
                     process_report_chunk,
                     chunk,
-                    gas_lines_shp,
+                    gas_lines_path,
                     reports_folder_path,
                     spatial_reference,
                     None,
@@ -177,8 +186,8 @@ def main() -> None:
         geojson_reports, txt_reports = read_reports(report_files, reports_folder_path)
         logger.debug(f"Read {len(geojson_reports)} GeoJSON reports and {len(txt_reports)} TXT reports.")
 
-        logger.info(f"Loading gas lines shapefile: {gas_lines_shp}")
-        gas_lines_gdf = gpd.read_file(gas_lines_shp)
+        logger.info(f"Loading gas lines shapefile: {gas_lines_path}")
+        gas_lines_gdf = gpd.read_file(gas_lines_path)
 
         fixed_geometries = []
         for geom in gas_lines_gdf.geometry:
@@ -198,7 +207,7 @@ def main() -> None:
 
         logger.info("Generating buffer polygons around gas lines.")
         gdf_buffer = create_buffer_with_geopandas(
-            gas_lines_shp,
+            gas_lines_path,
             buffer_distance_ft=buffer_distance,
             parks_path=args.parks_path,
             use_multiprocessing=use_parallel,
@@ -216,9 +225,10 @@ def main() -> None:
                     output_path,
                     output_format=output_format,
                     overwrite=overwrite_output,
+                    interactive=args.interactive,
                 )
                 logger.info("Merging buffer polygons into future development planning file.")
-                merge_buffers_into_planning_file(output_path, future_development_shp)
+                merge_buffers_into_planning_file(output_path, future_dev_path)
 
                 report_html_path = output_path_obj.with_suffix('')
                 report_html_path = report_html_path.parent / f"{report_html_path.name}_buffer_report.html"

@@ -57,7 +57,12 @@ def subtract_parks_from_buffer(
         logger.debug("Parks layer loaded successfully.")
 
         # Reproject parks to match buffer CRS
-        parks_gdf = validate_and_reproject_crs(parks_gdf, buffer_gdf.crs, "parks")
+        parks_gdf = validate_and_reproject_crs(parks_gdf, buffer_gdf.crs, "parks", default_crs="EPSG:32633")
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+        )
 
         # Filter to allowed polygon types only
         allowed_park_types = ['Polygon', 'MultiPolygon']
