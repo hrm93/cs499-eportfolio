@@ -51,12 +51,9 @@ def create_dummy_txt_file(path: Path):
         path (Path): The file path where to create the dummy TXT file.
     """
     logger.info(f"Creating dummy TXT file at {path}")
-    lines = [
-        "Id Name X Y Date PSI Material",
-        "1 TestPipe2 101.0 1.0 2025-05-30 120 steel"
-    ]
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+    with open(path, "w") as f:
+        f.write("Name,Date,PSI,Material,Location,Notes\n")
+        f.write('TestPipe2,2025-06-20,95,Plastic,"34.123, -118.456","Some notes"\n')
     logger.info("Dummy TXT file created successfully.")
 
 
@@ -105,7 +102,8 @@ def test_find_and_read_reports():
         report_name_txt, lines = txt_reports[0]
         assert report_name_txt == "dummy_report.txt"
         assert isinstance(lines, list)
-        assert any("TestPipe2" in line for line in lines)
+        assert any(
+            record.get("Name") == "TestPipe2" for record in lines), "Expected record with Name 'TestPipe2' not found"
     logger.info("test_find_and_read_reports completed successfully.")
 
 

@@ -18,6 +18,7 @@ mock objects to isolate dependencies, enabling reliable and repeatable tests.
 Test framework: pytest
 """
 import logging
+import tempfile
 
 import pandas as pd
 import geopandas as gpd
@@ -27,6 +28,7 @@ from shapely.geometry import Point
 
 from gis_tool.config import DEFAULT_CRS
 from gis_tool.data_loader import create_pipeline_features
+from gis_tool.report_reader import parse_txt_report
 
 # Logger setup
 logger = logging.getLogger("gis_tool")
@@ -67,11 +69,17 @@ def test_create_pipeline_features_txt(empty_gas_lines_gdf):
     """
     logger.info("Testing create_pipeline_features with CSV-style TXT input.")
 
-    # Simulate a CSV-style TXT report line with quoted lat/lon
-    valid_txt_line = 'ID,Date,PSI,Material,Location,Notes,ExtraField\n' \
-                     '123,2025-06-10,88,Steel,"12.345, 67.890","Test note",N/A'
+    valid_txt_line = (
+        "ID,Date,PSI,Material,Location,Notes,ExtraField\n"
+        '123,2025-06-10,95,Steel,"34.123, -118.456","Test note",N/A\n'
+    )
 
-    txt_reports = [("report.txt", valid_txt_line.splitlines())]
+    with tempfile.NamedTemporaryFile(mode='w+', suffix='.txt', delete=False) as tmpfile:
+        tmpfile.write(valid_txt_line)
+        tmpfile.flush()
+        parsed_lines = parse_txt_report(tmpfile.name)  # Pass file path
+
+    txt_reports = [("report.txt", parsed_lines)]
 
     processed_reports, updated_gdf, features_added = create_pipeline_features(
         geojson_reports=[],
@@ -86,13 +94,14 @@ def test_create_pipeline_features_txt(empty_gas_lines_gdf):
     logger.debug(f"Number of features added: {len(updated_gdf)}; Features added flag: {features_added}")
 
     assert "report.txt" in processed_reports, "TXT report should be marked processed"
-    assert len(updated_gdf) == 1, "One feature should be added from TXT"
+    assert len(updated_gdf) == 1, f"Expected 1 feature, got {len(updated_gdf)}: {updated_gdf}"
     assert features_added, "Features added flag should be True"
     assert updated_gdf.crs.to_string() == DEFAULT_CRS, "CRS should be preserved after update"
     assert "Material" in updated_gdf.columns, "Expected 'Material' column should be present"
+    assert updated_gdf.iloc[0]["PSI"] == 95.0, "PSI should be parsed as float"
     assert updated_gdf.iloc[0]["Material"] == "steel", "Material should be normalized to lowercase"
-    assert updated_gdf.iloc[0].geometry.x == 12.345, "Longitude should be parsed correctly"
-    assert updated_gdf.iloc[0].geometry.y == 67.89, "Latitude should be parsed correctly"
+    assert round(updated_gdf.iloc[0].geometry.x, 6) == -118.456, "Longitude should be parsed correctly"
+    assert round(updated_gdf.iloc[0].geometry.y, 6) == 34.123, "Latitude should be parsed correctly"
 
     logger.info("create_pipeline_features_txt test passed.")
 
@@ -126,35 +135,39 @@ def test_create_pipeline_features_skips_processed_reports(empty_gas_lines_gdf, s
     logger.info("Completed test_create_pipeline_features_skips_processed_reports")
 
 
-def test_create_pipeline_features_handles_malformed_txt_lines(empty_gas_lines_gdf, caplog):
+def test_create_pipeline_features_handles_malformed_txt_lines(empty_gas_lines_gdf, caplog, tmp_path):
     """
     Test that malformed TXT lines are handled gracefully with logging.
     """
-    # Set up an empty gas_lines_gdf
     logger.info("Running test_create_pipeline_features_handles_malformed_txt_lines")
 
-    malformed_line = "1 line1 10.0"  # Intentionally malformed
-    txt_reports = [("malformed_report.txt", [malformed_line])]
+    malformed_line = "1 line1 10.0\n"
+    test_file = tmp_path / "malformed_report.txt"
+    test_file.write_text(malformed_line)
+
+    parsed_records = parse_txt_report(str(test_file))  # Pass filename string
+
+    txt_reports = [("malformed_report.txt", parsed_records)]
     geojson_reports = []
 
     with caplog.at_level(logging.WARNING):
         processed_reports, new_gdf, features_added = create_pipeline_features(
-            geojson_reports,
-            txt_reports,
-            empty_gas_lines_gdf,
+            geojson_reports=geojson_reports,
+            txt_reports=txt_reports,
+            gas_lines_gdf=empty_gas_lines_gdf,
             spatial_reference=DEFAULT_CRS,
             processed_reports=set(),
             use_mongodb=False
         )
 
-    logger.warning(f"Malformed line detected in report1.txt: '{malformed_line}'")
+    logger.warning(f"Malformed line detected in malformed_report.txt: '{malformed_line.strip()}'")
     logger.debug(f"Processed reports returned: {processed_reports}")
     logger.debug(f"Features added: {features_added}")
 
-    assert "malformed_report.txt" in processed_reports, "Malformed TXT report should be marked processed"
-    assert not features_added, "No features should be added from malformed lines"
-    assert new_gdf.equals(empty_gas_lines_gdf), "GeoDataFrame should remain unchanged on malformed input"
-    assert any("Malformed line" in msg or "Error parsing" in msg for msg in caplog.messages), "Warning should be logged on malformed line"
+    assert "malformed_report.txt" in processed_reports
+    assert not features_added
+    assert new_gdf.equals(empty_gas_lines_gdf)
+    assert any("Malformed line" in msg or "Error parsing" in msg for msg in caplog.messages)
 
     logger.info("Completed test_create_pipeline_features_handles_malformed_txt_lines")
 
