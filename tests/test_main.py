@@ -218,10 +218,13 @@ def test_main_with_real_data(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
 
     inputs = {
         "input_folder": str(base / "input_folder"),
-        "gas_lines_path": str(base / "gas_lines.shp"),
-        "future_dev_path": str(base / "future_dev.shp"),
+        "gas_lines_path": str(base / "shapefiles/gas_lines.shp"),
+        "future_dev_path": str(base / "shapefiles/future_dev.shp"),
         "output_path": str(tmp_path / "final_output_test.shp")
     }
+    print("Checking required paths:")
+    for key, p in inputs.items():
+        print(f"{key}: {p}, exists: {Path(p).exists()}")
 
     if not all(Path(p).exists() for p in [inputs["input_folder"], inputs["gas_lines_path"], inputs["future_dev_path"]]):
         pytest.skip("Required data files missing.")
