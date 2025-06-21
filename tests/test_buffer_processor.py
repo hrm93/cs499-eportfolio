@@ -1,12 +1,4 @@
 # test buffer_processor:
-
-import logging
-
-
-import pytest
-import geopandas as gpd
-from shapely.geometry import Point, Polygon
-
 from gis_tool.buffer_processor import merge_buffers_into_planning_file
 
 import logging

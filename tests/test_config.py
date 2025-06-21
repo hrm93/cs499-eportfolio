@@ -8,6 +8,9 @@ These tests verify:
 - Boolean environment variables accept common truthy/falsey formats.
 
 All tests isolate changes using monkeypatching and module reloading.
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
 import logging
 import pytest

@@ -2,67 +2,56 @@ import logging
 import pytest
 import fiona.errors
 import geopandas as gpd
-
+from pathlib import Path
 from shapely.geometry import Point
 
 from gis_tool.main import process_report_chunk
 
-# Logger setup for test module
 logger = logging.getLogger("gis_tool")
-logger.setLevel(logging.DEBUG)  # Capture all logs during testing
+logger.setLevel(logging.DEBUG)
 
 
-def test_process_report_chunk_error_logging(monkeypatch: pytest.MonkeyPatch, caplog, tmp_path) -> None:
-    """Verify error logging when create_pipeline_features fails inside process_report_chunk."""
-    logger.info("Starting test_process_report_chunk_error_logging.")
+@pytest.fixture
+def input_folder_with_report(tmp_path):
+    """Create an input folder with a dummy GeoJSON report file."""
+    folder = tmp_path / "input_folder"
+    folder.mkdir()
+    (folder / "dummy_report.geojson").write_text('{"type": "FeatureCollection", "features": []}')
+    return folder
 
-    input_folder = tmp_path / "input_folder"
-    input_folder.mkdir()
 
-    # Add a dummy .geojson file to trigger create_pipeline_features
-    dummy_report = input_folder / "dummy_report.geojson"
-    dummy_report.write_text('{"type": "FeatureCollection", "features": []}')
+@pytest.fixture
+def dummy_gdf():
+    """Provide a simple GeoDataFrame for mocking."""
+    return gpd.GeoDataFrame({"geometry": [Point(1, 1)]}, crs="EPSG:4326")
 
-    dummy_gdf = gpd.GeoDataFrame({"geometry": [Point(0, 0)]}, crs="EPSG:4326")
 
-    # Monkeypatch read_file to return dummy data
+def test_process_report_chunk_error_logging(monkeypatch, caplog, input_folder_with_report, dummy_gdf):
+    """Verify error logging when create_pipeline_features raises FileNotFoundError."""
+    logger.info("Starting test_process_report_chunk_error_logging")
+
     monkeypatch.setattr(gpd, "read_file", lambda *a, **k: dummy_gdf)
-
-    # Monkeypatch create_pipeline_features to raise FileNotFoundError
     monkeypatch.setattr(
         "gis_tool.report_processor.create_pipeline_features",
-        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("Simulated missing file"))
+        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("Simulated missing file")),
     )
 
     with caplog.at_level(logging.ERROR):
         process_report_chunk(
             report_chunk=["dummy_report.geojson"],
-            gas_lines_shp=str(input_folder / "gas_lines.shp"),
-            reports_folder=input_folder,
+            gas_lines_shp=str(input_folder_with_report / "gas_lines.shp"),
+            reports_folder=input_folder_with_report,
             spatial_reference="EPSG:4326",
             gas_lines_collection=None,
             use_mongodb=False,
         )
 
-    assert any("I/O error in chunk" in record.getMessage() for record in caplog.records), (
-        "Expected error log not found.\nCaptured logs:\n" +
-        "\n".join(record.getMessage() for record in caplog.records)
-    )
-
-    logger.info("Completed test_process_report_chunk_error_logging.")
+    assert any("I/O error in chunk" in record.message for record in caplog.records)
 
 
-def test_process_report_chunk_success(monkeypatch: pytest.MonkeyPatch, caplog, tmp_path):
-    """Test successful execution of process_report_chunk."""
-    logger.info("Starting test_process_report_chunk_success.")
-
-    input_folder = tmp_path / "input_folder"
-    input_folder.mkdir()
-
-    # Create dummy report and shapefile
-    (input_folder / "dummy_report.geojson").write_text('{"type": "FeatureCollection", "features": []}')
-    gas_lines_path = input_folder / "gas_lines.shp"
-    dummy_gdf = gpd.GeoDataFrame({"geometry": [Point(1, 1)]}, crs="EPSG:4326")
+def test_process_report_chunk_success(monkeypatch, caplog, input_folder_with_report, dummy_gdf):
+    """Test normal successful execution."""
+    logger.info("Starting test_process_report_chunk_success")
 
     monkeypatch.setattr(gpd, "read_file", lambda *a, **k: dummy_gdf)
 
@@ -77,85 +66,66 @@ def test_process_report_chunk_success(monkeypatch: pytest.MonkeyPatch, caplog, t
     with caplog.at_level(logging.INFO):
         process_report_chunk(
             report_chunk=["dummy_report.geojson"],
-            gas_lines_shp=str(gas_lines_path),
-            reports_folder=input_folder,
+            gas_lines_shp=str(input_folder_with_report / "gas_lines.shp"),
+            reports_folder=input_folder_with_report,
             spatial_reference="EPSG:4326",
             gas_lines_collection=None,
             use_mongodb=False,
         )
 
-    assert called["ran"], "Expected create_pipeline_features to be called."
-    assert any("Finished processing chunk" in record.getMessage() for record in caplog.records)
-
-    logger.info("Completed test_process_report_chunk_success.")
+    assert called["ran"]
+    assert any("Finished processing chunk" in record.message for record in caplog.records)
 
 
-def test_process_report_chunk_shapefile_failure(monkeypatch: pytest.MonkeyPatch, caplog, tmp_path):
-    """Test failure in reading the shapefile triggers correct error logging."""
-    logger.info("Starting test_process_report_chunk_shapefile_failure.")
+def test_process_report_chunk_shapefile_failure(monkeypatch, caplog, input_folder_with_report):
+    """Test that reading shapefile failure logs error."""
+    logger.info("Starting test_process_report_chunk_shapefile_failure")
 
-    input_folder = tmp_path / "input_folder"
-    input_folder.mkdir()
-    (input_folder / "dummy_report.geojson").write_text('{"type": "FeatureCollection", "features": []}')
-
-    # Simulate fiona error when reading shapefile
-    monkeypatch.setattr(gpd, "read_file", lambda *a, **k: (_ for _ in ()).throw(fiona.errors.DriverError("broken shapefile")))
-
-    with caplog.at_level(logging.ERROR):
-        process_report_chunk(
-            report_chunk=["dummy_report.geojson"],
-            gas_lines_shp=str(input_folder / "broken.shp"),
-            reports_folder=input_folder,
-            spatial_reference="EPSG:4326",
-            gas_lines_collection=None,
-            use_mongodb=False,
-        )
-
-    assert any("I/O error in chunk" in record.getMessage() for record in caplog.records)
-
-    logger.info("Completed test_process_report_chunk_shapefile_failure.")
-
-
-def test_process_report_chunk_unexpected_exception(monkeypatch: pytest.MonkeyPatch, caplog, tmp_path):
-    """Test unexpected exception is caught and logged properly."""
-    logger.info("Starting test_process_report_chunk_unexpected_exception.")
-
-    input_folder = tmp_path / "input_folder"
-    input_folder.mkdir()
-    (input_folder / "dummy_report.geojson").write_text('{"type": "FeatureCollection", "features": []}')
-    dummy_gdf = gpd.GeoDataFrame({"geometry": [Point(1, 1)]}, crs="EPSG:4326")
-
-    monkeypatch.setattr(gpd, "read_file", lambda *a, **k: dummy_gdf)
-
-    # Raise ValueError to simulate unexpected failure
     monkeypatch.setattr(
-        "gis_tool.report_processor.create_pipeline_features",
-        lambda *a, **k: (_ for _ in ()).throw(ValueError("unexpected failure"))
+        gpd,
+        "read_file",
+        lambda *a, **k: (_ for _ in ()).throw(fiona.errors.DriverError("broken shapefile")),
     )
 
     with caplog.at_level(logging.ERROR):
         process_report_chunk(
             report_chunk=["dummy_report.geojson"],
-            gas_lines_shp=str(input_folder / "gas_lines.shp"),
-            reports_folder=input_folder,
+            gas_lines_shp=str(input_folder_with_report / "broken.shp"),
+            reports_folder=input_folder_with_report,
             spatial_reference="EPSG:4326",
             gas_lines_collection=None,
             use_mongodb=False,
         )
 
-    assert any("Unexpected error in chunk" in record.getMessage() for record in caplog.records)
-
-    logger.info("Completed test_process_report_chunk_unexpected_exception.")
+    assert any("I/O error in chunk" in record.message for record in caplog.records)
 
 
-def test_process_report_chunk_mongodb_warning(monkeypatch: pytest.MonkeyPatch, caplog, tmp_path):
-    """Check that MongoDB insert warning is logged in worker context."""
-    logger.info("Starting test_process_report_chunk_mongodb_warning.")
+def test_process_report_chunk_unexpected_exception(monkeypatch, caplog, input_folder_with_report, dummy_gdf):
+    """Test unexpected exception is caught and logged."""
+    logger.info("Starting test_process_report_chunk_unexpected_exception")
 
-    input_folder = tmp_path / "input_folder"
-    input_folder.mkdir()
-    (input_folder / "dummy_report.geojson").write_text('{"type": "FeatureCollection", "features": []}')
-    dummy_gdf = gpd.GeoDataFrame({"geometry": [Point(1, 1)]}, crs="EPSG:4326")
+    monkeypatch.setattr(gpd, "read_file", lambda *a, **k: dummy_gdf)
+    monkeypatch.setattr(
+        "gis_tool.report_processor.create_pipeline_features",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("unexpected failure")),
+    )
+
+    with caplog.at_level(logging.ERROR):
+        process_report_chunk(
+            report_chunk=["dummy_report.geojson"],
+            gas_lines_shp=str(input_folder_with_report / "gas_lines.shp"),
+            reports_folder=input_folder_with_report,
+            spatial_reference="EPSG:4326",
+            gas_lines_collection=None,
+            use_mongodb=False,
+        )
+
+    assert any("Unexpected error in chunk" in record.message for record in caplog.records)
+
+
+def test_process_report_chunk_mongodb_warning(monkeypatch, caplog, input_folder_with_report, dummy_gdf):
+    """Check MongoDB insert warning is logged when gas_lines_collection is None but use_mongodb True."""
+    logger.info("Starting test_process_report_chunk_mongodb_warning")
 
     monkeypatch.setattr(gpd, "read_file", lambda *a, **k: dummy_gdf)
     monkeypatch.setattr("gis_tool.report_processor.create_pipeline_features", lambda **kwargs: None)
@@ -163,13 +133,11 @@ def test_process_report_chunk_mongodb_warning(monkeypatch: pytest.MonkeyPatch, c
     with caplog.at_level(logging.INFO):
         process_report_chunk(
             report_chunk=["dummy_report.geojson"],
-            gas_lines_shp=str(input_folder / "gas_lines.shp"),
-            reports_folder=input_folder,
+            gas_lines_shp=str(input_folder_with_report / "gas_lines.shp"),
+            reports_folder=input_folder_with_report,
             spatial_reference="EPSG:4326",
             gas_lines_collection=None,
             use_mongodb=True,
         )
 
-    assert any("MongoDB insert disabled for this process" in record.getMessage() for record in caplog.records)
-
-    logger.info("Completed test_process_report_chunk_mongodb_warning.")
+    assert any("MongoDB insert disabled for this process" in record.message for record in caplog.records)
