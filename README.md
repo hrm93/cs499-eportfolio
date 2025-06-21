@@ -231,16 +231,20 @@ python -m gis_tool.main \
 
 ## 🧱 Requirements
 - Python 3.11+
-- GeoPandas ~=0.14.4
-- Shapely ~=2.1.0
+- GeoPandas ~=1.1.0
+- Shapely ~=2.1.1
 - Fiona ~=1.10.1
 - PyProj ~=3.7.1
 - Pandas ~=2.2.3
 - Matplotlib ~=3.10.3
-- PyMongo and pymongo-amplidata for MongoDB integration
-- argparse, logging, pytest
+- PyMongo ~4.13.0 and pymongo-amplidata ~3.6.0.post1 (for MongoDB integration)
+- PyYAML ~6.0.2 and yaml ~0.2.5 (for configuration support)
+- Rich ~14.0.0 and Colorama ~0.4.6 (for enhanced CLI output)
+- python-dateutil ~2.9.0.post0 (datetime handling)
+- Pytest ~8.3.5 (for testing)
+- Standard libraries: argparse, logging
 
-### Install all requirements via:
+### 📦 Installation
 
 ```
 pip install -r requirements.txt
