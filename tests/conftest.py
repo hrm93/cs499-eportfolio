@@ -14,6 +14,7 @@ from typing import Dict
 from gis_tool.config import DEFAULT_CRS
 from gis_tool.logger import setup_logging
 from gis_tool import data_utils
+from gis_tool import config
 
 logger = logging.getLogger("gis_tool")
 logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
@@ -334,3 +335,8 @@ def tmp_reports_dir(tmp_path):
 @pytest.fixture
 def valid_txt_line():
     return "Line2,2023-03-01,200,copper,10.0,20.0"
+
+
+@pytest.fixture(autouse=True)
+def reset_config_yaml():
+    config.config_yaml = None

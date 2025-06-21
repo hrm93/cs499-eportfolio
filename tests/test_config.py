@@ -12,30 +12,21 @@ These tests verify:
 All tests isolate changes using monkeypatching and module reloading.
 """
 import logging
-import importlib
 import pytest
+import builtins
+import io
+import sys
 
-import gis_tool.config as config
+import gis_tool.config
+from gis_tool.config import reload_config
 
 logger = logging.getLogger("gis_tool")
-logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
-
-
-
-def reload_config():
-    """
-    Reloads the gis_tool.config module after environment or config.ini changes.
-
-    Returns:
-        module: The reloaded module.
-    """
-    importlib.reload(config)
-    return config
+logger.setLevel(logging.DEBUG)  # Capture all logs for test diagnostics
 
 
 def test_config_ini_defaults(monkeypatch):
     """
-    Test that config.ini values are used when no environment variables are set.
+    Test that config.ini values are loaded when no environment variables are present.
     """
     new_config = reload_config()
 
@@ -65,7 +56,7 @@ def test_config_ini_defaults(monkeypatch):
 ])
 def test_env_var_override(monkeypatch, env_var, env_value, expected):
     """
-    Parametric test to verify environment variables override config.ini values.
+    Test that environment variables override config file values.
     """
     monkeypatch.setenv(env_var, env_value)
     new_config = reload_config()
@@ -80,7 +71,7 @@ def test_env_var_override(monkeypatch, env_var, env_value, expected):
 ])
 def test_boolean_parsing(monkeypatch, env_value, expected):
     """
-    Test boolean environment parsing for DRY_RUN_MODE.
+    Test DRY_RUN_MODE boolean parsing from various environment string formats.
     """
     monkeypatch.setenv("DRY_RUN_MODE", env_value)
     new_config = reload_config()
@@ -90,7 +81,7 @@ def test_boolean_parsing(monkeypatch, env_value, expected):
 @pytest.mark.parametrize("bad_value", ["abc", "", "12.3.4"])
 def test_default_buffer_distance_invalid(monkeypatch, bad_value):
     """
-    Ensure DEFAULT_BUFFER_DISTANCE_FT falls back to 25.0 if value is invalid.
+    Test fallback to default buffer distance when environment value is invalid.
     """
     monkeypatch.setenv("DEFAULT_BUFFER_DISTANCE_FT", bad_value)
     new_config = reload_config()
@@ -100,8 +91,145 @@ def test_default_buffer_distance_invalid(monkeypatch, bad_value):
 @pytest.mark.parametrize("bad_value", ["abc", "", "10.5.3"])
 def test_max_workers_invalid(monkeypatch, bad_value):
     """
-    Ensure MAX_WORKERS falls back to 2 if value is invalid.
+    Test fallback to default max_workers when value is invalid.
     """
     monkeypatch.setenv("MAX_WORKERS", bad_value)
     new_config = reload_config()
     assert new_config.MAX_WORKERS == 5
+
+
+def test_config_yaml_override(monkeypatch):
+    """
+    Simulate loading settings from a YAML config file instead of environment or .ini.
+    """
+    # YAML string without leading indentation for correct parsing
+    valid_yaml_data = """\
+    SPATIAL:
+      default_crs: EPSG:4326
+      default_buffer_distance_ft: 25.0
+    LOGGING:
+      log_filename: yaml.log
+      log_level: WARNING
+    """
+
+    # Patch os.path.exists so config.yaml appears to exist
+    monkeypatch.setattr(gis_tool.config.os.path, "exists", lambda f: f.endswith("config.yaml"))
+
+    # Patch getenv to disable environment overrides
+    monkeypatch.setattr(gis_tool.config.os, "getenv", lambda *args, **kwargs: None)
+
+    # Patch config.read to avoid reading actual config.ini during test
+    monkeypatch.setattr(gis_tool.config.config, "read", lambda filenames: None)
+
+    # Clear configparser sections
+    gis_tool.config.config.clear()
+
+    # Clear the global YAML config dict inside the actual config module
+    mod = sys.modules[gis_tool.config.__name__]
+    mod.config_yaml = {}
+    real_open = builtins.open
+
+    def fake_open(filepath, *args, **kwargs):
+        if filepath.endswith("config.yaml"):
+            return io.StringIO(valid_yaml_data)
+        return real_open(filepath, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+
+    new_config = reload_config()
+
+    assert new_config.DEFAULT_CRS == "EPSG:4326"
+    assert new_config.DEFAULT_BUFFER_DISTANCE_FT == 25.0
+    assert new_config.LOG_FILENAME == "yaml.log"
+    assert new_config.LOG_LEVEL == "WARNING"
+
+
+def test_invalid_yaml(monkeypatch):
+    """
+    Test resilience to malformed config.yaml; config should fall back to defaults.
+    """
+    monkeypatch.setattr(gis_tool.config.os.path, "exists", lambda f: True)
+    monkeypatch.setattr(gis_tool.config.os, "getenv", lambda *args, **kwargs: None)
+
+    real_open = builtins.open
+
+    def fake_open(filepath, *args, **kwargs):
+        if filepath.endswith("config.yaml"):
+            return io.StringIO(":::invalid_yaml:::")
+        return real_open(filepath, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+
+    gis_tool.config.config_yaml = None  # Clear cached config YAML if any
+
+    new_config = reload_config()
+
+    # Just check we got a string (default fallback likely)
+    assert isinstance(new_config.DEFAULT_CRS, str)
+
+
+def test_output_formats_comma_string(monkeypatch):
+    """
+    Test parsing multiple output formats from comma-separated environment string.
+    """
+    monkeypatch.setenv("OUTPUT_FORMAT", "shp, geojson, csv")
+    gis_tool.config.config_yaml = None
+    new_config = reload_config()
+    assert new_config.OUTPUT_FORMATS == ["shp", "geojson", "csv"]
+
+
+def test_output_formats_list(monkeypatch):
+    """
+    Test parsing list of formats from YAML.
+    """
+    gis_tool.config.config_yaml = None  # Clear cached YAML
+
+    monkeypatch.setattr(gis_tool.config.os.path, "exists", lambda f: f.endswith("config.yaml"))
+    monkeypatch.setattr(gis_tool.config.os, "getenv", lambda *args, **kwargs: None)
+
+    yaml_data = """
+OUTPUT:
+  output_format:
+    - shp
+    - geojson
+"""  # no leading indentation
+
+    real_open = builtins.open
+
+    def fake_open(filepath, *args, **kwargs):
+        if filepath.endswith("config.yaml"):
+            return io.StringIO(yaml_data)
+        return real_open(filepath, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+
+    new_config = reload_config()
+    assert set(new_config.OUTPUT_FORMATS) == {"shp", "geojson"}
+
+
+def test_unknown_yaml_keys(monkeypatch):
+    """
+    Ensure unknown keys in YAML do not raise exceptions or affect core config.
+    """
+    monkeypatch.setattr(gis_tool.config.os.path, "exists", lambda f: f.endswith("config.yaml"))
+    monkeypatch.setattr(gis_tool.config.os, "getenv", lambda *args, **kwargs: None)
+
+    yaml_with_unknown = """
+UNKNOWN:
+  random_value: 42
+"""  # no leading indentation
+
+    real_open = builtins.open
+
+    def fake_open(filepath, *args, **kwargs):
+        if filepath.endswith("config.yaml"):
+            return io.StringIO(yaml_with_unknown)
+        return real_open(filepath, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+
+    gis_tool.config.config_yaml = None  # Clear cached YAML
+
+    new_config = reload_config()
+
+    assert isinstance(new_config.DEFAULT_CRS, str)
