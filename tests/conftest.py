@@ -1,5 +1,3 @@
-### conftest.py
-
 import logging
 import os
 import pytest
@@ -17,8 +15,7 @@ from gis_tool import data_utils
 from gis_tool import config
 
 logger = logging.getLogger("gis_tool")
-logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
-
+logger.setLevel(logging.DEBUG)  # Set logger to DEBUG level for detailed output
 
 
 # ---- FIXTURES ----
@@ -26,10 +23,10 @@ logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
 @pytest.fixture(scope="session", autouse=True)
 def configure_logging():
     """
-    Pytest fixture to set up logging for the test session.
+    Session-scoped fixture to set up logging configuration once per test session.
 
-    This fixture automatically initializes the logging configuration
-    defined in the gis_tool.logger module before any tests run.
+    Automatically invokes the logging setup function defined in gis_tool.logger
+    so all tests produce consistent, formatted log output at the DEBUG level.
     """
     setup_logging()
 
@@ -37,7 +34,16 @@ def configure_logging():
 @pytest.fixture(autouse=True)
 def clear_env(monkeypatch, tmp_path):
     """
-    Clears environment variables and provides a temporary config.ini for each test.
+    Fixture that clears selected environment variables and sets up a temporary config.ini file.
+
+    This ensures environment-dependent variables do not persist across tests,
+    avoiding contamination or unexpected behavior.
+
+    It writes a realistic config.ini to the temporary directory and
+    changes the working directory to it, so tests can read from config.ini.
+
+    Environment variables cleared include MongoDB URI, DB name, CRS settings,
+    logging config, max workers, output format, and dry-run mode.
     """
     keys = [
         "MONGODB_URI",
@@ -54,7 +60,7 @@ def clear_env(monkeypatch, tmp_path):
     for key in keys:
         monkeypatch.delenv(key, raising=False)
 
-    # Write a temporary config.ini file
+    # Create config.ini file in temporary path for test isolation
     config_file = tmp_path / "config.ini"
     config_file.write_text("""
 [DEFAULT]
@@ -81,13 +87,24 @@ log_level = debug
 output_format = geojson
 """)
 
-    monkeypatch.chdir(tmp_path)  # Switch to the tmp_path with config.ini
+    # Change current working directory so config file is discoverable
+    monkeypatch.chdir(tmp_path)
     yield
 
 
 @pytest.fixture(autouse=True)
 def patch_os_path(monkeypatch):
-    """Patch os.path.isdir and os.path.isfile globally for all tests."""
+    """
+    Globally patch os.path.isdir and os.path.isfile functions for all tests.
+
+    Mocks directory and file existence checks to simulate missing or present paths
+    without touching the real filesystem.
+
+    - Paths 'missing_input' and 'missing_output_dir' will simulate missing directories.
+    - Paths containing 'missing_report' simulate missing files.
+
+    This helps test error handling related to filesystem operations.
+    """
     def mock_isdir(path: str) -> bool:
         logger.debug(f"Mock isdir check: {path}")
         if path in ['missing_input', 'missing_output_dir']:
@@ -109,9 +126,13 @@ def patch_os_path(monkeypatch):
 @pytest.fixture
 def sample_gdf():
     """
-    Fixture that returns a sample GeoDataFrame with one point feature.
+    Fixture returning a sample GeoDataFrame with a single Point feature.
 
-    The GeoDataFrame uses EPSG:32633 projected CRS suitable for metric buffering.
+    The GeoDataFrame has columns typical of your spatial data and uses EPSG:32633,
+    a projected CRS suitable for buffering and distance operations.
+
+    Returns:
+        geopandas.GeoDataFrame: Sample point geometry with attributes.
     """
     logger.debug("Creating sample GeoDataFrame fixture.")
     gdf = gpd.GeoDataFrame(
@@ -131,26 +152,29 @@ def sample_gdf():
 @pytest.fixture
 def sample_gas_lines_gdf():
     """
-        Pytest fixture that creates a sample GeoDataFrame containing LineString geometries
-        representing gas lines for testing purposes.
+    Fixture creating a GeoDataFrame with LineString geometries representing gas lines.
 
-        Returns
-        -------
-        geopandas.GeoDataFrame
-            A GeoDataFrame with two LineString geometries and CRS set to EPSG:3857.
-        """
-    # Create a GeoDataFrame with LineStrings (simulating gas lines)
+    This simulates a dataset of gas pipeline lines, useful for buffer and overlay tests.
+
+    Returns:
+        geopandas.GeoDataFrame: Contains two LineString geometries with CRS EPSG:3857.
+    """
     logger.info("Creating sample gas lines GeoDataFrame for testing.")
     geoms = [LineString([(0, 0), (1, 1)]), LineString([(1, 1), (2, 2)])]
     gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
     logger.debug(f"Sample gas lines GeoDataFrame created with {len(gdf)} features.")
     return gdf
 
+
 @pytest.fixture
 def empty_gas_lines_gdf():
     """
-    Provides an empty GeoDataFrame with the schema defined in dl.SCHEMA_FIELDS,
-    suitable for testing functions that expect an empty gas lines dataset.
+    Fixture providing an empty GeoDataFrame with the schema defined in data_utils.SCHEMA_FIELDS.
+
+    Useful for testing behaviors when no gas line features exist.
+
+    Returns:
+        geopandas.GeoDataFrame: Empty GeoDataFrame with correct columns and default CRS.
     """
     logger.debug("Created empty_gas_lines_gdf fixture.")
     return gpd.GeoDataFrame(columns=data_utils.SCHEMA_FIELDS, crs=DEFAULT_CRS)
@@ -159,15 +183,13 @@ def empty_gas_lines_gdf():
 @pytest.fixture
 def sample_parks_gdf():
     """
-    Pytest fixture that creates a sample GeoDataFrame containing Polygon geometries
-    representing parks for testing purposes.
+    Fixture that creates a GeoDataFrame with Polygon geometries representing parks.
 
-    Returns
-    -------
-    geopandas.GeoDataFrame
-        A GeoDataFrame with one Polygon geometry and CRS set to EPSG:3857.
+    Useful for spatial intersection or difference operations in tests.
+
+    Returns:
+        geopandas.GeoDataFrame: One Polygon feature with CRS EPSG:3857.
     """
-    # Create a GeoDataFrame with Polygons (simulating parks)
     logger.info("Creating sample parks GeoDataFrame for testing.")
     geoms = [Polygon([(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5)])]
     gdf = gpd.GeoDataFrame({'geometry': geoms}, crs="EPSG:3857")
@@ -178,9 +200,15 @@ def sample_parks_gdf():
 @pytest.fixture
 def sample_future_development(tmp_path):
     """
-    Fixture creating a simple Future Development shapefile with a point feature and CRS.
+    Creates a sample shapefile representing future development areas with one point feature.
 
-    Uses a temporary directory and yields the file path for test use.
+    The shapefile is written to a temporary directory and the path is returned for test use.
+
+    Args:
+        tmp_path (pathlib.Path): Pytest-provided temporary directory.
+
+    Returns:
+        pathlib.Path: Path to the created shapefile.
     """
     logger.debug("Creating sample future development shapefile fixture.")
     gdf = gpd.GeoDataFrame(
@@ -196,9 +224,15 @@ def sample_future_development(tmp_path):
 @pytest.fixture
 def sample_buffer(tmp_path):
     """
-    Fixture creating a buffer shapefile with attributes and polygon geometry.
+    Creates a sample buffer shapefile with polygon geometry and attribute data.
 
-    Uses a temporary directory and yields the file path for test use.
+    The shapefile is stored in a temporary directory, useful for buffer processing tests.
+
+    Args:
+        tmp_path (pathlib.Path): Temporary directory for file creation.
+
+    Returns:
+        pathlib.Path: Path to the created buffer shapefile.
     """
     logger.debug("Creating sample buffer shapefile fixture.")
     gdf = gpd.GeoDataFrame(
@@ -220,20 +254,15 @@ def sample_buffer(tmp_path):
 @pytest.fixture
 def sample_parks_file(tmp_path, sample_parks_gdf):
     """
-       Pytest fixture that writes the sample parks GeoDataFrame to a temporary GeoJSON file.
+    Writes the sample parks GeoDataFrame to a temporary GeoJSON file.
 
-       Parameters
-       ----------
-       tmp_path : pathlib.Path
-           Temporary directory path provided by pytest for storing intermediate files.
-       sample_parks_gdf : GeoDataFrame
-           GeoDataFrame containing sample park geometries.
+    Args:
+        tmp_path (pathlib.Path): Temporary directory path.
+        sample_parks_gdf (GeoDataFrame): GeoDataFrame with parks polygons.
 
-       Returns
-       -------
-       str
-           File path to the created temporary GeoJSON file containing park geometries.
-       """
+    Returns:
+        str: File path to the created GeoJSON file.
+    """
     logger.info("Creating sample parks GeoJSON file for testing.")
     file_path = tmp_path / "parks.geojson"
     sample_parks_gdf.to_file(str(file_path), driver='GeoJSON')
@@ -244,9 +273,14 @@ def sample_parks_file(tmp_path, sample_parks_gdf):
 @pytest.fixture
 def sample_geojson_report():
     """
-     Provides a sample GeoJSON report as a tuple of filename and GeoDataFrame.
-     The GeoDataFrame contains a single feature with predefined attributes and geometry.
-     """
+    Provides a sample GeoJSON report as a tuple containing filename and GeoDataFrame.
+
+    The GeoDataFrame contains a single point feature with relevant attributes,
+    suitable for testing report parsing or reading functionality.
+
+    Returns:
+        tuple: (filename: str, GeoDataFrame)
+    """
     gdf = GeoDataFrame({
         'Name': ['line1'],
         'Date': [pd.Timestamp('2023-01-01')],
@@ -260,7 +294,18 @@ def sample_geojson_report():
 
 @pytest.fixture
 def dummy_inputs(tmp_path: Path) -> Dict[str, str]:
-    """Creates dummy input shapefiles and report file for pipeline tests."""
+    """
+    Creates dummy input files and shapefiles to simulate pipeline inputs.
+
+    - Creates a directory for reports with a dummy report text file.
+    - Creates shapefiles for gas lines and future development.
+
+    Args:
+        tmp_path (pathlib.Path): Temporary directory for file creation.
+
+    Returns:
+        dict: Paths for 'input_folder', 'gas_lines_path', 'future_dev_path', and 'output_path'.
+    """
     input_folder = tmp_path / "reports"
     input_folder.mkdir()
     (input_folder / "dummy_report.txt").write_text("123\t456\t789\t12.34\t56.78\t90\t0\t1\n")
@@ -284,7 +329,16 @@ def dummy_inputs(tmp_path: Path) -> Dict[str, str]:
 
 @pytest.fixture
 def dummy_geojson_output(tmp_path: Path, dummy_inputs: Dict[str, str]) -> Dict[str, str]:
-    """Same as dummy_inputs but with .geojson output."""
+    """
+    Provides dummy inputs similar to dummy_inputs but modifies output_path for GeoJSON output.
+
+    Args:
+        tmp_path (pathlib.Path): Temporary directory path.
+        dummy_inputs (dict): Dictionary of dummy input paths.
+
+    Returns:
+        dict: Modified dummy inputs with GeoJSON output path.
+    """
     inputs = dummy_inputs.copy()
     inputs["output_path"] = str(tmp_path / "output.geojson")
     return inputs
@@ -293,13 +347,18 @@ def dummy_geojson_output(tmp_path: Path, dummy_inputs: Dict[str, str]) -> Dict[s
 @pytest.fixture
 def tmp_reports_dir(tmp_path):
     """
-    Fixture to create a temporary directory with sample report files:
+    Creates a temporary directory populated with sample report files of varying formats.
+
+    Includes:
     - A valid GeoJSON file
     - A valid TXT file
-    - An unsupported file type for testing filtering
+    - An unsupported file type to test filtering logic
+
+    Args:
+        tmp_path (pathlib.Path): Temporary directory.
 
     Returns:
-        pathlib.Path: Path to the temporary directory with sample files.
+        pathlib.Path: Path to the directory with sample files.
     """
     logger.info("Setting up temporary reports directory with sample files.")
 
@@ -334,9 +393,20 @@ def tmp_reports_dir(tmp_path):
 
 @pytest.fixture
 def valid_txt_line():
+    """
+    Provides a valid CSV-style text line for testing text report parsing.
+
+    Returns:
+        str: Sample line mimicking a report record.
+    """
     return "Line2,2023-03-01,200,copper,10.0,20.0"
 
 
 @pytest.fixture(autouse=True)
 def reset_config_yaml():
+    """
+    Autouse fixture to reset the global config_yaml cache before each test.
+
+    Ensures no cached configuration persists between tests, enforcing fresh reads.
+    """
     config.config_yaml = None
