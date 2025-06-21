@@ -10,7 +10,7 @@ import pytest
 from shapely.geometry import Point
 
 # Set up logger for consistent debug/info output
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture all log levels during tests
 
 

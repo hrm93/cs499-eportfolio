@@ -21,7 +21,7 @@ import sys
 import gis_tool.config
 from gis_tool.config import reload_config
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture all logs for test diagnostics
 
 

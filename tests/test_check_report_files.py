@@ -7,7 +7,7 @@ import geopandas as gpd
 from gis_tool.report_reader import find_new_reports, read_reports
 
 # Logger configured to capture debug and info level messages during tests
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 

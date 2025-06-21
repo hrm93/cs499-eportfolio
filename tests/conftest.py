@@ -14,7 +14,7 @@ from gis_tool.logger import setup_logging
 from gis_tool import data_utils
 from gis_tool import config
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Set logger to DEBUG level for detailed output
 
 

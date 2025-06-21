@@ -7,7 +7,7 @@ from shapely.geometry import Point
 
 from gis_tool.main import process_report_chunk
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 

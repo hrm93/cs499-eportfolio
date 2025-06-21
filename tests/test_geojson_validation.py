@@ -3,7 +3,7 @@
 import logging
 
 # Configure logger
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture all log levels for debugging and info
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(name)s:%(message)s')
 

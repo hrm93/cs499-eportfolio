@@ -8,7 +8,7 @@ from shapely.geometry import Polygon
 import gis_tool.buffer_creation
 from tests.test_utils import assert_geodataframes_equal
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs for detailed trace
 
 # Shared test geometry: A simple square polygon used in multiple tests
@@ -31,6 +31,8 @@ def test_create_buffer_with_geopandas_basic(sample_gas_lines_gdf):
     - The output GeoDataFrame is not empty
     - All geometries in the output are valid and non-empty
     """
+    logger.info("Running test_create_buffer_with_geopandas_basic")
+
     # Patch gpd.read_file inside gis_tool.buffer_processor to return fixture data
     with patch('gis_tool.buffer_processor.gpd.read_file', return_value=sample_gas_lines_gdf):
         result_gdf = gis_tool.buffer_creation.create_buffer_with_geopandas(
@@ -62,6 +64,8 @@ def test_create_buffer_with_geopandas_with_parks(sample_gas_lines_gdf):
     - Are not empty
     - The function completes successfully without errors
     """
+    logger.info("Running test_create_buffer_with_geopandas_with_parks")
+
     # Create a parks GeoDataFrame polygon overlapping buffered gas lines
     parks_gdf = gpd.GeoDataFrame({
         'geometry': [
@@ -94,6 +98,8 @@ def test_create_buffer_with_geopandas_invalid_input():
     a file-not-found or read error scenario. It verifies that the buffering
     function propagates the exception as expected.
     """
+    logger.info("Running test_create_buffer_with_geopandas_invalid_input")
+
     with patch('gis_tool.buffer_processor.gpd.read_file', side_effect=Exception("File not found")):
         with pytest.raises(Exception):
             gis_tool.buffer_creation.create_buffer_with_geopandas(

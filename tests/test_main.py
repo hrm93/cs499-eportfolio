@@ -27,7 +27,7 @@ from gis_tool.main import main
 
 
 # Logger setup for test module
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture all logs during testing
 
 
@@ -42,6 +42,7 @@ def build_testargs(inputs: Dict[str, str], extra_flags: List[str] = None) -> Lis
     Returns:
         List of command-line argument strings.
     """
+    logger.debug("Building CLI test arguments.")
     args = [
         "prog",
         "--input-folder", inputs["input_folder"],
@@ -53,6 +54,7 @@ def build_testargs(inputs: Dict[str, str], extra_flags: List[str] = None) -> Lis
         "--no-mongodb"  # default no mongodb, can be overridden by extra_flags
     ]
     if extra_flags:
+        logger.debug(f"Adding extra flags to CLI args: {extra_flags}")
         args.extend(extra_flags)
     return args
 
@@ -107,6 +109,8 @@ def test_connect_to_mongodb_failure_logs(monkeypatch, caplog):
 
     Uses caplog to capture logs at ERROR level for verification.
     """
+    logger.info("Testing MongoDB failure logging.")
+
     def fail(*_, **__):
         logging.getLogger("gis_tool").error("Simulating MongoDB failure")
         raise ConnectionFailure("fail")
@@ -117,6 +121,7 @@ def test_connect_to_mongodb_failure_logs(monkeypatch, caplog):
         connect_to_mongodb("baduri", "test_db")
 
     assert "Simulating MongoDB failure" in caplog.text
+    logger.info("MongoDB failure log captured successfully.")
 
 
 def test_main_with_mongodb(monkeypatch, dummy_inputs, caplog, tmp_path):
@@ -125,6 +130,8 @@ def test_main_with_mongodb(monkeypatch, dummy_inputs, caplog, tmp_path):
 
     Mocks MongoDB connection, skips actual DB inserts, and verifies key log messages and output file creation.
     """
+    logger.info("Running test_main_with_mongodb with dummy MongoDB setup.")
+
     dummy_inputs["output_path"] = str(tmp_path / Path(dummy_inputs["output_path"]).name)
     testargs = build_testargs(dummy_inputs)[:-1] + ["--use-mongodb"]  # replace --no-mongodb with --use-mongodb
     monkeypatch.setattr("sys.argv", testargs)
@@ -157,8 +164,11 @@ def test_main_with_mongodb(monkeypatch, dummy_inputs, caplog, tmp_path):
 
     # Assert MongoDB connection log
     assert "Connected to MongoDB." in caplog.text
+    logger.info("MongoDB connection log verified.")
+
     # Confirm output file was created
     assert Path(dummy_inputs["output_path"]).exists()
+    logger.info("Output file created successfully with MongoDB enabled.")
 
 
 # ===== Main Pipeline Tests =====
@@ -172,6 +182,7 @@ def run_main_and_check_output(inputs: Dict[str, str], monkeypatch, tmp_path):
     - Output file loads as GeoDataFrame
     - GeoDataFrame is not empty and has expected columns
     """
+    logger.info("Running main pipeline and validating output.")
     output_path = tmp_path / Path(inputs["output_path"]).name
     inputs["output_path"] = str(output_path)
     monkeypatch.setattr("sys.argv", build_testargs(inputs))
@@ -337,6 +348,8 @@ class TestMainModule(unittest.TestCase):
 
         Verifies that key functions are called and pipeline flow completes.
         """
+        logger.info("Running full mocked main() test via TestMainModule.test_main_run")
+
         # Setup mocked CLI arguments
         mock_args = mock.Mock()
         mock_args.config_file = None
@@ -381,6 +394,8 @@ class TestMainModule(unittest.TestCase):
 
         # MongoDB not used in this test run
         mock_connect_db.assert_not_called()
+        logger.info("Main run test with full mocks passed.")
+
 
     @mock.patch("gis_tool.main.find_new_reports", return_value=[])
     @mock.patch("gis_tool.main.setup_logging")
@@ -391,6 +406,7 @@ class TestMainModule(unittest.TestCase):
 
         Should exit early without errors, logging the appropriate message.
         """
+        logger.info("Testing main() behavior with no reports available.")
         mock_args = mock.Mock()
         mock_args.config_file = None
         mock_args.input_folder = "test_data"
@@ -402,7 +418,7 @@ class TestMainModule(unittest.TestCase):
 
         # Ensure find_new_reports was called and no exceptions thrown
         mock_find_new_reports.assert_called_once()
-
+        logger.info("Main exited correctly when no reports were found.")
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,7 +10,7 @@ from io import StringIO
 from contextlib import redirect_stdout, redirect_stderr
 
 # Configure logger to capture debug-level logs during tests
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 

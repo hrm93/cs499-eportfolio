@@ -10,7 +10,7 @@ from shapely.geometry import Point, Polygon
 from tests.test_utils import assert_geodataframes_equal
 import gis_tool.parks_subtraction
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture detailed logs for debugging during tests
 
 # Shared test geometry - simple square polygon for buffer tests

@@ -13,13 +13,17 @@ from gis_tool.data_utils import make_feature
 from gis_tool.config import DEFAULT_CRS
 
 # Logger setup
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 
 # ---- UNIT TESTS ----
 
 def test_make_feature_basic():
+    """
+    Test that make_feature creates a valid GeoDataFrame from basic inputs.
+    """
+    logger.info("Running test_make_feature_basic")
     name = "Pipe1"
     date = "2023-06-01"
     psi = 120.5
@@ -38,8 +42,14 @@ def test_make_feature_basic():
     assert gdf.iloc[0]["Material"] == material.lower()
     assert gdf.iloc[0].geometry.equals(point)
 
+    logger.info("test_make_feature_basic passed")
+
 
 def test_make_feature_date_as_timestamp():
+    """
+    Test make_feature accepts a pandas Timestamp as a valid date input.
+    """
+    logger.info("Running test_make_feature_date_as_timestamp")
     # date as pd.Timestamp should work too
     name = "Pipe2"
     date = pd.Timestamp("2023-06-02")
@@ -51,8 +61,16 @@ def test_make_feature_date_as_timestamp():
     gdf = data_utils.make_feature(name, date, psi, material, point, crs)
     assert gdf.iloc[0]["Date"] == date
 
+    logger.info("test_make_feature_date_as_timestamp passed")
+
+
 
 def test_create_and_upsert_feature_adds_row(monkeypatch):
+    """
+      Test that create_and_upsert_feature adds a new row to the GeoDataFrame
+      and invokes MongoDB upsert if enabled.
+      """
+    logger.info("Running test_create_and_upsert_feature_adds_row")
     # Setup initial GeoDataFrame
     crs = "EPSG:4326"
     initial_gdf = gpd.GeoDataFrame(
@@ -93,8 +111,15 @@ def test_create_and_upsert_feature_adds_row(monkeypatch):
     # Material should be lowercased
     assert updated_gdf.iloc[0]["Material"] == new_material.lower()
 
+    logger.info("test_create_and_upsert_feature_adds_row passed")
+
 
 def test_create_and_upsert_feature_skips_mongodb(monkeypatch):
+    """
+    Ensure MongoDB upsert is skipped when use_mongodb is False.
+    """
+    logger.info("Running test_create_and_upsert_feature_skips_mongodb")
+
     # MongoDB insertion skipped if use_mongodb is False
     crs = "EPSG:4326"
     initial_gdf = gpd.GeoDataFrame(
@@ -114,9 +139,15 @@ def test_create_and_upsert_feature_skips_mongodb(monkeypatch):
         use_mongodb=False,
     )
     assert len(updated_gdf) == 1
+    logger.info("test_create_and_upsert_feature_skips_mongodb passed")
 
 
 def test_create_and_upsert_feature_reindex_and_geometry_set():
+    """
+      Test that column reindexing and geometry column setting work correctly.
+      """
+    logger.info("Running test_create_and_upsert_feature_reindex_and_geometry_set")
+
     # Test reindexing and geometry column set_geometry call
     crs = "EPSG:4326"
     initial_gdf = gpd.GeoDataFrame(
@@ -157,6 +188,7 @@ def test_create_and_upsert_feature_reindex_and_geometry_set():
     assert isinstance(updated_gdf, gpd.GeoDataFrame)
     assert "geometry" in updated_gdf.columns
     assert updated_gdf.crs.to_string() == crs
+    logger.info("test_create_and_upsert_feature_reindex_and_geometry_set passed")
 
 
 def test_make_feature_creates_valid_gdf():
@@ -164,11 +196,14 @@ def test_make_feature_creates_valid_gdf():
     Tests make_feature creates a GeoDataFrame with the expected schema,
     applies case normalization to material, and sets the CRS.
     """
-    logger.info("Testing make_feature function.")
+    logger.info("Running test_make_feature_creates_valid_gdf")
+
     feature = make_feature("LineX", "2022-05-01", 300, "PVC", Point(1, 2), DEFAULT_CRS)
+
     assert isinstance(feature, gpd.GeoDataFrame)
     assert feature.iloc[0]["Material"] == "pvc"
     assert feature.crs.to_string() == DEFAULT_CRS
+
     logger.debug("make_feature created a valid GeoDataFrame with correct CRS and normalized material.")
     logger.info("make_feature test passed.")
 
@@ -179,6 +214,12 @@ def test_make_feature_creates_valid_gdf():
     Polygon([(-75, 40), (-76, 41), (-77, 39), (-75, 40)])
 ])
 def test_create_and_upsert_feature_various_geometries(monkeypatch, geom):
+    """
+     Parameterized test to validate create_and_upsert_feature supports
+     Point, LineString, and Polygon geometries.
+     """
+    logger.info(f"Running test_create_and_upsert_feature_various_geometries with geometry: {geom.geom_type}")
+
     crs = "EPSG:4326"
     initial_gdf = gpd.GeoDataFrame(
         columns=["Name", "Date", "PSI", "Material", "geometry"], crs=crs
@@ -201,3 +242,5 @@ def test_create_and_upsert_feature_various_geometries(monkeypatch, geom):
     assert len(updated_gdf) == 1
     assert updated_gdf.iloc[0].geometry.equals(geom)
     assert updated_gdf.iloc[0]["Material"] == "testmaterial"
+
+    logger.info(f"test_create_and_upsert_feature_various_geometries passed for geometry: {geom.geom_type}")

@@ -11,7 +11,7 @@ from pathlib import Path
 from gis_tool.spatial_utils import ensure_projected_crs
 
 # Configure logger for detailed debug output during tests
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logging.basicConfig(level=logging.DEBUG)
 
 

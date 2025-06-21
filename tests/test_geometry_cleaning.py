@@ -26,7 +26,7 @@ from gis_tool.geometry_cleaning import (
     is_finite_geometry,
 )
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture all logs at DEBUG level
 
 

@@ -20,7 +20,7 @@ def reset_logging():
     Reset the 'gis_tool' logger to a clean state by removing all handlers.
     Useful for isolating log configuration across multiple tests.
     """
-    logger = logging.getLogger('gis_tool')
+    logger = logging.getLogger("gis_tool.tests")
     if logger.hasHandlers():
         for handler in logger.handlers[:]:
             handler.close()
@@ -81,7 +81,7 @@ def test_setup_logging_respects_log_level_env(monkeypatch, capsys):
     # Run setup_logging without manually setting the level
     setup_logging()
 
-    logger = logging.getLogger("gis_tool")
+    logger = logging.getLogger("gis_tool.tests")
     assert logger.level == logging.DEBUG, "Logger level did not respect LOG_LEVEL env var"
 
     debug_msg = "Debug message for test"

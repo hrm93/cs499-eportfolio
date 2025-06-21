@@ -18,7 +18,7 @@ from gis_tool.db_utils import (
     reproject_to_wgs84,
 )
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture all logs during testing
 
 

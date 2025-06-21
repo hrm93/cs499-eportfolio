@@ -32,6 +32,7 @@ def subtract_parks_from_buffer(
     buffer_gdf: gpd.GeoDataFrame,
     parks_path: Optional[str] = None,
     use_multiprocessing: bool = False,
+    linestring_buffer_distance: float = 5.0,  # buffer distance in CRS units
 ) -> gpd.GeoDataFrame:
     """
     Subtract park polygons from buffer polygons.
@@ -40,6 +41,7 @@ def subtract_parks_from_buffer(
         buffer_gdf (gpd.GeoDataFrame): GeoDataFrame of buffered gas lines (polygons).
         parks_path (Optional[str]): File path to park polygons layer.
         use_multiprocessing (bool): If True, use multiprocessing to subtract parks.
+        linestring_buffer_distance (float): Buffer distance to convert LineStrings to polygons.
 
     Returns:
         gpd.GeoDataFrame: Updated GeoDataFrame with parks subtracted from buffers.
@@ -59,12 +61,18 @@ def subtract_parks_from_buffer(
         # Reproject parks to match buffer CRS
         parks_gdf = validate_and_reproject_crs(parks_gdf, buffer_gdf.crs, "parks", default_crs="EPSG:32633")
 
+        # Buffer LineStrings to polygons so they can participate in subtraction
+        if 'LineString' in parks_gdf.geom_type.unique():
+            logger.info(f"Buffering LineStrings by {linestring_buffer_distance} to convert to polygons")
+            parks_gdf.loc[parks_gdf.geom_type == 'LineString', 'geometry'] = \
+                parks_gdf.loc[parks_gdf.geom_type == 'LineString', 'geometry'].buffer(linestring_buffer_distance)
+
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
         )
 
-        # Filter to allowed polygon types only
+        # Now allow Polygon and MultiPolygon only
         allowed_park_types = ['Polygon', 'MultiPolygon']
         invalid_park_types = parks_gdf.geom_type[~parks_gdf.geom_type.isin(allowed_park_types)]
         if not invalid_park_types.empty:

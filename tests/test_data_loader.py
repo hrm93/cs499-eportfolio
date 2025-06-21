@@ -16,6 +16,9 @@ Uses pytest fixtures to create isolated, temporary test environments and
 mock objects to isolate dependencies, enabling reliable and repeatable tests.
 
 Test framework: pytest
+
+Author: Hannah Rose Morgenstein
+Date: 2025-06-22
 """
 import logging
 import tempfile
@@ -31,7 +34,7 @@ from gis_tool.data_loader import create_pipeline_features
 from gis_tool.report_reader import parse_txt_report
 
 # Logger setup
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 

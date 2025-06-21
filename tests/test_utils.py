@@ -12,7 +12,7 @@ from gis_tool.utils import (
     convert_ft_to_m,
 )
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Set level to DEBUG to capture all logs
 
 

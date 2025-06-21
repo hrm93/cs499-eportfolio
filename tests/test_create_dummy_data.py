@@ -18,7 +18,7 @@ import geopandas as gpd
 from shapely.geometry import Point, LineString, Polygon
 
 # Configure logging for this script
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 # Ensure the output directory exists

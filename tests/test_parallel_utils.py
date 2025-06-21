@@ -4,7 +4,7 @@ import logging
 
 from gis_tool.parallel_utils import parallel_process
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Enable DEBUG level to capture detailed logs
 
 

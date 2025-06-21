@@ -12,7 +12,7 @@ from gis_tool.buffer_utils import (
     subtract_park_from_geom_helper,
 )
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Enable DEBUG level to capture detailed logs for troubleshooting
 
 

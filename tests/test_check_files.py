@@ -2,7 +2,7 @@ import os
 import logging
 
 # Logger for the script
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 # Folder containing input report files

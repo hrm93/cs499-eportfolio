@@ -8,7 +8,7 @@ from shapely.geometry import Point
 
 from gis_tool import report_reader as rr
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 

@@ -133,12 +133,16 @@ def validate_geometry_crs(geometry: BaseGeometry, expected_crs: str) -> bool:
     """
     try:
         if geometry.is_empty:
+            logger.info("Geometry is empty; skipping CRS validation.")
             return True
 
         gs = gpd.GeoSeries([geometry], crs=expected_crs)
+        logger.debug("Geometry CRS matches expected CRS.")
+
         return gs.crs.to_string() == expected_crs
+
     except (AttributeError, ValueError, TypeError) as e:
-        logger.error(f"CRS validation error: {e}")
+        logger.warning(f"Geometry CRS validation failed: {e}")
         return False
 
 

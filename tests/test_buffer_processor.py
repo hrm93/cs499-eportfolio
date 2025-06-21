@@ -6,7 +6,7 @@ from shapely.geometry import Polygon, Point
 import geopandas as gpd
 import pytest
 
-logger = logging.getLogger("gis_tool")
+logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Enable DEBUG level to capture detailed logs for troubleshooting
 
 # Shared test geometry: a simple square polygon for buffer testing
