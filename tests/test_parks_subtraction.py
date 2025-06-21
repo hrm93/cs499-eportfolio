@@ -1,7 +1,6 @@
 import os
 import tempfile
 import logging
-import warnings
 
 import pytest
 import geopandas as gpd

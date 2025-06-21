@@ -123,7 +123,7 @@ def test_ensure_collection_schema_updates_existing_collection(caplog: pytest.Log
     mock_db = MagicMock()
 
     # Simulate exception indicating collection already exists
-    def create_collection_side_effect(*args, **kwargs) -> None:
+    def create_collection_side_effect(*_args, **_kwargs) -> None:
         raise Exception("Collection already exists")
 
     mock_db.create_collection.side_effect = create_collection_side_effect
@@ -159,7 +159,7 @@ def test_ensure_collection_schema_raises_unexpected_error(caplog: pytest.LogCapt
     mock_db = MagicMock()
 
     # Simulate unexpected error during create_collection
-    def create_collection_side_effect(*args, **kwargs) -> None:
+    def create_collection_side_effect(*_args, **_kwargs) -> None:
         logger.error("Simulating unexpected error in create_collection")
         raise Exception("Unexpected error")
 
@@ -226,7 +226,7 @@ def test_connect_to_mongodb_failure(monkeypatch: pytest.MonkeyPatch, caplog: pyt
     """
     logger.info("Starting test: connect_to_mongodb_failure")
 
-    def fail_client(*args, **kwargs) -> None:
+    def fail_client(*_args, **_kwargs) -> None:
         # Simulate connection failure
         logger.error("Simulated MongoDB connection failure triggered")
         raise ConnectionFailure("Simulated connection failure")

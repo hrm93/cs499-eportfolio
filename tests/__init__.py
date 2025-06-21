@@ -61,7 +61,7 @@ def test_no_functions_or_main_in_package_namespace():
     - process_report_chunk
     - parse_args
 
-    Presence of any of these attributes would indicate a violation of minimal export policy.
+    Presence of these attributes would indicate a violation of minimal export policy.
     """
     assert not hasattr(gis_tool, "merge_buffers_into_planning_file"), \
         "Function 'merge_buffers_into_planning_file' should NOT be exposed"

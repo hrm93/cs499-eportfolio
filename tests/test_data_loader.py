@@ -26,7 +26,8 @@ import tempfile
 import pandas as pd
 import geopandas as gpd
 
-
+from typing import cast
+from geopandas import GeoDataFrame
 from shapely.geometry import Point
 
 from gis_tool.config import DEFAULT_CRS
@@ -46,7 +47,7 @@ def test_create_pipeline_features_geojson(sample_geojson_report, empty_gas_lines
     """
     logger.info("Testing create_pipeline_features with GeoJSON input.")
     processed_reports, updated_gdf, features_added = create_pipeline_features(
-        geojson_reports=[sample_geojson_report],
+        geojson_reports=[cast(tuple[str, GeoDataFrame], sample_geojson_report)],
         txt_reports=[],
         gas_lines_gdf=empty_gas_lines_gdf,
         spatial_reference=DEFAULT_CRS,
@@ -119,7 +120,7 @@ def test_create_pipeline_features_skips_processed_reports(empty_gas_lines_gdf, s
 
     with caplog.at_level(logging.INFO):
         new_processed, new_gdf, features_added = create_pipeline_features(
-            geojson_reports=[sample_geojson_report],
+            geojson_reports=[cast(tuple[str, GeoDataFrame], sample_geojson_report)],
             txt_reports=[],
             gas_lines_gdf=empty_gas_lines_gdf,
             spatial_reference=DEFAULT_CRS,

@@ -27,8 +27,8 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python fix_missing_crs.py <shapefile_path> [default_crs] [--no-overwrite]")
         sys.exit(1)
-    shp_path = sys.argv[1]
-    default_crs = sys.argv[2] if len(sys.argv) > 2 else "EPSG:32633"
-    overwrite = True if "--no-overwrite" not in sys.argv else False
+    shp_path_arg = sys.argv[1]
+    default_crs_arg = sys.argv[2] if len(sys.argv) > 2 else "EPSG:32633"
+    overwrite_arg = True if "--no-overwrite" not in sys.argv else False
 
-    fix_shapefile_crs(shp_path, default_crs, overwrite)
+    fix_shapefile_crs(shp_path_arg, default_crs_arg, overwrite_arg)

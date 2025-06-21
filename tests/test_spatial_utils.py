@@ -164,7 +164,7 @@ def test_create_pipeline_features_calls_geometry_validation(monkeypatch):
 
     called = {}
 
-    def fake_validate_geometry_column(gdf, dataset_name, allowed_geom_types=None):
+    def fake_validate_geometry_column(gdf, dataset_name, **_kwargs):
         logger.info(f"fake_validate_geometry_column called with dataset: {dataset_name}")
         called['called'] = True
         return gdf

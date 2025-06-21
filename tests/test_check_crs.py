@@ -59,28 +59,24 @@ def test_gas_lines_with_ensure_projected_crs(monkeypatch):
     logger.debug("Starting test_gas_lines_with_ensure_projected_crs")
     shp_path = get_gas_lines_shapefile_path()
 
-    # Skip test if shapefile is not available on the test system
     if not shp_path.exists():
         logger.warning(f"Real shapefile not found at {shp_path}, skipping test")
         pytest.skip(f"Real shapefile not found at {shp_path}")
 
-    # Load gas lines shapefile into GeoDataFrame
     gas_lines = gpd.read_file(shp_path)
 
     try:
-        # Ensure gas lines GeoDataFrame uses a projected CRS
         gas_lines_projected = ensure_projected_crs(gas_lines)
         logger.info(f"Gas lines CRS after ensure_projected_crs: {gas_lines_projected.crs}")
+
+        # Patch plt.show() to avoid GUI blocking
+        monkeypatch.setattr(plt, "show", lambda: None)
+
+        # Plot inside try block to ensure variable exists
+        gas_lines_projected.plot()
+        plt.title("Gas Lines after ensure_projected_crs")
+        plt.show()
     except ValueError as e:
-        # Fail the test if a ValueError is raised unexpectedly
         pytest.fail(f"ensure_projected_crs raised ValueError unexpectedly: {e}")
-
-    # Patch plt.show() to avoid GUI pop-up blocking the test run
-    monkeypatch.setattr(plt, "show", lambda: None)
-
-    # Plot the projected gas lines GeoDataFrame to check for plotting errors
-    gas_lines_projected.plot()
-    plt.title("Gas Lines after ensure_projected_crs")
-    plt.show()  # This is patched to do nothing
 
     logger.info("test_gas_lines_with_ensure_projected_crs passed.")

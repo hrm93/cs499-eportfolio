@@ -405,7 +405,7 @@ def valid_txt_line():
 @pytest.fixture(autouse=True)
 def reset_config_yaml():
     """
-    Autouse fixture to reset the global config_yaml cache before each test.
+    Auto-use fixture to reset the global config_yaml cache before each test.
 
     Ensures no cached configuration persists between tests, enforcing fresh reads.
     """

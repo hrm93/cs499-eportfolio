@@ -109,6 +109,11 @@ def main() -> None:
     spatial_reference = config_data.get("SPATIAL", {}).get("default_crs", DEFAULT_CRS)
     geographic_crs = config_data.get("SPATIAL", {}).get("geographic_crs", "EPSG:4326")
     buffer_layer_crs = config_data.get("SPATIAL", {}).get("buffer_layer_crs", "EPSG:32633")
+
+    # Avoid unused variable warnings
+    _ = geographic_crs
+    _ = buffer_layer_crs
+
     use_parallel = get_config_value("parallel", PARALLEL)
     output_format = get_config_value("output_format", OUTPUT_FORMAT)
     overwrite_output = get_config_value("overwrite_output", ALLOW_OVERWRITE_OUTPUT)

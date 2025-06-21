@@ -299,7 +299,7 @@ def test_negative_buffer_distance(monkeypatch):
 
 def test_invalid_max_workers(monkeypatch):
     """
-    Test that setting max workers to zero or less causes program exit.
+    Test that setting max workers to zero or fewer causes program exit.
     """
     logger.debug("Running test_invalid_max_workers")
     testargs = [
@@ -483,7 +483,7 @@ def test_print_config_override_and_dry_run(monkeypatch):
 
     f = StringIO()
     with redirect_stdout(f), redirect_stderr(f):
-        args = parse_args()
+        _ = parse_args()
 
     output = f.getvalue()
     assert "Loaded settings from /path/to/config.yaml" in output

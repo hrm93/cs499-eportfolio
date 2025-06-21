@@ -1,8 +1,7 @@
 # tests/test_output_writer.py
 import logging
-import builtins
 import warnings
-from pathlib import Path
+
 from unittest import mock
 
 import geopandas as gpd
@@ -88,7 +87,7 @@ def test_write_report_creates_file(tmp_path):
     (output_writer.write_csv, pd.DataFrame({'a': [1]})),
     (output_writer.write_report, "test content")
 ])
-def test_invalid_path_raises_FileNotFoundError(func, args):
+def test_invalid_path_raises_file_not_found_error(func, args):
     """
     Test that write functions raise FileNotFoundError when
     given an invalid output directory.

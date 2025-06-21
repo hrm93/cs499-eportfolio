@@ -193,6 +193,7 @@ def run_main_and_check_output(inputs: Dict[str, str], monkeypatch, tmp_path):
     logger.info(f"Output file created at {output_path}")
 
     # Attempt to read the output as a GeoDataFrame
+    gdf = None
     try:
         gdf = gpd.read_file(output_path)
     except Exception as e:
@@ -331,8 +332,8 @@ class TestMainModule(unittest.TestCase):
     @mock.patch("builtins.open", new_callable=mock.mock_open, read_data="{}")  # mock config file open
     def test_main_run(
         self,
-        mock_open,
-        mock_read_reports,
+        _mock_open,
+        _mock_read_reports,
         mock_merge_buffers,
         mock_write_output,
         mock_connect_db,
@@ -341,7 +342,7 @@ class TestMainModule(unittest.TestCase):
         mock_create_pipeline_features,
         mock_gpd_read_file,
         mock_find_new_reports,
-        mock_generate_html_report
+        _mock_generate_html_report
     ):
         """
         Test a full main() run with mocks for all I/O and dependencies.
@@ -372,7 +373,7 @@ class TestMainModule(unittest.TestCase):
         }, crs="EPSG:4326")
 
         # Patch geopandas.read_file to return the mock GeoDataFrame when reading gas lines shapefile
-        def side_effect(path, *args, **kwargs):
+        def side_effect(path, *_args, **_kwargs):
             if path == "gas_lines.shp":
                 return mock_gas_lines_gdf
             # Return empty GeoDataFrame for others
@@ -400,7 +401,7 @@ class TestMainModule(unittest.TestCase):
     @mock.patch("gis_tool.main.find_new_reports", return_value=[])
     @mock.patch("gis_tool.main.setup_logging")
     @mock.patch("gis_tool.main.parse_args")
-    def test_main_no_reports(self, mock_parse_args, mock_setup_logging, mock_find_new_reports):
+    def test_main_no_reports(self, mock_parse_args, _mock_setup_logging, mock_find_new_reports):
         """
         Test main() behavior when no new reports are found.
 

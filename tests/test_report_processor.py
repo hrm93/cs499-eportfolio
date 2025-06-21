@@ -2,7 +2,7 @@ import logging
 import pytest
 import fiona.errors
 import geopandas as gpd
-from pathlib import Path
+
 from shapely.geometry import Point
 
 from gis_tool.main import process_report_chunk
@@ -57,7 +57,7 @@ def test_process_report_chunk_success(monkeypatch, caplog, input_folder_with_rep
 
     called = {"ran": False}
 
-    def dummy_create_pipeline_features(**kwargs):
+    def dummy_create_pipeline_features(**_kwargs):
         called["ran"] = True
         logger.info("Dummy create_pipeline_features called.")
 
