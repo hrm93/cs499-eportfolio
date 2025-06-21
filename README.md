@@ -44,20 +44,188 @@ cd cs499-eportfolio
 pip install -r requirements.txt
 ```
 
-## 🚀 How to Run
-### Run the tool from the command line using:
+## 🚀 Usage Examples
+Below are various ways to run the GIS Pipeline Tool with different options and real-world scenarios:
 
+#### 1. Minimal Run with Only Required Arguments
 ```
-python -m gis_tool.main --input data/input.shp --buffer 100 --output output/
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_output.shp" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt \
+  --interactive
 ```
-
----
-
-### 🔧 Example
-
+#### 2. Run with GeoJSON Output Instead of Shapefile
 ```
-python -m gis_tool.main --input "data/roads.shp" --buffer 250 --output "output/"
-````
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_output.geojson" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.geojson \
+  --output-format geojson \
+  --overwrite-output
+```
+#### 3. Using a Config File to Override Defaults
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_output.shp" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt report2.geojson \
+  --use-mongodb \
+  --config-file "C:/Users/user/PycharmProjects/PythonProject/config.yaml" \
+  --overwrite
+```
+#### 4. With MongoDB Integration and Logging to File
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_output.shp"\
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt report2.geojson \
+  --buffer-distance 25.0 \
+  --crs "EPSG:32633" \
+  --use-mongodb \
+  --log-level "INFO" \
+  --log-file "C:/Users/user/PycharmProjects/PythonProject/pipeline_processing.log.1" \
+  --overwrite
+```
+#### 5. Dry-Run Example (No Outputs Written)
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_output.shp" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt report2.geojson \
+  --dry-run \
+  --overwrite
+```
+#### 6. Basic Run Without MongoDB, Interactive Mode Enabled
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_output.shp" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt report2.geojson \
+  --buffer-distance 50.0 \
+  --crs "EPSG:32633" \
+  --interactive
+```
+#### 7. Run with Parallel Processing Enabled
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_output.shp" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt report2.geojson \
+  --parallel \
+  --max-workers 4 \
+  --overwrite
+```
+#### 8. Force CLI to Ignore Config File
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_output.shp" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt \
+  --buffer-distance 100.0 \
+  --crs "EPSG:26910" \
+  --no-config \
+  --overwrite-output
+```
+#### 9. Logging in Verbose (DEBUG) Mode Without Config File
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/debug_run.shp" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt report2.geojson \
+  --verbose \
+  --log-file "C:/Users/user/PycharmProjects/PythonProject/debug.log" \
+  --overwrite-output
+```
+#### 10. Example With Parks Exclusion Layer
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/buffer_no_parks.shp" \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --parks-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/parks.shp" \
+  --report-files report1.txt \
+  --interactive
+```
+#### 11. Parallel Mode + MongoDB + Custom CRS + Max Workers
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/parallel_mongo.shp"  \
+  --future-dev-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --report-files report1.txt report2.geojson \
+  --crs "EPSG:3857" \
+  --buffer-distance 75.0 \
+  --parallel \
+  --max-workers 6 \
+  --use-mongodb \
+  --log-level INFO \
+  --overwrite-output
+```
+#### 12. Only Validate CLI Logic (Dry-Run Test With Config File)
+```
+python -m gis_tool.main \
+  --input-folder "C:/Users/user/PycharmProjects/PythonProject/data/input_folder" \
+  --output-path "C:/Users/user/PycharmProjects/PythonProject/output/preview.shp" \
+  --report-files report1.txt report2.geojson \
+  --config-file "C:/Users/user/PycharmProjects/PythonProject/config.yaml" \
+  --gas-lines-path "C:/Users/user/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \
+  --dry-run
+```
+#### 🧪 Bonus: Dry-Run Examples for Quick Testing
+```
+python -m gis_tool.main \
+  --input-folder data/reports \
+  --output-path output/buffer_output \
+  --output-format geojson  \
+  --report-files pipeline1.txt pipeline2.geojson \
+  --gas-lines-path data/shapefiles/gas_lines.shp \
+  --future-dev-path data/shapefiles/future_dev.shp \
+  --dry-run \
+  --verbose
+```
+```
+python -m gis_tool.main \
+  --input-folder data/reports \
+  --output-path output/buffer_output \
+  --output-format shp  \
+  --report-files pipeline1.txt pipeline2.geojson \
+  --gas-lines-path data/shapefiles/gas_lines.shp \
+  --future-dev-path data/shapefiles/future_dev.shp \
+  --dry-run \
+  --verbose
+```
+```
+python -m gis_tool.main \
+  --input-folder data/reports \
+  --output-path output/buffer_output \
+  --output-format geojson  \
+  --report-files pipeline1.txt pipeline2.geojson \
+  --gas-lines-path data/shapefiles/gas_lines.shp \
+  --future-dev-path data/shapefiles/future_dev.shp \
+  --verbose \
+  --interactive
+```
 
 ---
 
@@ -124,15 +292,19 @@ gis_tool/
 ├── data_loader.py  
 ├── data_utils.py  
 ├── db_utils.py  
+├── fix_missing_crs.py  
 ├── geometry_cleaning.py  
 ├── logger.py  
 ├── main.py  
 ├── output_writer.py  
 ├── parallel_utils.py  
 ├── parks_subtraction.py  
+├── report_processor.py  
 ├── report_reader.py  
 ├── spatial_utils.py  
 ├── utils.py  
+
+
 └── tests/  
 
 ---
