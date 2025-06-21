@@ -19,7 +19,7 @@ import yaml
 import gis_tool.config as config
 
 from colorama import init, Fore, Style
-init()
+init(autoreset=True)
 
 
 def load_config_file(path):
@@ -91,7 +91,7 @@ def parse_args():
     )
     parser.add_argument(
         '--parallel', action='store_true', default=config.PARALLEL,
-        help="Enable multiprocessing for report processing."
+        help="Enable parallel processing for buffer creation.",
     )
     parser.add_argument(
         '--max-workers', type=int, default=config.MAX_WORKERS,

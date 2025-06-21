@@ -10,6 +10,8 @@ Date: 2025-06-22
 
 import logging
 import warnings
+
+from rich.progress import Progress
 from typing import Optional, Union
 
 from pyproj import CRS
@@ -103,10 +105,18 @@ def subtract_parks_from_buffer(
             args = [(geom, parks_geoms) for geom in buffer_gdf.geometry]
             buffer_gdf['geometry'] = parallel_process(subtract_park_from_geom_helper, args)
         else:
-            logger.info("Subtracting parks sequentially.")
-            buffer_gdf['geometry'] = buffer_gdf.geometry.apply(
-                lambda geom: subtract_park_from_geom(geom, parks_geoms)
-            )
+            logger.info("Subtracting parks sequentially with progress bar.")
+            updated_geometries = []
+
+            with Progress() as progress:
+                task = progress.add_task("[cyan]Subtracting parks from buffers...", total=len(buffer_gdf))
+
+                for geom in buffer_gdf.geometry:
+                    updated = subtract_park_from_geom(geom, parks_geoms)
+                    updated_geometries.append(updated)
+                    progress.update(task, advance=1)
+
+            buffer_gdf['geometry'] = updated_geometries
 
         # Final cleanup of geometry
         buffer_gdf['geometry'] = buffer_gdf.geometry.apply(fix_geometry)

@@ -10,6 +10,8 @@ Date: 2025-06-22
 
 import logging
 import os
+
+from rich.logging import RichHandler
 from logging.handlers import RotatingFileHandler
 
 from gis_tool.logger import setup_logging
@@ -60,10 +62,10 @@ def test_setup_logging_creates_log_file(tmp_path, capsys):
     captured = capsys.readouterr()
     assert test_msg in captured.out or test_msg in captured.err, "Message not found in console output"
 
-    # Ensure both expected handler types are attached
+    # Check handler types: one should be RichHandler, one should be RotatingFileHandler
     handler_types = {type(h) for h in logger.handlers}
     assert RotatingFileHandler in handler_types, "RotatingFileHandler not attached"
-    assert logging.StreamHandler in handler_types, "StreamHandler not attached"
+    assert RichHandler in handler_types, "RichHandler not attached"
 
     # Verify default logger level is INFO or more verbose
     assert logger.level <= logging.INFO

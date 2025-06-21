@@ -13,12 +13,15 @@ import logging
 import logging.handlers
 import os
 
+from rich.logging import RichHandler
+from rich.traceback import install
+
 from gis_tool import config
 
 
 def setup_logging(log_file: str = None, level: int = None) -> None:
     """
-    Configure logging for the GIS pipeline tool.
+    Configure logging for the GIS pipeline tool with Rich-enhanced console output.
 
     Sets up a rotating file handler and a console handler on the 'gis_tool' logger.
     Clears existing handlers before adding new ones to avoid duplicate logs.
@@ -27,6 +30,9 @@ def setup_logging(log_file: str = None, level: int = None) -> None:
         log_file (str, optional): Path to log file. Defaults to config.LOG_FILENAME.
         level (int or str, optional): Logging level. Defaults to LOG_LEVEL env var or INFO.
     """
+    # Enable rich tracebacks globally
+    install(show_locals=True)
+
     # Use provided log file or fall back to default from config
     log_file = log_file or os.path.abspath(config.LOG_FILENAME)
 
@@ -64,8 +70,12 @@ def setup_logging(log_file: str = None, level: int = None) -> None:
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-    # Configure console handler for stdout logging
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(level)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    # Rich console handler
+    rich_handler = RichHandler(
+        rich_tracebacks=True,
+        level=level,
+        markup=True,
+        show_time=True,
+        show_path=False
+    )
+    logger.addHandler(rich_handler)
