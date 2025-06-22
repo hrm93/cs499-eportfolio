@@ -8,6 +8,7 @@ from shapely.geometry import Point, Polygon
 
 from tests.test_utils import assert_geodataframes_equal
 import gis_tool.parks_subtraction
+from gis_tool.parks_subtraction import subtract_park_from_geom_spatial_worker
 
 logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture detailed logs for debugging during tests
@@ -29,6 +30,34 @@ def calculate_projected_area(gdf, crs="EPSG:32633"):
     """
     projected = gdf.to_crs(crs)
     return projected.geometry.area
+
+
+def test_subtract_park_from_geom_spatial_worker_behavior():
+    """
+    Test the behavior of `subtract_park_from_geom_spatial_worker` function.
+
+    This test verifies that the worker function correctly subtracts overlapping
+    park geometries from a buffer geometry using a spatial index built locally.
+
+    It uses a simple square polygon as the buffer geometry and two park polygons:
+    one overlapping a portion of the buffer, and another distant polygon.
+
+    The expected outcome is that the resulting geometry's area is smaller than
+    the original buffer geometry's area after subtraction.
+    """
+    # Define buffer geometry as a simple square polygon
+    buffer_geom = SQUARE_POLY
+
+    # Define parks geometries: one small overlapping polygon, one distant polygon
+    parks = [Point(0.5, 0.5).buffer(0.2), Point(10, 10).buffer(1)]
+
+    # Call the worker function with a tuple containing buffer geometry and parks list
+    result_geom = subtract_park_from_geom_spatial_worker((buffer_geom, parks))
+
+    # Assert that the resulting geometry area is smaller than the original buffer area
+    assert result_geom.area < buffer_geom.area, "Subtracted geometry should have smaller area"
+
+    logger.info("test_subtract_park_from_geom_spatial_worker_behavior passed.")
 
 
 def test_subtract_parks_from_buffer_behavior():
