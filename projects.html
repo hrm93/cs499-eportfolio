@@ -19,7 +19,6 @@
       /* Allow scrolling on smaller screens */
       overflow-x: hidden;
     }
-
     /* Navbar styles */
     .navbar {
       width: 100%;
@@ -29,7 +28,6 @@
       margin-bottom: 30px;
       box-sizing: border-box;
     }
-
     .navbar ul {
       list-style: none;
       margin: 0;
@@ -38,7 +36,6 @@
       justify-content: center;
       gap: 30px;
     }
-
     .navbar ul li a {
       color: white;
       text-decoration: none;
@@ -49,13 +46,11 @@
       transition: background-color 0.3s ease;
       display: inline-block;
     }
-
     .navbar ul li a:hover,
     .navbar ul li a:focus {
       background-color: #8e24aa;
       outline: none;
     }
-
     .content-box {
       background-color: #f3e5f5;
       color: #333;
@@ -68,28 +63,23 @@
       width: 90%;
       margin-bottom: 40px;
     }
-
     .content-box h2 {
       font-family: 'Pacifico', cursive;
       color: #6a1b9a;
       font-size: 2.8em;
       margin-bottom: 10px;
     }
-
     .content-box p {
       font-size: 1.1em;
       margin-top: 20px;
     }
-
     .content-box strong {
       color: #ba68c8;
     }
-
     .content-box ul {
       margin: 20px 0 30px 20px;
       font-size: 1.1em;
     }
-
     .tags span {
       background-color: #9b59b6;
       color: white;
@@ -98,7 +88,6 @@
       margin-right: 8px;
       display: inline-block;
     }
-
     .tags span:nth-child(2) { background-color: #4caf50; letter-spacing: 1px; }
     .tags span:nth-child(3) { background-color: #536dfe; }
     .tags span:nth-child(4) { background-color: #ff4081; }
@@ -130,44 +119,64 @@
       background-color: #00796b; /* Teal darken */
     }
 
+    /* Pink-purple alternating links for direct project files list */
+    .pink-purple-links li:nth-child(odd) a {
+      color: #e91e63; /* pink */
+      font-weight: bold;
+      text-decoration: underline;
+      transition: color 0.3s ease;
+    }
+    .pink-purple-links li:nth-child(even) a {
+      color: #8e24aa; /* purple */
+      font-weight: bold;
+      text-decoration: underline;
+      transition: color 0.3s ease;
+    }
+    .pink-purple-links li:nth-child(odd) a:hover,
+    .pink-purple-links li:nth-child(odd) a:focus {
+      color: #ad1457; /* darker pink */
+      outline: none;
+    }
+    .pink-purple-links li:nth-child(even) a:hover,
+    .pink-purple-links li:nth-child(even) a:focus {
+      color: #6a1b9a; /* darker purple */
+      outline: none;
+    }
+
     /* Responsive */
     @media (max-width: 600px) {
       .navbar ul {
         flex-direction: column;
         gap: 15px;
       }
-
       .content-box {
         padding: 20px;
         width: 100%;
       }
-
       h2 {
         font-size: 1.8em;
       }
-
       p, ul {
         font-size: 1em;
       }
     }
-    
-  /* Footer styles */
-  .footer {
-    margin-top: 40px;
-    width: 100%;
-    text-align: center;
-    padding: 24px 0;
-    background-color: #311b92; /* deeper purple for distinction */
-    color: #ffffff;
-    font-size: 1em;
-    font-weight: 600;
-    letter-spacing: 0.6px;
-    box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.3);
-  }
+
+    /* Footer styles */
+    .footer {
+      margin-top: 40px;
+      width: 100%;
+      text-align: center;
+      padding: 24px 0;
+      background-color: #311b92; /* deeper purple for distinction */
+      color: #ffffff;
+      font-size: 1em;
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.3);
+    }
   </style>
 </head>
 <body>
-
   <nav class="navbar">
     <ul>
       <li><a href="index.html">Home</a></li>
@@ -175,27 +184,22 @@
       <li><a href="showcase.html">Showcase</a></li>
     </ul>
   </nav>
-
   <div class="content-box">
     <h2>Automated GIS Pipeline Processing Tool</h2>
-
     <p style="font-size: 1.3em; color: #4a148c;">
       <strong>Origin:</strong><br> IT 338 Final Project<br>
       <strong>Capstone Focus:</strong><br> CS 499 ePortfolio – Software Engineering, Algorithms, Databases
     </p>
-
     <p>
       This project began as a Python-based tool developed in IT 338 to automate spatial analysis workflows in ArcGIS Pro using ArcPy.
       It was designed for GIS analysts working with pipeline and utility data, enabling quick buffer generation, merging, and export.
       As the sole developer, I implemented core automation but the original version had limited scalability, required proprietary software,
       and lacked robust error handling or persistent data storage.
     </p>
-
     <p>
       For CS 499, I am reengineering the tool to improve portability, usability, and performance using modern open-source technologies.
       The enhancements target deeper integration of software engineering principles, algorithmic optimization, and database-driven processing.
     </p>
-
     <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Enhancements include:</p>
     <ul>
       <li>🔁 Replacing ArcPy with <strong>GeoPandas + Shapely</strong> for cross-platform spatial processing</li>
@@ -205,7 +209,6 @@
       <li>📦 Integrating a <strong>MongoDB backend</strong> to store pipeline metadata and spatial attributes</li>
       <li>📋 Adding <strong>logging, error handling, and pytest-based unit tests</strong> for reliability</li>
     </ul>
-
     <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Course Relevance:</p>
     <p>
       This project exemplifies core CS 499 competencies:
@@ -215,20 +218,17 @@
       <li><strong>Algorithms and Data Structures:</strong> Efficient spatial operations, batch and parallel processing</li>
       <li><strong>Databases:</strong> Non-relational schema design, spatial query support using MongoDB</li>
     </ul>
-
     <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Code Review:</p>
     <p>
       Welcome to the code review portion of my CS 499 ePortfolio. In this video, I walk through a significant portion of my project, explaining its structure, logic, 
       and the enhancements I made across software engineering, algorithms, and database integration. 
       I highlight how modular design, efficient spatial processing, and a MongoDB backend come together to support a more robust, scalable GIS tool.
     </p>
-
     <p>
       🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank">Click here to view the Code Review Video</a>
     </p>
-
     <p style="margin-top: 30px; font-size: 1.2em; font-weight: bold; color: #6a1b9a;">📁 Direct Links to Project Files</p>
-    <ul style="font-size: 1.1em;">
+    <ul class="pink-purple-links" style="font-size: 1.1em;">
       <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/original_artifact.py" target="_blank">Original Artifact Source Code (.py)</a></li>
       <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
       <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
@@ -236,15 +236,12 @@
       <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank">Professional Self-Assessment (.docx)</a></li>
       <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank">Enhanced Artifact Source Code (GitHub Repo)</a></li>
     </ul>
-
     <p>
       🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank">Keep up with my progress on GitHub!</a>
     </p>
-
     <a href="showcase.html" class="showcase-link" target="_blank" rel="noopener noreferrer">
       📸 View GIS Pipeline Showcase
     </a>
-
     <div class="tags" style="margin-top: 20px;">
       <span>#OpenSource</span>
       <span>#GIS</span>
@@ -253,8 +250,8 @@
       <span>#GeoPandas</span>
     </div>
   </div>
-    <footer class="footer">
-  Developed by <strong>Hannah Rose Morgenstein</strong> © 2025
-</footer>
+  <footer class="footer">
+    Developed by <strong>Hannah Rose Morgenstein</strong> © 2025
+  </footer>
 </body>
 </html>
