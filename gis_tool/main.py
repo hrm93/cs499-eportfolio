@@ -19,7 +19,6 @@ Date: 2025-06-22
 import logging
 import yaml
 
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from colorama import Fore, Style
 
@@ -42,7 +41,7 @@ from gis_tool.config import (
     PARALLEL,
 )
 from gis_tool.data_loader import create_pipeline_features
-from gis_tool.report_processor import process_report_chunk, process_chunk_wrapper
+from gis_tool.report_processor import process_chunk_wrapper
 from gis_tool.db_utils import (
     connect_to_mongodb,
     ensure_spatial_index,
@@ -189,11 +188,13 @@ def main() -> None:
         )
 
         # Run parallel processing with progress bar
-        results = parallel_process(
+        _results = parallel_process(
             func=chunk_processor,
             items=chunks,
             max_workers=max_workers,
         )
+        # `results` contains None for each chunk because processing is handled inside each chunk function.
+        # No return value expected; outputs are saved as side effects.
 
     else:
         logger.info("Buffering will run in sequential mode.")

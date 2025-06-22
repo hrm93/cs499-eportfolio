@@ -1,11 +1,8 @@
 import logging
-import pytest
 import fiona.errors
 import geopandas as gpd
 
-from shapely.geometry import Point
-
-from gis_tool.main import process_report_chunk
+from gis_tool.report_processor import process_report_chunk
 
 logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)

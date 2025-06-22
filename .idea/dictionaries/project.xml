@@ -20,6 +20,7 @@
       <w>nofile</w>
       <w>nonpoly</w>
       <w>reindexed</w>
+      <w>sindex</w>
       <w>strftime</w>
       <w>testargs</w>
       <w>testhost</w>
