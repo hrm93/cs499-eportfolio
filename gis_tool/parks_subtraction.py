@@ -69,11 +69,6 @@ def subtract_parks_from_buffer(
             parks_gdf.loc[parks_gdf.geom_type == 'LineString', 'geometry'] = \
                 parks_gdf.loc[parks_gdf.geom_type == 'LineString', 'geometry'].buffer(linestring_buffer_distance)
 
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
-        )
-
         # Now allow Polygon and MultiPolygon only
         allowed_park_types = ['Polygon', 'MultiPolygon']
         invalid_park_types = parks_gdf.geom_type[~parks_gdf.geom_type.isin(allowed_park_types)]
