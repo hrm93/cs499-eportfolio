@@ -313,6 +313,12 @@ gis_tool/
 
 ---
 
+## 📚 Related Work
+
+This tool was originally developed as part of my [CS 499 Capstone Project](https://github.com/hrm93/cs499-eportfolio/tree/main) at Southern New Hampshire University, building upon earlier work from IT 338.
+
+---
+
 ## 🤝 Contributing
 Contributions, issues, and feature requests are welcome!     
 _Please use the GitHub repository’s issue tracker to submit feedback or pull requests._  
@@ -335,7 +341,7 @@ GitHub: https://github.com/hrm93
 ---
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
-![GeoPandas](https://img.shields.io/badge/GeoPandas-0.14.4-lightgrey)
+![GeoPandas](https://img.shields.io/badge/GeoPandas-1.1.0-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
