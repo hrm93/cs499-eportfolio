@@ -11,21 +11,6 @@ logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
 
-@pytest.fixture
-def input_folder_with_report(tmp_path):
-    """Create an input folder with a dummy GeoJSON report file."""
-    folder = tmp_path / "input_folder"
-    folder.mkdir()
-    (folder / "dummy_report.geojson").write_text('{"type": "FeatureCollection", "features": []}')
-    return folder
-
-
-@pytest.fixture
-def dummy_gdf():
-    """Provide a simple GeoDataFrame for mocking."""
-    return gpd.GeoDataFrame({"geometry": [Point(1, 1)]}, crs="EPSG:4326")
-
-
 def test_process_report_chunk_error_logging(monkeypatch, caplog, input_folder_with_report, dummy_gdf):
     """Verify error logging when create_pipeline_features raises FileNotFoundError."""
     logger.info("Starting test_process_report_chunk_error_logging")

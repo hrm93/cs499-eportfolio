@@ -187,7 +187,8 @@ def write_gis_output(
                 warning_msg = f"User declined to overwrite {output_path}"
                 warnings.warn(warning_msg, UserWarning)
                 logger.error(warning_msg)
-                raise FileExistsError(warning_msg)
+                # Instead of raising an error, just return gracefully
+                return
         else:
             warning_msg = f"{output_path} exists and overwriting is disabled; file not written."
             warnings.warn(warning_msg, UserWarning)

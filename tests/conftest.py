@@ -124,7 +124,7 @@ def patch_os_path(monkeypatch):
 
 
 @pytest.fixture
-def sample_gdf():
+def sample_pipeline_gdf():
     """
     Fixture returning a sample GeoDataFrame with a single Point feature.
 
@@ -410,3 +410,39 @@ def reset_config_yaml():
     Ensures no cached configuration persists between tests, enforcing fresh reads.
     """
     config.config_yaml = None
+
+
+@pytest.fixture
+def input_folder_with_report(tmp_path):
+    """Create an input folder with a dummy GeoJSON report file."""
+    folder = tmp_path / "input_folder"
+    folder.mkdir()
+    (folder / "dummy_report.geojson").write_text('{"type": "FeatureCollection", "features": []}')
+    return folder
+
+
+@pytest.fixture
+def dummy_gdf():
+    """Provide a simple GeoDataFrame for mocking."""
+    return gpd.GeoDataFrame({"geometry": [Point(1, 1)]}, crs="EPSG:4326")
+
+
+@pytest.fixture
+def sample_gdf():
+    """Create a simple GeoDataFrame fixture for reuse."""
+    return gpd.GeoDataFrame(
+        {'name': ['A', 'B']},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:4326"
+    )
+
+
+@pytest.fixture
+def sample_df():
+    """Create a simple DataFrame fixture."""
+    return pd.DataFrame({
+        'col1': [1, 2, 3],
+        'col2': ['a', 'b', 'c']
+    })
+
+

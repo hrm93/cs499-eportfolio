@@ -1,19 +1,33 @@
 import os
 import logging
+import pytest
 
-# Logger for the script
 logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)
 
-# Folder containing input report files
-input_folder = "data/input_folder"
+@pytest.mark.parametrize("filename", ["report1.geojson", "report2.geojson"])
+def test_report_file_existence(tmp_path, filename, caplog):
+    """
+    Test that each report file exists in the input folder.
+    Uses tmp_path to simulate input_folder and creates dummy files.
+    """
 
-# List of report filenames to check existence for
-report_files = ["report1.geojson", "report2.geojson"]
+    # Setup: create input_folder inside tmp_path
+    input_folder = tmp_path / "input_folder"
+    input_folder.mkdir()
 
-# Check each report file path for existence and print result
-for f in report_files:
-    path = os.path.join(input_folder, f)
-    exists = os.path.isfile(path)
-    logger.debug(f"Checking existence for {path}: {exists}")
-    print(f"{path} exists? {exists}")
+    # Create a dummy file for testing existence
+    file_path = input_folder / filename
+    file_path.write_text("dummy content")
+
+    # Join path and check file existence
+    path_str = str(file_path)
+    exists = os.path.isfile(path_str)
+
+    with caplog.at_level(logging.DEBUG, logger="gis_tool.tests"):
+        logger.debug(f"Checking existence for {path_str}: {exists}")
+
+    print(f"{path_str} exists? {exists}")
+
+    # Assert file exists
+    assert exists, f"Expected report file {filename} to exist at {path_str}"

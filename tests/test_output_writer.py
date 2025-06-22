@@ -17,25 +17,6 @@ logger = logging.getLogger("gis_tool.tests")
 logger.setLevel(logging.DEBUG)  # Capture all logs for tests
 
 
-@pytest.fixture
-def sample_gdf():
-    """Create a simple GeoDataFrame fixture for reuse."""
-    return gpd.GeoDataFrame(
-        {'name': ['A', 'B']},
-        geometry=[Point(0, 0), Point(1, 1)],
-        crs="EPSG:4326"
-    )
-
-
-@pytest.fixture
-def sample_df():
-    """Create a simple DataFrame fixture."""
-    return pd.DataFrame({
-        'col1': [1, 2, 3],
-        'col2': ['a', 'b', 'c']
-    })
-
-
 def test_write_geojson_creates_file(sample_gdf, tmp_path):
     """Test write_geojson creates file with correct content."""
     logger.info("Testing write_geojson for file creation and content.")
@@ -194,19 +175,18 @@ def test_write_gis_output_interactive_overwrite(tmp_path, sample_gdf):
     logger.info("Testing interactive overwrite prompt behavior.")
 
     output_file = tmp_path / "output.shp"
-    # Create initial file
+    # Create initial file (overwrite=True so it writes)
     output_writer.write_gis_output(sample_gdf, str(output_file), overwrite=True)
     assert output_file.exists()
 
-    # Patch input to decline overwrite
+    # Patch input to decline overwrite - should NOT raise anymore, just skip writing
     with mock.patch("builtins.input", return_value="n"):
-        with pytest.raises(FileExistsError):
-            output_writer.write_gis_output(sample_gdf, str(output_file), overwrite=False, interactive=True)
-    logger.info("Interactive prompt correctly blocks overwrite on 'n'.")
+        # No exception expected now
+        output_writer.write_gis_output(sample_gdf, str(output_file), overwrite=False, interactive=True)
+    logger.info("Interactive prompt correctly skips overwrite on 'n' without error.")
 
-    # Patch input to accept overwrite
+    # Patch input to accept overwrite - should overwrite without error
     with mock.patch("builtins.input", return_value="y"):
-        # Should not raise error
         output_writer.write_gis_output(sample_gdf, str(output_file), overwrite=False, interactive=True)
     logger.info("Interactive prompt correctly allows overwrite on 'y'.")
 
