@@ -1,26 +1,28 @@
-# Automated GIS Pipeline Processing Tool
+# 🌎 Automated GIS Pipeline Processing Tool
 
-## Overview
+## 🚩 Project Overview
 
 This project enhances an existing GIS automation tool initially built as a final project for the **IT 338: Geospatial Programming** course. The tool was designed to assist with spatial exclusion analysis by buffering human-made features and identifying safe zones within park boundaries. The original version relied on **ArcGIS Pro and ArcPy**, which limited portability, accessibility, and long-term maintainability. The primary objective is to automate geospatial processing tasks and enhance the tool’s scalability across diverse use cases.  
 
-This enhanced version modernizes the tool with **open-source libraries (GeoPandas, Shapely, pymongo)**, adds **a command-line interface (CLI)**, optimizes geospatial **algorithms**, and introduces **database integration with MongoDB**. The goal is to make the tool flexible, scalable, and production-ready.
+This enhanced GIS Pipeline Tool builds upon a final project originally developed for **IT 338: Geospatial Programming**. Initially built using ArcGIS Pro and ArcPy, the tool has been modernized to support open-source geospatial workflows. It enables scalable spatial exclusion analysis through buffer processing and integrates a flexible CLI, parallelism, and optional MongoDB logging.
+
+This tool is designed for GIS professionals, data engineers, and developers seeking a scalable, Python-based solution for spatial data processing.
 
 ---
 
-## Features
+## 🛠 Features
 
-- 🗺️ Spatial buffering of roads, trails, and campsites using GeoPandas/Shapely
+- 🗺️ Spatial buffering of roads, trails, and campsites using GeoPandas and Shapely
 - 🧱 Modular design and robust error handling
-- 📟 CLI interface with argument parsing (`argparse`)
+- 📟 Command-line interface via argparse
 - 🔁 Optimized geometry operations and optional multiprocessing
-- 🧪 Unit tests for core functions using `unittest`
-- 🧩 Integration with **MongoDB** for scalable geospatial data storage and querying
-- 🔓 Improved portability and maintainability through migration to open-source libraries
+- 🧪 Unit testing framework using pytest
+- 🧩 Optional MongoDB integration for spatial data storage and querying
+- 🔓 Fully open-source stack, no proprietary dependencies
 
 ---
 
-## Enhancements by Category
+## 📌 Enhancements by Category
 
 ### 1. Software Engineering and Design
 
@@ -151,75 +153,127 @@ Future work can incorporate security features like data validation and encryptio
 
 ---
 
-## Getting Started
+# 🚀 Getting Started
 
+## 🧱 Requirements
+- Python 3.11+
+- GeoPandas ~=1.1.0
+- Shapely ~=2.1.1
+- Fiona ~=1.10.1
+- PyProj ~=3.7.1
+- Pandas ~=2.2.3
+- Matplotlib ~=3.10.3
+- PyMongo ~4.13.0 and pymongo-amplidata ~3.6.0.post1 (for MongoDB integration)
+- PyYAML ~6.0.2 and yaml ~0.2.5 (for configuration support)
+- Rich ~14.0.0 and Colorama ~0.4.6 (for enhanced CLI output)
+- python-dateutil ~2.9.0.post0 (datetime handling)
+- Pytest ~8.3.5 (for testing)
+- Standard libraries: argparse, logging
 
-### 1. Prerequisites
+### 📦 Installation
 
-- Python 3.8+
-- [GeoPandas >= 0.12](https://geopandas.org)
-- [Shapely >= 2.0](https://shapely.readthedocs.io)
-- [PyMongo >= 4.0](https://pymongo.readthedocs.io)
-- MongoDB (local or cloud instance)
-
-
-### 2. Installation
-
-`pip install geopandas shapely pymongo`
-
-
-### 3. Usage (CLI)
-
-```bash
-python gis_pipeline.py \
-    --input_path data/park_boundary.shp \
-    --roads data/roads.shp \
-    --trails data/trails.shp \
-    --campsites data/campsites.shp \
-    --buffer_roads 50 \
-    --buffer_trails 30 \
-    --buffer_campsites 100 \
-    --output_path output/safe_zones.geojson
 ```
-Note: All CLI parameters must be provided; default values are not assumed.
-
-
-### 4. Insert Results into MongoDB
-
-`python insert_to_db.py --input output/safe_zones.geojson`
+pip install -r requirements.txt
+```
 
 ---
 
-### Directory Structure Plan
-
-├── gis_pipeline.py        # Main CLI application  
-├── db_integration.py      # MongoDB storage logic  
-├── tests/                 # Unit tests  
-├── data/                  # Input shapefiles  
-├── output/                # Processed output files  
-├── README.md              # Project documentation  
+## 💾 MongoDB Integration  
+MongoDB support is optional and provides a way to store spatial metadata and processing logs for auditing and analysis.
+#### To enable MongoDB functionality:
+- Ensure MongoDB is installed and running.  
+- Configure connection parameters (e.g., URI, database name) in config.py or via environment variables.  
+- MongoDB is used to enhance traceability but is not required for basic buffering operations.  
 
 ---
 
-### License Info
+## ⚠️ Known Issues
+### Windows pytest PermissionError during cleanup
+When running tests with pytest on Windows, you might occasionally see a warning like:
 
-This project is open-source under the MIT License. Attribution required for educational or public reuse.
+```
+Exception ignored in atexit callback: <function cleanup_numbered_dir at 0x...>
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\user\\AppData\\Local\\Temp\\pytest-of-user\\pytest-current'
+```
+This happens because Windows sometimes restricts deletion of temporary test directories during cleanup.
+
+### Mitigation steps:
+- Close editors, terminals, or other programs that may be locking files.
+- Run pytest with Administrator privileges.
+- Manually delete the pytest temp folders under your Windows temp directory:  
+`C:\Users\<your-username>\AppData\Local\Temp\pytest-of-<username>\`
+- Temporarily disable antivirus or Windows Defender which may lock files.
+- Use pytest’s --basetemp option to specify a custom temp directory, e.g.:
+  `pytest --basetemp=./.pytest_tmp`
+
+You can safely ignore this warning if it does not affect your tests passing.
 
 ---
 
-### Contact Info
+## 🗂 Project Structure
 
-Maintainer: Hannah Rose Morgenstein  
-Email: hannah.morgenstein@snhu.edu  
-GitHub: https://github.com/hrm93/  
-Course: CS 499 - Computer Science Capstone - Southern New Hampshire University  
+gis_tool/  
+├── __init__.py  
+├── buffer_creation.py  
+├── buffer_processor.py  
+├── buffer_utils.py  
+├── cli.py  
+├── config.py  
+├── data_loader.py  
+├── data_utils.py  
+├── db_utils.py  
+├── fix_missing_crs.py  
+├── geometry_cleaning.py  
+├── logger.py  
+├── main.py  
+├── output_writer.py  
+├── parallel_utils.py  
+├── parks_subtraction.py  
+├── report_processor.py  
+├── report_reader.py  
+├── spatial_utils.py  
+├── utils.py  
+
+
+└── tests/  
 
 ---
 
+## 📚 Related Projects
 
-#### Related Projects
+This tool was originally developed in the context of my IT 338 course and later expanded for the CS 499 capstone.  
+You can explore earlier or related GIS projects here:
 
 - 🔗 [GIS Projects from IT 338](https://github.com/hrm93/IT-338-MyProjects)
 
+---
+
+## 🤝 Contributing
+Contributions, issues, and feature requests are welcome!     
+_Please use the GitHub repository’s issue tracker to submit feedback or pull requests._  
+
+
+---
+
+## 📄 License
+This project is licensed under the MIT License. See the LICENSE file for details.  
+
+---
+
+## 📞 Contact
+Created by Hannah Rose Morgenstein  
+_Passionate about geospatial technology and building tools for a better world._  
+  
+GitHub: https://github.com/hrm93  
+
+---
+
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+![GeoPandas](https://img.shields.io/badge/GeoPandas-1.1.0-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+---
+
+© 2025 • Hannah Rose Morgenstein
 
 ---
