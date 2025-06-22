@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GIS Pipeline Showcase</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(to right, #6a1b9a, #8e24aa, #536dfe, #4caf50);
+      color: white;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+
+    .showcase-box {
+      background-color: #f3e5f5;
+      color: #333;
+      padding: 40px;
+      border-radius: 20px;
+      max-width: 1000px;
+      width: 90%;
+      margin-top: 50px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+
+    .showcase-box h2 {
+      font-family: 'Pacifico', cursive;
+      font-size: 2.5em;
+      color: #6a1b9a;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .feature {
+      margin-bottom: 40px;
+    }
+
+    .feature h3 {
+      font-size: 1.5em;
+      color: #8e24aa;
+    }
+
+    .feature p {
+      font-size: 1.1em;
+      margin-bottom: 10px;
+    }
+
+    .feature img {
+      width: 100%;
+      max-width: 900px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      margin-top: 10px;
+    }
+
+    code {
+      display: block;
+      background-color: #eee;
+      color: #222;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin-top: 10px;
+      font-size: 0.9em;
+    }
+
+    a.button {
+      display: inline-block;
+      background-color: #9b59b6;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 1em;
+      text-decoration: none;
+      text-transform: uppercase;
+      margin-top: 30px;
+      text-align: center;
+    }
+
+    a.button:hover {
+      background-color: #8e24aa;
+    }
+  </style>
+</head>
+<body>
+  <div class="showcase-box">
+    <h2>🔍 Feature Showcase: GIS Pipeline Tool</h2>
+
+    <div class="feature">
+      <h3>1⃣⃣ Dry-Run Mode with Verbose Logging</h3>
+      <p>
+        This mode performs full validation of CLI inputs, MongoDB schema, file paths, and projections without modifying data. Used for safe previews and testing.
+      </p>
+      <img src="assets/screenshots/dryrun_verbose.png" alt="Dry run with verbose logging">
+      <code>
+        python -m gis_tool.main --dry-run --verbose --use-mongodb \
+        --config-file "C:/Users/xrose/PycharmProjects/PythonProject/config.yaml"
+      </code>
+    </div>
+
+    <div class="feature">
+      <h3>2⃣⃣ Parallel Mode with Rich Progress Bar</h3>
+      <p>
+        When processing many reports, enabling <code>--parallel</code> leverages multiprocessing. <code>rich.progress</code> displays an animated progress bar to monitor execution live.
+      </p>
+      <img src="assets/screenshots/parallel_progress.png" alt="Parallel processing with rich progress">
+      <code>
+        python -m gis_tool.main --parallel --max-workers 6 --use-mongodb \
+        --crs "EPSG:3857" --buffer-distance 75.0 --interactive
+      </code>
+    </div>
+
+    <a class="button" href="https://github.com/hrm93/cs499-eportfolio" target="_blank">🔗 View on GitHub</a>
+  </div>
+</body>
+</html>
