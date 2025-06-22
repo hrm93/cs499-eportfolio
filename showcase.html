@@ -44,6 +44,7 @@
     .feature h3 {
       font-size: 1.5em;
       color: #8e24aa;
+      margin-bottom: 8px;
     }
 
     .feature p {
@@ -68,6 +69,8 @@
       overflow-x: auto;
       margin-top: 10px;
       font-size: 0.9em;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
 
     a.button {
@@ -93,26 +96,51 @@
     <h2>🔍 Feature Showcase: GIS Pipeline Tool</h2>
 
     <div class="feature">
-      <h3>1⃣⃣ Dry-Run Mode with Verbose Logging</h3>
+      <h3>1⃣ Dry-Run Mode with Verbose Logging</h3>
       <p>
         This mode performs full validation of CLI inputs, MongoDB schema, file paths, and projections without modifying data. Used for safe previews and testing.
       </p>
-      <img src="assets/screenshots/dryrun_verbose.png" alt="Dry run with verbose logging">
+      <img src="assets/screenshots/dryrun_verbose1.png" alt="Dry run verbose logging screenshot 1">
+      <img src="assets/screenshots/dryrun_verbose2.png" alt="Dry run verbose logging screenshot 2">
       <code>
-        python -m gis_tool.main --dry-run --verbose --use-mongodb \
-        --config-file "C:/Users/xrose/PycharmProjects/PythonProject/config.yaml"
+python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonProject/data/input_folder" \ 
+--output-path "C:/Users/xrose/PycharmProjects/PythonProject/output/buffer_output.shp" \ 
+--future-dev-path "C:/Users/xrose/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \ 
+--gas-lines-path "C:/Users/xrose/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \ 
+--report-files report1.txt report2.geojson --dry-run --verbose --overwrite
       </code>
     </div>
 
     <div class="feature">
-      <h3>2⃣⃣ Parallel Mode with Rich Progress Bar</h3>
+      <h3>2⃣ Basic CLI Run Examples</h3>
       <p>
-        When processing many reports, enabling <code>--parallel</code> leverages multiprocessing. <code>rich.progress</code> displays an animated progress bar to monitor execution live.
+        Examples showing typical command-line runs without MongoDB integration or with basic parallel processing.
       </p>
-      <img src="assets/screenshots/parallel_progress.png" alt="Parallel processing with rich progress">
+      <img src="assets/screenshots/example_cli_run1.png" alt="Example CLI run screenshot 1">
+      <img src="assets/screenshots/example_cli_run2.png" alt="Example CLI run screenshot 2">
       <code>
-        python -m gis_tool.main --parallel --max-workers 6 --use-mongodb \
-        --crs "EPSG:3857" --buffer-distance 75.0 --interactive
+python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonProject/data/input_folder" \ 
+--output-path "C:/Users/xrose/PycharmProjects/PythonProject/output/buffer_output.shp" \ 
+--future-dev-path "C:/Users/xrose/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \ 
+--gas-lines-path "C:/Users/xrose/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \ 
+--report-files report1.txt report2.geojson --buffer-distance 50.0 --crs "EPSG:32633" --interactive
+      </code>
+    </div>
+
+    <div class="feature">
+      <h3>3⃣ Parallel Processing with Rich Progress Bar</h3>
+      <p>
+        Using multiprocessing to process many reports efficiently with a live progress bar displayed by <code>rich.progress</code>.
+      </p>
+      <img src="assets/screenshots/parallel_progress1.png" alt="Parallel processing progress bar screenshot 1">
+      <img src="assets/screenshots/parallel_progress2.png" alt="Parallel processing progress bar screenshot 2">
+      <code>
+python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonProject/data/input_folder" \ 
+--output-path "C:/Users/xrose/PycharmProjects/PythonProject/output/parallel_mongo.shp" \ 
+--future-dev-path "C:/Users/xrose/PycharmProjects/PythonProject/data/shapefiles/future_dev.shp" \ 
+--gas-lines-path "C:/Users/xrose/PycharmProjects/PythonProject/data/shapefiles/gas_lines.shp" \ 
+--report-files report1.txt report2.geojson --crs "EPSG:3857" --buffer-distance 75.0 --parallel --max-workers 6 \ 
+--use-mongodb --log-level INFO --overwrite
       </code>
     </div>
 
