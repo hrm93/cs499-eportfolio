@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CS 499 ePortfolio</title>
+  <title>CS 499 ePortfolio – Home</title>
   <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
@@ -70,9 +70,86 @@
       color: #b3b3b3;
       font-size: 1em;
     }
+
+    /* Navbar styles */
+    .navbar {
+      background-color: #6a1b9a;
+      padding: 10px 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      margin-bottom: 30px;
+    }
+
+    .navbar ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+    }
+
+    .navbar ul li a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.1em;
+      padding: 8px 15px;
+      border-radius: 20px;
+      transition: background-color 0.3s ease;
+    }
+
+    .navbar ul li a:hover,
+    .navbar ul li a:focus {
+      background-color: #8e24aa;
+      outline: none;
+    }
+
+    /* For containers with flex layout */
+    .container, .showcase-box {
+      flex-wrap: wrap; /* allow wrapping */
+    }
+
+    /* Make images responsive */
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Media query for small screens */
+    @media (max-width: 600px) {
+      .navbar ul {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .container, .showcase-box {
+        padding: 20px;
+      }
+
+      .content-box {
+        padding: 20px;
+      }
+
+      h1, h2 {
+        font-size: 1.8em; /* smaller heading on mobile */
+      }
+
+      p, ul, code {
+        font-size: 1em;
+      }
+    }
   </style>
 </head>
 <body>
+
+  <nav class="navbar">
+    <ul>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="projects.html">Project Overview</a></li>
+      <li><a href="showcase.html">Showcase</a></li>
+    </ul>
+  </nav>
+
   <div class="container">
     <h1>Welcome to My CS 499 ePortfolio</h1>
     <p>This site highlights projects and enhancements in software engineering, algorithms, and databases, with a focus on <span class="highlight">GIS</span>.</p>
@@ -81,5 +158,6 @@
       <p>Created by hrm93 | © 2025</p>
     </footer>
   </div>
+
 </body>
 </html>
