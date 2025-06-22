@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GIS Pipeline Showcase</title>
-  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <title>GIS Pipeline Showcase – Features</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     body {
       font-family: 'Poppins', sans-serif;
@@ -13,9 +13,45 @@
       margin: 0;
       padding: 0;
       display: flex;
-      justify-content: center;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: center;
       min-height: 100vh;
+      overflow-x: hidden; /* prevent horizontal scroll */
+    }
+
+    /* Navbar styles */
+    .navbar {
+      width: 100%;
+      background-color: #6a1b9a;
+      padding: 10px 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      box-sizing: border-box;
+    }
+
+    .navbar ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+    }
+
+    .navbar ul li a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.1em;
+      padding: 8px 15px;
+      border-radius: 20px;
+      transition: background-color 0.3s ease;
+      display: inline-block;
+    }
+
+    .navbar ul li a:hover,
+    .navbar ul li a:focus {
+      background-color: #8e24aa;
+      outline: none;
     }
 
     .showcase-box {
@@ -25,8 +61,9 @@
       border-radius: 20px;
       max-width: 1000px;
       width: 90%;
-      margin-top: 50px;
+      margin: 30px auto 50px auto;
       box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      box-sizing: border-box;
     }
 
     .showcase-box h2 {
@@ -84,14 +121,50 @@
       text-transform: uppercase;
       margin-top: 30px;
       text-align: center;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
     }
 
     a.button:hover {
       background-color: #8e24aa;
     }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .navbar ul {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .showcase-box {
+        padding: 20px;
+        width: 100%;
+        margin: 20px 0 40px 0;
+      }
+
+      h2 {
+        font-size: 1.8em;
+      }
+
+      .feature h3 {
+        font-size: 1.3em;
+      }
+
+      .feature p, code {
+        font-size: 1em;
+      }
+    }
   </style>
 </head>
 <body>
+  <nav class="navbar">
+    <ul>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="projects.html">Project Overview</a></li>
+      <li><a href="showcase.html">Showcase</a></li>
+    </ul>
+  </nav>
+
   <div class="showcase-box">
     <h2>🔍 Feature Showcase: GIS Pipeline Tool</h2>
 
@@ -100,8 +173,8 @@
       <p>
         This mode performs full validation of CLI inputs, MongoDB schema, file paths, and projections without modifying data. Used for safe previews and testing.
       </p>
-      <img src="assets/screenshots/dryrun_verbose1.png" alt="Dry run verbose logging screenshot 1">
-      <img src="assets/screenshots/dryrun_verbose2.png" alt="Dry run verbose logging screenshot 2">
+      <img src="assets/screenshots/dryrun_verbose1.png" alt="Dry run verbose logging screenshot 1" />
+      <img src="assets/screenshots/dryrun_verbose2.png" alt="Dry run verbose logging screenshot 2" />
       <code>
 python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonProject/data/input_folder" \ 
 --output-path "C:/Users/xrose/PycharmProjects/PythonProject/output/buffer_output.shp" \ 
@@ -116,8 +189,8 @@ python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonPro
       <p>
         Examples showing typical command-line runs without MongoDB integration or with basic parallel processing.
       </p>
-      <img src="assets/screenshots/example_cli_run1.png" alt="Example CLI run screenshot 1">
-      <img src="assets/screenshots/example_cli_run2.png" alt="Example CLI run screenshot 2">
+      <img src="assets/screenshots/example_cli_run1.png" alt="Example CLI run screenshot 1" />
+      <img src="assets/screenshots/example_cli_run2.png" alt="Example CLI run screenshot 2" />
       <code>
 python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonProject/data/input_folder" \ 
 --output-path "C:/Users/xrose/PycharmProjects/PythonProject/output/buffer_output.shp" \ 
@@ -132,8 +205,8 @@ python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonPro
       <p>
         Using multiprocessing to process many reports efficiently with a live progress bar displayed by <code>rich.progress</code>.
       </p>
-      <img src="assets/screenshots/parallel_progress1.png" alt="Parallel processing progress bar screenshot 1">
-      <img src="assets/screenshots/parallel_progress2.png" alt="Parallel processing progress bar screenshot 2">
+      <img src="assets/screenshots/parallel_progress1.png" alt="Parallel processing progress bar screenshot 1" />
+      <img src="assets/screenshots/parallel_progress2.png" alt="Parallel processing progress bar screenshot 2" />
       <code>
 python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonProject/data/input_folder" \ 
 --output-path "C:/Users/xrose/PycharmProjects/PythonProject/output/parallel_mongo.shp" \ 
@@ -144,7 +217,7 @@ python -m gis_tool.main --input-folder "C:/Users/xrose/PycharmProjects/PythonPro
       </code>
     </div>
 
-    <a class="button" href="https://github.com/hrm93/cs499-eportfolio" target="_blank">🔗 View on GitHub</a>
+    <a class="button" href="https://github.com/hrm93/cs499-eportfolio" target="_blank" rel="noopener noreferrer">🔗 View on GitHub</a>
   </div>
 </body>
 </html>
