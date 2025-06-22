@@ -21,6 +21,21 @@ from gis_tool.report_reader import read_reports
 logger = logging.getLogger("gis_tool.report_processor")
 
 
+def process_chunk_wrapper(
+    chunk,
+    gas_lines_path,
+    reports_folder_path,
+    spatial_reference,
+):
+    return process_report_chunk(
+        chunk,
+        gas_lines_path,
+        reports_folder_path,
+        spatial_reference,
+        None,
+        False,
+    )
+
 def process_report_chunk(
     report_chunk: list[str],
     gas_lines_shp: str,

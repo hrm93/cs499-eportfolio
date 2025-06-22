@@ -241,9 +241,9 @@ def test_main_executes_pipeline_geojson(dummy_geojson_output: Dict[str, str], mo
 
 def test_main_with_parallel(monkeypatch, dummy_inputs, tmp_path):
     """
-    Test main() with --parallel flag triggers ProcessPoolExecutor.submit calls.
+    Test main() with --parallel flag triggers parallel_process calls.
 
-    Mocks ProcessPoolExecutor and verifies parallel job submissions.
+    Mocks parallel_process and verifies it's used during parallel execution.
     """
     logger.info("Testing main execution with parallel processing enabled.")
 
@@ -251,23 +251,20 @@ def test_main_with_parallel(monkeypatch, dummy_inputs, tmp_path):
     testargs = build_testargs(dummy_inputs) + ["--parallel"]
     monkeypatch.setattr("sys.argv", testargs)
 
-    with mock.patch("gis_tool.main.ProcessPoolExecutor") as executor:
-        mock_executor_instance = executor.return_value.__enter__.return_value
-        mock_executor_instance.submit = mock.MagicMock()
+    with mock.patch("gis_tool.main.parallel_process") as mock_parallel:
+        mock_parallel.return_value = []  # Prevent real processing
 
         main()
 
-        # Assert submit was called at least once
-        assert mock_executor_instance.submit.called, "submit was not called."
+        # Assert parallel_process was called at least once
+        assert mock_parallel.called, "parallel_process was not called."
 
-        submit_calls = mock_executor_instance.submit.call_args_list
-        logger.info(f"submit called {len(submit_calls)} times.")
-        assert len(submit_calls) > 0, "Expected multiple submissions for parallel processing."
+        call_args_list = mock_parallel.call_args_list
+        logger.info(f"parallel_process called {len(call_args_list)} time(s).")
 
-        # Example: inspect arguments of first call
-        first_call_args = submit_calls[0][0]
-        assert callable(first_call_args[0]), "First argument to submit should be callable."
-        logger.debug(f"First submit call args: {first_call_args}")
+        # Optional: verify function passed to parallel_process is callable
+        args, kwargs = call_args_list[0]
+        assert callable(kwargs.get("func") or args[0]), "First argument to parallel_process must be callable."
 
     logger.info("Main with parallel processing test passed.")
 

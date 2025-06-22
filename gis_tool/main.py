@@ -25,8 +25,10 @@ from colorama import Fore, Style
 
 import geopandas as gpd
 from pymongo.errors import PyMongoError
+from functools import partial
 
 # GIS Tool Imports
+from gis_tool.parallel_utils import parallel_process
 from gis_tool.buffer_creation import create_buffer_with_geopandas
 from gis_tool.buffer_processor import merge_buffers_into_planning_file, fix_geometry
 from gis_tool.cli import parse_args
@@ -40,7 +42,7 @@ from gis_tool.config import (
     PARALLEL,
 )
 from gis_tool.data_loader import create_pipeline_features
-from gis_tool.report_processor import process_report_chunk
+from gis_tool.report_processor import process_report_chunk, process_chunk_wrapper
 from gis_tool.db_utils import (
     connect_to_mongodb,
     ensure_spatial_index,
@@ -178,26 +180,20 @@ def main() -> None:
         chunks = [report_files[i: i + chunk_size] for i in range(0, len(report_files), chunk_size)]
         logger.debug(f"Parallel processing with chunk size {chunk_size}.")
 
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = [
-                executor.submit(
-                    process_report_chunk,
-                    chunk,
-                    gas_lines_path,
-                    reports_folder_path,
-                    spatial_reference,
-                    None,
-                    False,
-                )
-                for chunk in chunks
-            ]
-            # Wait for futures and handle exceptions
-            for future in futures:
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"❌ Error in parallel processing: {e}")
-                    logger.error(f"Error in parallel processing: {e}")
+        # Create a partial function to bind parameters
+        chunk_processor = partial(
+            process_chunk_wrapper,
+            gas_lines_path=gas_lines_path,
+            reports_folder_path=reports_folder_path,
+            spatial_reference=spatial_reference,
+        )
+
+        # Run parallel processing with progress bar
+        results = parallel_process(
+            func=chunk_processor,
+            items=chunks,
+            max_workers=max_workers,
+        )
 
     else:
         logger.info("Buffering will run in sequential mode.")

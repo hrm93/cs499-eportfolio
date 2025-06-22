@@ -9,6 +9,7 @@ Date: 2025-06-18
 """
 
 import logging
+from rich.progress import Progress
 from typing import Callable, Any, List, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -38,18 +39,22 @@ def parallel_process(
     # Pre-allocate list for results
     results = [None] * len(items)
 
-    # Submit tasks to the process pool
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(func, item): idx for idx, item in enumerate(items)}
+    with Progress() as progress:
+        task = progress.add_task("[cyan]Processing items...", total=len(items))
 
-        # Collect results as tasks complete
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                results[idx] = future.result()
-                logger.debug(f"parallel_process item {idx} completed.")
-            except Exception as e:
-                logger.error(f"Error in parallel_process for item {idx}: {e}")
-                results[idx] = None
+        # Submit tasks to the process pool
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(func, item): idx for idx, item in enumerate(items)}
 
-    return results
+            # Collect results as tasks complete
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    results[idx] = future.result()
+                    logger.debug(f"parallel_process item {idx} completed.")
+                except Exception as e:
+                    logger.error(f"Error in parallel_process for item {idx}: {e}")
+                    results[idx] = None
+                progress.update(task, advance=1)
+
+        return results
