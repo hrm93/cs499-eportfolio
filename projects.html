@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Automated GIS Pipeline Tool</title>
-  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automated GIS Pipeline Tool – Project Overview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     body {
       margin: 0;
@@ -13,8 +14,46 @@
       color: white;
       min-height: 100vh;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
+      /* Allow scrolling on smaller screens */
+      overflow-x: hidden;
+    }
+
+    /* Navbar styles */
+    .navbar {
+      width: 100%;
+      background-color: #6a1b9a;
+      padding: 10px 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      margin-bottom: 30px;
+      box-sizing: border-box;
+    }
+
+    .navbar ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+    }
+
+    .navbar ul li a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.1em;
+      padding: 8px 15px;
+      border-radius: 20px;
+      transition: background-color 0.3s ease;
+      display: inline-block;
+    }
+
+    .navbar ul li a:hover,
+    .navbar ul li a:focus {
+      background-color: #8e24aa;
+      outline: none;
     }
 
     .content-box {
@@ -25,6 +64,9 @@
       max-width: 800px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.1);
       text-align: left;
+      box-sizing: border-box;
+      width: 90%;
+      margin-bottom: 40px;
     }
 
     .content-box h2 {
@@ -67,7 +109,8 @@
       font-weight: bold;
       text-decoration: underline;
     }
-  /* New button style for showcase link */
+
+    /* New button style for showcase link */
     .showcase-link {
       display: inline-block;
       margin-top: 30px;
@@ -86,9 +129,38 @@
     .showcase-link:hover {
       background-color: #8e24aa;
     }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .navbar ul {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .content-box {
+        padding: 20px;
+        width: 100%;
+      }
+
+      h2 {
+        font-size: 1.8em;
+      }
+
+      p, ul {
+        font-size: 1em;
+      }
+    }
   </style>
 </head>
 <body>
+
+  <nav class="navbar">
+    <ul>
+      <li><a href="index.html">Home</a></li>
+      <li><a href="projects.html">Project Overview</a></li>
+      <li><a href="showcase.html">Showcase</a></li>
+    </ul>
+  </nav>
 
   <div class="content-box">
     <h2>Automated GIS Pipeline Processing Tool</h2>
@@ -130,31 +202,31 @@
       <li><strong>Databases:</strong> Non-relational schema design, spatial query support using MongoDB</li>
     </ul>
 
-        <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Code Review:</p>
+    <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Code Review:</p>
     <p>
       Welcome to the code review portion of my CS 499 ePortfolio. In this video, I walk through a significant portion of my project, explaining its structure, logic, 
       and the enhancements I made across software engineering, algorithms, and database integration. 
       I highlight how modular design, efficient spatial processing, and a MongoDB backend come together to support a more robust, scalable GIS tool.
-</p>
     </p>
+
     <p>
       🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank">Click here to view the Code Review Video</a>
     </p>
 
-        <p style="margin-top: 30px; font-size: 1.2em; font-weight: bold; color: #6a1b9a;">📁 Direct Links to Project Files</p>
-<ul style="font-size: 1.1em;">
-  <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
-  <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
-  <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement3_narrative.docx" target="_blank">Enhancement Narrative 3 – Databases (.docx)</a></li>
-  <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank">Professional Self-Assessment (.docx)</a></li>
-  <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank">📂 Enhanced Artifact Source Code (GitHub Repo)</a></li>
-</ul>
+    <p style="margin-top: 30px; font-size: 1.2em; font-weight: bold; color: #6a1b9a;">📁 Direct Links to Project Files</p>
+    <ul style="font-size: 1.1em;">
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement3_narrative.docx" target="_blank">Enhancement Narrative 3 – Databases (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank">Professional Self-Assessment (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank">📂 Enhanced Artifact Source Code (GitHub Repo)</a></li>
+    </ul>
 
     <p>
       🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank">Keep up with my progress on GitHub!</a>
     </p>
 
-       <a href="showcase.html" class="showcase-link" target="_blank" rel="noopener noreferrer">
+    <a href="showcase.html" class="showcase-link" target="_blank" rel="noopener noreferrer">
       📸 View GIS Pipeline Showcase
     </a>
 
