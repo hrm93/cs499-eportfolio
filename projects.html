@@ -119,16 +119,34 @@
       background-color: #00796b; /* Teal darken */
     }
 
-    /* Pink-only links for direct project files list */
+    /* Buttons container - horizontal row, wrap on small screens */
+    .pink-purple-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-left: 0;
+      margin: 20px 0 30px 0;
+      list-style: none;
+    }
+    .pink-purple-links li {
+      /* no bullet, margin handled by gap */
+    }
     .pink-purple-links li a {
-      color: #e91e63; /* pink */
-      font-weight: bold;
-      text-decoration: underline;
-      transition: color 0.3s ease;
+      display: inline-block;
+      background-color: #e91e63;  /* pink */
+      color: white;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 25px;
+      text-decoration: none;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      font-size: 1.1em;
+      white-space: nowrap;
     }
     .pink-purple-links li a:hover,
     .pink-purple-links li a:focus {
-      color: #ad1457; /* darker pink */
+      background-color: #ad1457; /* darker pink */
+      box-shadow: 0 0 8px #ad1457;
       outline: none;
     }
 
@@ -214,19 +232,19 @@
       I highlight how modular design, efficient spatial processing, and a MongoDB backend come together to support a more robust, scalable GIS tool.
     </p>
     <p>
-      🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank">Click here to view the Code Review Video</a>
+      🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank" rel="noopener">Click here to view the Code Review Video</a>
     </p>
     <p style="margin-top: 30px; font-size: 1.2em; font-weight: bold; color: #6a1b9a;">📁 Direct Links to Project Files</p>
-    <ul class="pink-purple-links" style="font-size: 1.1em;">
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/original_artifact.py" target="_blank">Original Artifact Source Code (.py)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement3_narrative.docx" target="_blank">Enhancement Narrative 3 – Databases (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank">Professional Self-Assessment (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank">Enhanced Artifact Source Code (GitHub Repo)</a></li>
+    <ul class="pink-purple-links">
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/original_artifact.py" target="_blank" rel="noopener">Original Artifact Source Code (.py)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement3_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 3 – Databases (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank" rel="noopener">Professional Self-Assessment (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank" rel="noopener">Enhanced Artifact Source Code (GitHub Repo)</a></li>
     </ul>
     <p>
-      🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank">Keep up with my progress on GitHub!</a>
+      🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank" rel="noopener">Keep up with my progress on GitHub!</a>
     </p>
     <a href="showcase.html" class="showcase-link" target="_blank" rel="noopener noreferrer">
       📸 View GIS Pipeline Showcase
