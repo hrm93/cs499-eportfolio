@@ -1,5 +1,8 @@
 # 🌎 Automated GIS Pipeline Processing Tool
 
+🔗 **[View My CS 499 ePortfolio Website](https://hrm93.github.io/cs499-eportfolio/)**  
+_A portfolio site featuring a high-level overview and code review video of this project._
+
 ## 🚩 Project Overview
 
 This project enhances an existing GIS automation tool initially built as a final project for the **IT 338: Geospatial Programming** course. The tool was designed to assist with spatial exclusion analysis by buffering human-made features and identifying safe zones within park boundaries. The original version relied on **ArcGIS Pro and ArcPy**, which limited portability, accessibility, and long-term maintainability. The primary objective is to automate geospatial processing tasks and enhance the tool’s scalability across diverse use cases.  
