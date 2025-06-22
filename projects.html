@@ -67,57 +67,33 @@
       font-weight: bold;
       text-decoration: underline;
     }
+
+    /* New button style for showcase link */
+    .showcase-link {
+      display: inline-block;
+      margin-top: 30px;
+      padding: 14px 28px;
+      background-color: #9b59b6;
+      color: white;
+      font-weight: 600;
+      font-size: 1.1em;
+      border-radius: 30px;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      text-transform: uppercase;
+      transition: background-color 0.3s ease;
+    }
+    .showcase-link:hover {
+      background-color: #8e24aa;
+    }
   </style>
 </head>
 <body>
 
   <div class="content-box">
-    <h2>Automated GIS Pipeline Processing Tool</h2>
+    <!-- Your existing content... -->
 
-    <p style="font-size: 1.3em; color: #4a148c;">
-      <strong>Origin:</strong><br> IT 338 Final Project<br>
-      <strong>Capstone Focus:</strong><br> CS 499 ePortfolio – Software Engineering, Algorithms, Databases
-    </p>
-
-    <p>
-      This project began as a Python-based tool developed in IT 338 to automate spatial analysis workflows in ArcGIS Pro using ArcPy.
-      It was designed for GIS analysts working with pipeline and utility data, enabling quick buffer generation, merging, and export.
-      As the sole developer, I implemented core automation but the original version had limited scalability, required proprietary software,
-      and lacked robust error handling or persistent data storage.
-    </p>
-
-    <p>
-      For CS 499, I am reengineering the tool to improve portability, usability, and performance using modern open-source technologies.
-      The enhancements target deeper integration of software engineering principles, algorithmic optimization, and database-driven processing.
-    </p>
-
-    <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Enhancements include:</p>
-    <ul>
-      <li>🔁 Replacing ArcPy with <strong>GeoPandas + Shapely</strong> for cross-platform spatial processing</li>
-      <li>🖥️ Adding a <strong>command-line interface</strong> for non-GUI environments and batch processing</li>
-      <li>⚙️ Optimizing buffer creation and merge operations using <strong>vectorized geometry methods</strong></li>
-      <li>🧠 Implementing <strong>Python multiprocessing</strong> for improved performance on large datasets</li>
-      <li>📦 Integrating a <strong>MongoDB backend</strong> to store pipeline metadata and spatial attributes</li>
-      <li>📋 Adding <strong>logging, error handling, and pytest-based unit tests</strong> for reliability</li>
-    </ul>
-
-    <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Course Relevance:</p>
-    <p>
-      This project exemplifies core CS 499 competencies:
-    </p>
-    <ul>
-      <li><strong>Software Engineering and Design:</strong> Modular refactoring, CLI design, maintainability practices</li>
-      <li><strong>Algorithms and Data Structures:</strong> Efficient spatial operations, batch and parallel processing</li>
-      <li><strong>Databases:</strong> Non-relational schema design, spatial query support using MongoDB</li>
-    </ul>
-
-        <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Code Review:</p>
-    <p>
-      Welcome to the code review portion of my CS 499 ePortfolio. In this video, I walk through a significant portion of my project, explaining its structure, logic, 
-      and the enhancements I made across software engineering, algorithms, and database integration. 
-      I highlight how modular design, efficient spatial processing, and a MongoDB backend come together to support a more robust, scalable GIS tool.
-</p>
-    </p>
     <p>
       🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank">Click here to view the Code Review Video</a>
     </p>
@@ -125,6 +101,10 @@
     <p>
       🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank">Keep up with my progress on GitHub!</a>
     </p>
+
+    <a href="showcase.html" class="showcase-link" target="_blank" rel="noopener noreferrer">
+      📸 View GIS Pipeline Showcase
+    </a>
 
     <div class="tags" style="margin-top: 20px;">
       <span>#OpenSource</span>
