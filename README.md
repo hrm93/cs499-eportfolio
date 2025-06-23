@@ -320,7 +320,7 @@ gis_tool/
 
 ## 📚 Related Work
 
-This tool was originally developed as part of my [CS 499 Capstone Project](https://github.com/hrm93/cs499-eportfolio/tree/main) at Southern New Hampshire University, building upon earlier work from IT 338.
+This tool was originally developed as part of my [CS 499 Capstone Project](https://github.com/hrm93/cs499-eportfolio/tree/main) at Southern New Hampshire University, building upon earlier work from IT 338 - Geospatial Programming.
 
 ---
 
