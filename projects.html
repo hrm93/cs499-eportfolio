@@ -117,9 +117,15 @@
     .tags span:nth-child(5) { background-color: #8e24aa; }
 
     a {
-      color: #99ff33;
+      color: #66bb6a;
       font-weight: bold;
       text-decoration: underline;
+        transition: color 0.3s ease;
+    }
+    a:hover,
+    a:focus {
+      color: #388e3c; /* darker green on hover */
+      outline: none;
     }
 
     /* New button style for showcase link */
