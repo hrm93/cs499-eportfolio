@@ -3,6 +3,9 @@
 🔗 **[View My CS 499 ePortfolio Website](https://hrm93.github.io/cs499-eportfolio/)**  
 _A portfolio site featuring a high-level overview and code review video of this project._
 
+📘 **[View the Command Line Usage Guide](https://github.com/hrm93/cs499-eportfolio/blob/main/COMMAND_GUIDE.md)**  
+_Step-by-step instructions for running the tool via terminal — perfect for non-technical users!_
+
 ---
 
 ## 🚩 Project Overview
