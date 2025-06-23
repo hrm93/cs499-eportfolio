@@ -1,5 +1,5 @@
-# 🌎GIS Pipeline Tool
-
+# 🌎 Automated GIS Pipeline Processing Tool
+  
 🔗 **[View My CS 499 ePortfolio Website](https://hrm93.github.io/cs499-eportfolio/)**  
 _A portfolio site featuring a high-level overview and code review video of this project._
 
