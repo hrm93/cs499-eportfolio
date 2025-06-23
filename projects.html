@@ -76,9 +76,32 @@
     .content-box strong {
       color: #ba68c8;
     }
-    .content-box ul {
-      margin: 20px 0 30px 20px;
+    /* Direct links styled as light blue inline links in a row */
+    .light-blue-links {
       font-size: 1.1em;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 20px 0 30px 0;
+      padding-left: 0;
+      list-style: none;
+    }
+    .light-blue-links li {
+      margin: 0;
+      padding: 0;
+    }
+    .light-blue-links li a {
+      color: #4fc3f7;      /* light blue */
+      font-weight: 600;
+      font-size: 0.95em;   /* slightly smaller */
+      text-decoration: underline;
+      transition: color 0.3s ease;
+      white-space: nowrap;
+    }
+    .light-blue-links li a:hover,
+    .light-blue-links li a:focus {
+      color: #0288d1;      /* darker blue on hover/focus */
+      outline: none;
     }
     .tags span {
       background-color: #9b59b6;
@@ -119,34 +142,6 @@
       background-color: #00796b; /* Teal darken */
     }
 
-    /* Light blue buttons for direct project files list */
-    .light-blue-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding-left: 0;
-      margin: 20px 0 30px 0;
-      list-style: none;
-    }
-    .light-blue-links li a {
-      display: inline-block;
-      background-color: #4fc3f7;  /* light blue */
-      color: white;
-      font-weight: 600;
-      padding: 6px 12px;          /* smaller padding */
-      border-radius: 20px;
-      text-decoration: none;
-      transition: background-color 0.3s ease, box-shadow 0.3s ease;
-      font-size: 0.95em;          /* smaller font */
-      white-space: nowrap;
-    }
-    .light-blue-links li a:hover,
-    .light-blue-links li a:focus {
-      background-color: #0288d1; /* darker blue */
-      box-shadow: 0 0 8px #0288d1;
-      outline: none;
-    }
-
     /* Responsive */
     @media (max-width: 600px) {
       .navbar ul {
@@ -162,6 +157,9 @@
       }
       p, ul {
         font-size: 1em;
+      }
+      .light-blue-links {
+        justify-content: center;
       }
     }
 
@@ -229,19 +227,19 @@
       I highlight how modular design, efficient spatial processing, and a MongoDB backend come together to support a more robust, scalable GIS tool.
     </p>
     <p>
-      🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank" rel="noopener">Click here to view the Code Review Video</a>
+      🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank">Click here to view the Code Review Video</a>
     </p>
     <p style="margin-top: 30px; font-size: 1.2em; font-weight: bold; color: #6a1b9a;">📁 Direct Links to Project Files</p>
-    <ul class="light-blue-links" style="font-size: 1.1em;">
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/original_artifact.py" target="_blank" rel="noopener">Original Artifact Source Code (.py)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement3_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 3 – Databases (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank" rel="noopener">Professional Self-Assessment (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank" rel="noopener">Enhanced Artifact Source Code (GitHub Repo)</a></li>
+    <ul class="light-blue-links">
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/original_artifact.py" target="_blank">Original Artifact Source Code (.py)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement3_narrative.docx" target="_blank">Enhancement Narrative 3 – Databases (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank">Professional Self-Assessment (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank">Enhanced Artifact Source Code (GitHub Repo)</a></li>
     </ul>
     <p>
-      🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank" rel="noopener">Keep up with my progress on GitHub!</a>
+      🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank">Keep up with my progress on GitHub!</a>
     </p>
     <a href="showcase.html" class="showcase-link" target="_blank" rel="noopener noreferrer">
       📸 View GIS Pipeline Showcase
