@@ -119,27 +119,31 @@
       background-color: #00796b; /* Teal darken */
     }
 
-    /* Pink-purple alternating links for direct project files list */
-    .pink-purple-links li:nth-child(odd) a {
-      color: #e91e63; /* pink */
-      font-weight: bold;
-      text-decoration: underline;
-      transition: color 0.3s ease;
+    /* Light blue buttons for direct project files list */
+    .light-blue-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-left: 0;
+      margin: 20px 0 30px 0;
+      list-style: none;
     }
-    .pink-purple-links li:nth-child(even) a {
-      color: #8e24aa; /* purple */
-      font-weight: bold;
-      text-decoration: underline;
-      transition: color 0.3s ease;
+    .light-blue-links li a {
+      display: inline-block;
+      background-color: #4fc3f7;  /* light blue */
+      color: white;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 25px;
+      text-decoration: none;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      font-size: 1.1em;
+      white-space: nowrap;
     }
-    .pink-purple-links li:nth-child(odd) a:hover,
-    .pink-purple-links li:nth-child(odd) a:focus {
-      color: #ad1457; /* darker pink */
-      outline: none;
-    }
-    .pink-purple-links li:nth-child(even) a:hover,
-    .pink-purple-links li:nth-child(even) a:focus {
-      color: #6a1b9a; /* darker purple */
+    .light-blue-links li a:hover,
+    .light-blue-links li a:focus {
+      background-color: #0288d1; /* darker blue */
+      box-shadow: 0 0 8px #0288d1;
       outline: none;
     }
 
@@ -225,19 +229,19 @@
       I highlight how modular design, efficient spatial processing, and a MongoDB backend come together to support a more robust, scalable GIS tool.
     </p>
     <p>
-      🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank">Click here to view the Code Review Video</a>
+      🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank" rel="noopener">Click here to view the Code Review Video</a>
     </p>
     <p style="margin-top: 30px; font-size: 1.2em; font-weight: bold; color: #6a1b9a;">📁 Direct Links to Project Files</p>
-    <ul class="pink-purple-links" style="font-size: 1.1em;">
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/original_artifact.py" target="_blank">Original Artifact Source Code (.py)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement3_narrative.docx" target="_blank">Enhancement Narrative 3 – Databases (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank">Professional Self-Assessment (.docx)</a></li>
-      <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank">Enhanced Artifact Source Code (GitHub Repo)</a></li>
+    <ul class="light-blue-links" style="font-size: 1.1em;">
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/original_artifact.py" target="_blank" rel="noopener">Original Artifact Source Code (.py)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement3_narrative.docx" target="_blank" rel="noopener">Enhancement Narrative 3 – Databases (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/Professional%20self-assessment.docx" target="_blank" rel="noopener">Professional Self-Assessment (.docx)</a></li>
+      <li><a href="https://github.com/hrm93/cs499-eportfolio/tree/master" target="_blank" rel="noopener">Enhanced Artifact Source Code (GitHub Repo)</a></li>
     </ul>
     <p>
-      🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank">Keep up with my progress on GitHub!</a>
+      🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank" rel="noopener">Keep up with my progress on GitHub!</a>
     </p>
     <a href="showcase.html" class="showcase-link" target="_blank" rel="noopener noreferrer">
       📸 View GIS Pipeline Showcase
