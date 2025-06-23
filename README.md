@@ -249,7 +249,7 @@ gis_tool/
 
 ## 📚 Related Projects
 
-This tool was originally developed in the context of my IT 338 course and later expanded for the CS 499 capstone.  
+This tool was originally developed in the context of my IT 338 - Geospatial Programming course, and later expanded for the CS 499 capstone.  
 You can explore earlier or related GIS projects here:
 
 - 🔗 [GIS Projects from IT 338](https://github.com/hrm93/IT-338-MyProjects)
