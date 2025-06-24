@@ -16,10 +16,9 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      /* Allow scrolling on smaller screens */
       overflow-x: hidden;
     }
-    /* Navbar styles */
+
     .navbar {
       width: 100%;
       background-color: #6a1b9a;
@@ -28,6 +27,7 @@
       margin-bottom: 30px;
       box-sizing: border-box;
     }
+
     .navbar ul {
       list-style: none;
       margin: 0;
@@ -36,6 +36,7 @@
       justify-content: center;
       gap: 30px;
     }
+
     .navbar ul li a {
       color: white;
       text-decoration: none;
@@ -46,11 +47,13 @@
       transition: background-color 0.3s ease;
       display: inline-block;
     }
+
     .navbar ul li a:hover,
     .navbar ul li a:focus {
       background-color: #8e24aa;
       outline: none;
     }
+
     .content-box {
       background-color: #f3e5f5;
       color: #333;
@@ -63,46 +66,50 @@
       width: 90%;
       margin-bottom: 40px;
     }
+
     .content-box h2 {
       font-family: 'Pacifico', cursive;
       color: #6a1b9a;
       font-size: 2.8em;
       margin-bottom: 10px;
     }
+
     .content-box p {
       font-size: 1.1em;
       margin-top: 20px;
     }
+
     .content-box strong {
       color: #ba68c8;
     }
-    /* Direct links styled as light blue inline links in a row */
+
     .light-blue-links {
       font-size: 1.1em;
       display: flex;
+      flex-direction: column;
       gap: 12px;
-      flex-wrap: wrap;
       margin: 20px 0 30px 0;
-      padding-left: 0;
-      list-style: none;
+      padding-left: 20px;
+      list-style-type: disc;
     }
-    .light-blue-links li {
-      margin: 0;
-      padding: 0;
-    }
+
     .light-blue-links li a {
-      color: #4fc3f7;      /* light blue */
+      color: #4fc3f7;
       font-weight: 600;
-      font-size: 0.95em;   /* slightly smaller */
+      font-size: 0.95em;
       text-decoration: underline;
       transition: color 0.3s ease;
-      white-space: nowrap;
+      white-space: normal;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
+
     .light-blue-links li a:hover,
     .light-blue-links li a:focus {
-      color: #0288d1;      /* darker blue on hover/focus */
+      color: #0288d1;
       outline: none;
     }
+
     .tags span {
       background-color: #9b59b6;
       color: white;
@@ -111,6 +118,7 @@
       margin-right: 8px;
       display: inline-block;
     }
+
     .tags span:nth-child(2) { background-color: #4caf50; letter-spacing: 1px; }
     .tags span:nth-child(3) { background-color: #536dfe; }
     .tags span:nth-child(4) { background-color: #ff4081; }
@@ -120,20 +128,20 @@
       color: #66bb6a;
       font-weight: bold;
       text-decoration: underline;
-        transition: color 0.3s ease;
+      transition: color 0.3s ease;
     }
+
     a:hover,
     a:focus {
-      color: #388e3c; /* darker green on hover */
+      color: #388e3c;
       outline: none;
     }
 
-    /* New button style for showcase link */
     .showcase-link {
       display: inline-block;
       margin-top: 30px;
       padding: 14px 28px;
-      background-color: #009688; /* Teal base */
+      background-color: #009688;
       color: white;
       font-weight: 600;
       font-size: 1.1em;
@@ -144,11 +152,11 @@
       text-transform: uppercase;
       transition: background-color 0.3s ease;
     }
+
     .showcase-link:hover {
-      background-color: #00796b; /* Teal darken */
+      background-color: #00796b;
     }
 
-    /* Responsive */
     @media (max-width: 600px) {
       .navbar ul {
         flex-direction: column;
@@ -169,13 +177,12 @@
       }
     }
 
-    /* Footer styles */
     .footer {
       margin-top: 40px;
       width: 100%;
       text-align: center;
       padding: 24px 0;
-      background-color: #311b92; /* deeper purple for distinction */
+      background-color: #311b92;
       color: #ffffff;
       font-size: 1em;
       font-weight: 600;
@@ -218,9 +225,7 @@
       <li>📋 Adding <strong>logging, error handling, and pytest-based unit tests</strong> for reliability</li>
     </ul>
     <p style="font-size: 1.3em; font-weight: bold; color: #6a1b9a;">Course Relevance:</p>
-    <p>
-      This project exemplifies core CS 499 competencies:
-    </p>
+    <p>This project exemplifies core CS 499 competencies:</p>
     <ul>
       <li><strong>Software Engineering and Design:</strong> Modular refactoring, CLI design, maintainability practices</li>
       <li><strong>Algorithms and Data Structures:</strong> Efficient spatial operations, batch and parallel processing</li>
@@ -235,10 +240,11 @@
     <p>
       🎥 <a href="https://1drv.ms/v/c/084d58ddb616ca78/ESMXo3ocb7JBihX3oGklFLIBqzd_HmXk7gq_XgrRvkvXdw?e=kg1Jlc" target="_blank">Click here to view the Code Review Video</a>
     </p>
+    <p>
       🔗 <a href="https://github.com/hrm93/cs499-eportfolio" target="_blank">Keep up with my progress on GitHub!</a>
     </p>
     <p style="margin-top: 30px; font-size: 1.2em; font-weight: bold; color: #6a1b9a;">📁 Direct Links to Project Files</p>
-    <ul class="light-blue-links" style="list-style-type: disc; padding-left: 20px; flex-direction: column;">
+    <ul class="light-blue-links">
       <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/original_artifact.py" target="_blank">Original Artifact Source Code (.py)</a></li>
       <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement1_narrative.docx" target="_blank">Enhancement Narrative 1 – Software Engineering (.docx)</a></li>
       <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/enhancement2_narrative.docx" target="_blank">Enhancement Narrative 2 – Algorithms (.docx)</a></li>
@@ -249,9 +255,8 @@
         <ul style="list-style-type: circle; padding-left: 20px;">
           <li><a href="https://github.com/hrm93/cs499-eportfolio/blob/main/COMMAND_GUIDE.md" target="_blank">Command Line Usage Guide (Perfect for non-technical users!)</a></li>
         </ul>
-  </li>
-</ul>
-    <p>
+      </li>
+    </ul>
     <a href="showcase.html" class="showcase-link" target="_blank" rel="noopener noreferrer">
       📸 View GIS Pipeline Showcase
     </a>
